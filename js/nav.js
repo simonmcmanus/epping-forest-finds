@@ -1934,6 +1934,11 @@ function focusNearbyOnClusterGroup(cluster) {
   const { centerPoint, center, targetMinutes } = clusterFocusTarget(items);
 
   setInspectorMinimized(false);
+  // Read before the tween is stopped: a wide-shot first leg paces the origin slide, so once its
+  // tween is cleared the old slide reads as finished and the origin and the 3D pivot would snap to
+  // the old group's final state instead of continuing from what is on screen.
+  const drawnOrigin = nearbyRenderOriginPointNow();
+  const drawnPivot = tiltRampedAnchor(false);
   stopViewportAnimation();
   state.clusterZoomed = false;
   // Stashed only on the way *into* the exact-membership view, not on every nested drill-down
@@ -1961,7 +1966,7 @@ function focusNearbyOnClusterGroup(cluster) {
   // lands mid an earlier slide, rather than cutting straight to the new centre. The tapped group
   // grows into the ring, and like every programmatic move the old set fades out once and the fresh
   // set reveals once after the last leg lands (markerGroupingPaused).
-  startNearbyOriginTransition(nearbyRenderOriginPoint());
+  startNearbyOriginTransition(drawnOrigin, drawnPivot);
   state.nearbyAnchor = { latitude: center.latitude, longitude: center.longitude, point: centerPoint };
   state.walkingDistanceMinutes = targetMinutes;
   state.outOfRadiusRevealFilters = [];

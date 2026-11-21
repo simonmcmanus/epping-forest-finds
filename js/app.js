@@ -4694,6 +4694,15 @@ function nearbyRenderOriginPoint() {
   return _nearbyRenderOriginCache;
 }
 
+// The origin as it stands against the camera right now, bypassing the per-frame freeze. A camera tick
+// moves the viewport (and the wide-shot tween's progress) before the next draw clears the freeze, so for
+// a caller that re-targets between the two the frozen value is a tick behind the viewport it would be
+// paired with.
+function nearbyRenderOriginPointNow() {
+  _nearbyRenderOriginCache = undefined;
+  return nearbyRenderOriginPoint();
+}
+
 // Frozen for the duration of a frame (cleared wherever _tiltProjectionCache is). Without
 // that, everything reading it during one draw reads a *different* interpolated point: the
 // camera is solved from the origin as it was at the top of the frame, and by the time the
@@ -4719,7 +4728,7 @@ function computeNearbyRenderOriginPoint() {
 // Starts the slide from wherever the origin is currently *drawn* -- not from the old logical
 // origin -- so relocating again mid-slide continues from what is on screen instead of
 // jumping back to where the last slide began.
-function startNearbyOriginTransition(fromPoint) {
+function startNearbyOriginTransition(fromPoint, fromPivot) {
   // The frame freeze above would otherwise hand the camera the pre-move origin for the rest
   // of this frame -- including the align refreshNearbyRadiusView runs immediately after.
   _nearbyRenderOriginCache = undefined;
@@ -4731,6 +4740,9 @@ function startNearbyOriginTransition(fromPoint) {
     // can tell entering/leaving a browsed spot (where the 3D pivot moves) from hopping
     // between two browsed spots (where it does not).
     fromBrowsing: Boolean(state.nearbyAnchor),
+    // The 3D pivot anchor fraction as last drawn, when a caller re-targets mid-move (tiltRampedAnchor
+    // then continues from it rather than from the settled value for fromBrowsing).
+    fromPivot: Number.isFinite(fromPivot) ? fromPivot : null,
     // The zoom the slide starts from. The slide moves the map under a still ring, so a move that also
     // needs a different zoom (Back from a zoomed-in place to the browse view) would otherwise get its
     // new scale in one step on the first frame. alignHeadingUpNavigationViewport eases from this to the
@@ -4750,10 +4762,11 @@ function startNearbyOriginTransition(fromPoint) {
 }
 
 // The slide's pause is judged by the slide itself while its object is alive and running, and after
-// that by any camera tween still flying: prepareCanvasForDraw drops state.nearbyOriginTransition as
-// soon as a tween runs, so a slide overlapping a tween would otherwise end its pause on about the
-// second frame, and a pure-pan tween would then swap the fresh set in mid-flight. The pause ends when
-// the last leg lands. A slide replaced or cleared by anything else (a selection) no longer holds it.
+// that by any camera tween still flying: prepareCanvasForDraw drops state.nearbyOriginTransition once a
+// tween runs, except while the wide shot's first leg is flying (wideLegSlideFlying), which keeps it so
+// the origin travels with the camera. Any other tween overlapping a slide would otherwise end its pause
+// on about the second frame, and a pure-pan tween would then swap the fresh set in mid-flight. The pause
+// ends when the last leg lands. A slide replaced or cleared by anything else (a selection) no longer holds it.
 //
 // Intentionally not cleared when a pause ends: it only identifies which slide the pause belongs to, and
 // every check is guarded by the pause source being live. A stale value is harmless and is replaced by
