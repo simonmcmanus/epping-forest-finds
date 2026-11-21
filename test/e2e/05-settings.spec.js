@@ -31,6 +31,7 @@ test.describe("Settings screen", () => {
   test("the early access link opens the homepage signup in a new tab and leaves the app on Settings", async ({ page }) => {
     const link = page.locator("#settingsAccount").getByRole("link", { name: "Sign up for early access" });
     const [popup] = await Promise.all([page.waitForEvent("popup", { timeout: 5000 }), link.click()]);
+    await popup.waitForURL(/\/#signup$/);
     await popup.waitForLoadState("domcontentloaded");
     expect(popup.url()).toMatch(/\/#signup$/);
     await expect(popup.locator("#signup")).toBeVisible();
