@@ -54,7 +54,7 @@ affected findings and dependencies. Uncertain impact still requires the full app
 - A complete clean result produces an approval; findings produce one
   `REQUEST_CHANGES` review with concise inline comments and a short axis index.
   No model tool can publish, approve or resolve threads. Approval does not claim
-  runtime/visual verification and never replaces required human approval.
+  runtime/visual verification and never replaces the human `verified` label.
 
 The model job cancels an obsolete in-progress review when the PR updates.
 Publication is serialized per PR and does not depend on a bot-authored comment
@@ -83,8 +83,9 @@ Only verified addressed threads may then be resolved; a push alone is not proof.
 Human threads and decisions remain human-owned. Workflow/guidance/dependency
 changes go through the normal reviewed branch rather than an unattended bot fixer.
 
-`main` should require CI and two approving reviews (one person, one the
-**Claude PR review** agent APPROVE) with stale approvals dismissed after a push. Workflow code cannot itself configure or prove
+`main` should require CI and one approving review (the
+**Claude PR review** agent APPROVE) with stale approvals dismissed after a push.
+The human check is the `verified` label (see Auto-merge workflow). Workflow code cannot itself configure or prove
 the repository's live branch protection. Same-repository workflow changes can
 change the workflow, so they require human review; no fork code receives these
 credentials. A setup or policy error is a reported blocker, never a reason to
@@ -92,31 +93,37 @@ skip the current-head gate.
 
 ## Auto-merge workflow
 
-`.github/workflows/auto-merge.yml` merges a PR once the current head has both
-approvals. It runs on `pull_request_review` (submitted), on `workflow_run` when
-CI completes, and on `pull_request_target` `ready_for_review` (so the
-default-branch copy runs; it never checks out PR code). Only same-repository,
-open, non-draft PRs whose head SHA still matches the event are considered.
+`.github/workflows/auto-merge.yml` merges a PR once the current head has the
+human `verified` label and the agent approval. It runs on `workflow_run` when
+CI completes and on `pull_request_target` `labeled` (only for `verified`),
+`synchronize` and `ready_for_review` (so the default-branch copy runs; it never
+checks out PR code). The head SHA is read from the live PR, not the event. Only
+same-repository, open, non-draft PRs are considered.
 
-Conditions, all on the current head: a human `APPROVED` review whose
-`author_association` is OWNER, MEMBER or COLLABORATOR, and a `github-actions[bot]`
-`APPROVED` review carrying `CLAUDE_FINAL_REVIEW:<head>:<base>` with `<base>`
-equal to the PR's live base SHA. The latest review per reviewer wins, so a later
-change request or dismissal cancels an earlier approval.
+The `verified` label replaces a human approving review, because PRs are opened
+from the owner's account and GitHub forbids approving your own PR. On
+`synchronize` the workflow removes the label (a new push invalidates the human
+check) and stops; a 404 on removal is tolerated.
+
+Arming conditions, all on the current head: auto-merge not already enabled; the
+PR has the `verified` label; the most recent `labeled` event for `verified` was
+made by a person (user type User, not a bot) whose collaborator permission is
+admin, maintain or write, and is newer than the head commit's date (guards
+against a stale label); and a `github-actions[bot]` `APPROVED` review carrying
+`CLAUDE_FINAL_REVIEW:<head>:<base>` with `<base>` equal to the PR's live base
+SHA. The latest review per reviewer wins, so a later change request or dismissal
+cancels the agent approval.
 
 It first tries native auto-merge. GitHub rejects that when the PR is already
-mergeable (the usual case when the human approves last), so it then squash-merges
-directly with the same GitHub App token and `--match-head-commit`. "Already
-enabled" from a racing event counts as success. Branch protection still gates
-every merge. Agents never approve, arm or merge.
-
-Limitation: PRs opened through the owner's account cannot be approved by that
-account, so the human approval may be impossible; a different account must
-approve, or the PR is merged manually.
+mergeable, so it then squash-merges directly with the same GitHub App token and
+`--match-head-commit`. "Already enabled" from a racing event counts as success.
+Branch protection still gates every merge. Agents never approve, arm, merge or
+apply the `verified` label. Agent sessions act through the owner's token, so
+this cannot be technically enforced; it is a policy.
 
 Repository settings required (not enforced by the file): Allow auto-merge on;
-the `main` ruleset requiring two approvals, status checks and stale-approval
-dismissal; the GitHub App secrets `CACHE_VERSION_APP_ID` and
+the `verified` label existing; the `main` ruleset requiring one approval (the
+agent), status checks and stale-approval dismissal; the GitHub App secrets `CACHE_VERSION_APP_ID` and
 `CACHE_VERSION_APP_PRIVATE_KEY`. CI's `pull_request` trigger deliberately
 omits `ready_for_review`: the review runs on drafts, so marking ready does not
 re-run the paid review.
@@ -146,6 +153,6 @@ of the eight read-only reviewers in `.claude/agents/`; anything else is ignored.
   apply, with the reason, rather than inventing findings.
 
 These comments are advisory evidence for the lead. They do not replace the
-required CI review, a runtime check, or human approval. The trust model matches
+required CI review, a runtime check, or the human `verified` label. The trust model matches
 the read-only PR explainer: PR content is untrusted, and only writers can start
 the job.

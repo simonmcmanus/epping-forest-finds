@@ -80,14 +80,17 @@ agent frontmatter sets the normal model and turn budget. Escalate for a concrete
   reports counts. It does not repeat identical valid checks merely to produce another report.
 - `pr-steward`: single post-push repair coordinator. It returns every edit/conflict resolution through
   the lead's review/test gates and resolves only verified bot findings after current-head checks.
-  Human approval remains separate. The lightweight GitHub reviewer independently checks the final
-  pushed commit; it does not replace local review or human approval. It APPROVEs a clean head and
-  otherwise REQUEST_CHANGES. The PR is auto-merged only when that same head also has a human
-  approval (owner, member or collaborator) (`.github/workflows/auto-merge.yml`, which arms native auto-merge or, if the PR is already
-  mergeable, squash-merges with the App token; it re-evaluates when a PR is marked ready); required checks and branch protection still gate the merge.
-  Agents never approve, merge or arm auto-merge; marking ready can lead to merge only after a human approves.
-  Caveat: PRs opened through the owner's account cannot be approved by that account (GitHub forbids
-  self-approval), so human approval may be impossible on agent-opened PRs; this is a known limitation.
+  The human check remains separate. The lightweight GitHub reviewer independently checks the final
+  pushed commit; it does not replace local review or the human check. It APPROVEs a clean head and
+  otherwise REQUEST_CHANGES. The PR is auto-merged only when that same head also carries the
+  `verified` label, applied by a person with write access after the head commit
+  (`.github/workflows/auto-merge.yml`, which arms native auto-merge or, if the PR is already
+  mergeable, squash-merges with the App token; it re-evaluates when a PR is marked ready, and a new push
+  removes the label); required checks and branch protection still gate the merge.
+  Agents never approve, merge, arm auto-merge or apply the `verified` label; marking ready can lead to
+  merge only after the owner applies `verified`. The label replaces a human approving review because
+  PRs are opened through the owner's account and GitHub forbids self-approval. Agent sessions act
+  through the owner's token, so the no-label rule is policy, not technically enforced.
 
 The lead dispatches; subagents report back without spawning. Default implementation goes through
 these roles when available. If the agents are unavailable, say so and perform the authorized work
@@ -106,9 +109,9 @@ fixes, rerun affected lenses and tests based on dependencies; architecture/share
 or uncertain impact require the full selected review set. Stop after three unsuccessful repair rounds.
 
 Use `node scripts/pr-status.js <PR> --state /tmp/<batch>-pr-state.json` for compact status deltas;
-wake the steward only for an actionable change, not unchanged pending checks or human approval.
+wake the steward only for an actionable change, not unchanged pending checks or the missing `verified` label.
 Read failure logs selectively. If subscriptions are unavailable, use supported bounded waits and say
-so. Never claim completion while required checks, actionable findings or human approval remain open.
+so. Never claim completion while required checks, actionable findings or the owner's `verified` label remain open.
 
 ## Marketing and app surfaces
 
@@ -186,7 +189,7 @@ so. Never claim completion while required checks, actionable findings or human a
   issue per test and repair flakes; never skip, quarantine or loosen. See `docs/agents/testing.md`
   "Flaky tests".
 - Unit evidence is local until confirmed by CI. Do not describe a task as complete while checks,
-  actionable findings or required human approval remain outstanding. Waiting on a person is a
+  actionable findings or the owner's `verified` label remain outstanding. Waiting on a person is a
   named waiting state, not a reason to busy-poll or claim completion.
 - No agent edits cache markers or committed screenshot baselines. CI publishes baseline/actual/diff
   artifacts and owns canonical baseline regeneration after merge. Distinguish screenshot mismatches

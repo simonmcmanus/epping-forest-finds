@@ -1,49 +1,49 @@
-name: Merge after human and agent approval
+name: Merge after verified label and agent approval
 
 # The PR is armed (or merged) only when the CURRENT head has BOTH:
-#   1. an approving review from a person who is an OWNER, MEMBER or
-#      COLLABORATOR of the repository (author_association on the review), and
+#   1. the `verified` label, applied by a human (a non-bot user with admin,
+#      maintain or write permission) AFTER the head commit was made, and
 #   2. an approving review from the CI Claude reviewer (github-actions[bot])
 #      carrying its CLAUDE_FINAL_REVIEW:<head>:<base> marker, where <base> is
 #      the PR's live base SHA.
-# Either approval can arrive last, so this runs on each approving review and
-# again when the CI run that publishes the agent review completes. Both can
-# land while the PR is still a draft (the review jobs run on drafts), and a
-# draft is never armed, so marking the PR ready re-evaluates too.
-# Agents never arm or merge themselves.
+# The `verified` label replaces a human approving review: PRs are opened from
+# the owner's account and GitHub forbids approving your own PR. The label
+# means "a person has tried the preview and accepts this head". A new push
+# (synchronize) removes the label, so the check never carries to a new head.
+# The label must exist in the repository (create `verified` once under Issues
+# > Labels). Agents must never add the label. That cannot be enforced
+# technically, because agent sessions act through the owner's token, so it is
+# a policy: only the owner applies `verified`, by hand.
+# Either condition can arrive last, so this runs when the label is applied,
+# when the CI run that publishes the agent review completes, and when the PR
+# is marked ready (both can land while the PR is still a draft, and a draft is
+# never armed). Agents never arm or merge themselves.
 #
 # Order of operations: first try native auto-merge (enablePullRequestAutoMerge).
 # GitHub rejects that mutation when the PR is already mergeable ("clean
-# status"), which is the normal case when the human approves last. Then this
-# workflow merges directly with the same App token, squash, pinned to the head
-# SHA (--match-head-commit), only after the same both-approvals checks passed.
-# "Already enabled" (two events racing) counts as success.
-#
-# Self-approval caveat: PRs opened by agents are authored through the owner's
-# account, and GitHub forbids approving your own PR, so the human approval
-# this needs may be impossible on such PRs. That is a known limitation, not
-# worked around here (a different account must approve, or merge manually).
+# status"). Then this workflow merges directly with the same App token,
+# squash, pinned to the head SHA (--match-head-commit), only after the same
+# checks passed. "Already enabled" (two events racing) counts as success.
 #
 # Branch protection still gates every merge (required checks and approvals);
 # the settings below are repository configuration, not enforced by this file:
 # - Settings > General > Allow auto-merge: on.
-# - Branch ruleset on main: require 2 approving reviews (one person and the
-#   agent), require status checks, dismiss stale approvals on new pushes.
-#   Verify GitHub counts the github-actions[bot] APPROVE toward required
-#   approvals; if it does not, this workflow still gates on it.
+# - Label `verified` exists.
+# - Branch ruleset on main: require 1 approving review (the agent), require
+#   status checks, dismiss stale approvals on new pushes. Verify GitHub counts
+#   the github-actions[bot] APPROVE toward required approvals; if it does not,
+#   this workflow still gates on it.
 #
 # Uses the dedicated GitHub App token, not GITHUB_TOKEN, so the merge still
 # fires push-triggered workflows on main (for example cache-version-bump).
-# The ready_for_review trigger uses pull_request_target so the default-branch
-# copy of this file runs; there is no checkout of PR code, and PR number and
-# head SHA come only from github.event.pull_request. Workflow changes take
-# effect for pull_request_review, workflow_run and pull_request_target only
-# once this file is on main.
+# The labeled, synchronize and ready_for_review triggers use
+# pull_request_target so the default-branch copy of this file runs; there is
+# no checkout of PR code, and the PR number comes only from the event while
+# the head SHA is read from the live PR. Workflow changes take effect for
+# workflow_run and pull_request_target only once this file is on main.
 on:
   pull_request_target:
-    types: [ready_for_review]
-  pull_request_review:
-    types: [submitted]
+    types: [labeled, synchronize, ready_for_review]
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -53,14 +53,11 @@ permissions:
 
 jobs:
   arm:
-    name: Arm or merge when both approvals are present
+    name: Arm or merge when verified and approved
     if: >-
       (github.event_name == 'pull_request_target' &&
-        github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name == 'pull_request_review' &&
-        github.event.review.state == 'approved' &&
-        github.event.review.user.type == 'User' &&
-        github.event.pull_request.head.repo.full_name == github.repository) ||
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        (github.event.action != 'labeled' || github.event.label.name == 'verified')) ||
       (github.event_name == 'workflow_run' &&
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.event == 'pull_request' &&
@@ -75,12 +72,14 @@ jobs:
           app-id: ${{ secrets.CACHE_VERSION_APP_ID }}
           private-key: ${{ secrets.CACHE_VERSION_APP_PRIVATE_KEY }}
 
-      - name: Arm or squash-merge if both approvals are on the head
+      - name: Arm or squash-merge if verified and approved on the head
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ (github.event_name == 'pull_request_review' || github.event_name == 'pull_request_target') && github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number }}
-          HEAD_SHA: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.event_name == 'pull_request_review' && github.event.review.commit_id || github.event.workflow_run.head_sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          PR_NUMBER: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
@@ -88,15 +87,67 @@ jobs:
             exit 0
           fi
 
+          if [ "$EVENT_NAME" = "pull_request_target" ] && [ "$EVENT_ACTION" = "synchronize" ]; then
+            # A new push invalidates the human check. A 404 means the label was
+            # not on the PR, which is fine.
+            if out=$(gh api -X DELETE "repos/$REPO/issues/$PR_NUMBER/labels/verified" 2>&1); then
+              echo "Removed the verified label after a new push."
+            elif grep -qiE '404|not found|label does not exist' <<<"$out"; then
+              echo "No verified label to remove."
+            else
+              echo "$out" >&2
+              exit 1
+            fi
+            exit 0
+          fi
+
           pr=$(gh api "repos/$REPO/pulls/$PR_NUMBER")
+          HEAD_SHA=$(jq -r .head.sha <<<"$pr")
+          # workflow_run: the CI run must be for the live head.
+          if [ "$EVENT_NAME" = "workflow_run" ] && [ "$RUN_HEAD_SHA" != "$HEAD_SHA" ]; then
+            echo "CI run was for $RUN_HEAD_SHA but the PR head is $HEAD_SHA; not arming."
+            exit 0
+          fi
           if [ "$(jq -r .state <<<"$pr")" != "open" ] ||
              [ "$(jq -r .draft <<<"$pr")" != "false" ] ||
-             [ "$(jq -r .head.sha <<<"$pr")" != "$HEAD_SHA" ]; then
-            echo "PR is closed, a draft, or on a newer head; not arming for $HEAD_SHA."
+             [ "$(jq -r .head.repo.full_name <<<"$pr")" != "$REPO" ]; then
+            echo "PR is closed, a draft, or from a fork; not arming $HEAD_SHA."
             exit 0
           fi
           if [ "$(jq -r '.auto_merge != null' <<<"$pr")" = "true" ]; then
             echo "Auto-merge is already enabled on this PR."
+            exit 0
+          fi
+
+          # Human check: the verified label, applied by a writer after the head commit.
+          if [ "$(jq -r '[.labels[].name] | index("verified") != null' <<<"$pr")" != "true" ]; then
+            echo "No verified label on $HEAD_SHA. Not arming."
+            exit 0
+          fi
+          events=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/events" | jq -s 'add // []')
+          label_event=$(jq '[.[] | select(.event == "labeled" and .label.name == "verified")] | sort_by(.id) | last // empty' <<<"$events")
+          if [ -z "$label_event" ]; then
+            echo "No labeled event found for verified. Not arming."
+            exit 0
+          fi
+          actor=$(jq -r '.actor.login // ""' <<<"$label_event")
+          actor_type=$(jq -r '.actor.type // ""' <<<"$label_event")
+          labeled_at=$(jq -r .created_at <<<"$label_event")
+          if [ "$actor_type" != "User" ] || [ -z "$actor" ]; then
+            echo "verified was applied by $actor ($actor_type), not a person. Not arming."
+            exit 0
+          fi
+          permission=$(gh api "repos/$REPO/collaborators/$actor/permission" --jq .permission 2>/dev/null || echo none)
+          case "$permission" in
+            admin|maintain|write) ;;
+            *)
+              echo "$actor has $permission permission; verified must come from a writer. Not arming."
+              exit 0
+              ;;
+          esac
+          head_date=$(gh api "repos/$REPO/commits/$HEAD_SHA" --jq '.commit.committer.date')
+          if [ "$(date -d "$labeled_at" +%s)" -le "$(date -d "$head_date" +%s)" ]; then
+            echo "verified ($labeled_at) is not newer than the head commit ($head_date); stale. Not arming."
             exit 0
           fi
 
@@ -107,16 +158,13 @@ jobs:
             [.[] | select(.commit_id == $sha and .state != "COMMENTED")]
             | group_by(.user.login)
             | map(sort_by(.id) | last)' <<<"$reviews")
-          human=$(jq '[.[] | select(.user.type == "User" and .state == "APPROVED"
-               and (.author_association == "OWNER" or .author_association == "MEMBER"
-                    or .author_association == "COLLABORATOR"))] | length' <<<"$latest")
           base_sha=$(jq -r .base.sha <<<"$pr")
           marker="CLAUDE_FINAL_REVIEW:${HEAD_SHA}:${base_sha}"
           agent=$(jq --arg marker "$marker" \
             '[.[] | select(.user.login == "github-actions[bot]" and .state == "APPROVED"
                and ((.body // "") | contains($marker)))] | length' <<<"$latest")
-          if [ "$human" -lt 1 ] || [ "$agent" -lt 1 ]; then
-            echo "Waiting on approvals for $HEAD_SHA: human=$human agent=$agent. Not arming."
+          if [ "$agent" -lt 1 ]; then
+            echo "Waiting on the agent approval for $HEAD_SHA. Not arming."
             exit 0
           fi
 
@@ -127,7 +175,7 @@ jobs:
                 pullRequest { number autoMergeRequest { enabledAt } }
               }
             }' -f id="$node_id" 2>&1); then
-            echo "Auto-merge armed for PR #$PR_NUMBER on $HEAD_SHA (human=$human agent=$agent)."
+            echo "Auto-merge armed for PR #$PR_NUMBER on $HEAD_SHA (verified by $actor, agent approved)."
           elif grep -qi 'already enabled' <<<"$out"; then
             echo "Auto-merge was already enabled (concurrent event)."
           elif grep -qiE 'clean status|already.*(mergeable|clean)' <<<"$out"; then
@@ -135,7 +183,7 @@ jobs:
             # protection still decides whether this is allowed.
             echo "PR is already mergeable; merging directly."
             gh pr merge "$PR_NUMBER" --repo "$REPO" --squash --match-head-commit "$HEAD_SHA"
-            echo "Merged PR #$PR_NUMBER on $HEAD_SHA (human=$human agent=$agent)."
+            echo "Merged PR #$PR_NUMBER on $HEAD_SHA (verified by $actor, agent approved)."
           else
             echo "$out" >&2
             exit 1

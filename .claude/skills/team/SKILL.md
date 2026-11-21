@@ -118,14 +118,14 @@ E2E, visual, builds, Netlify, `Inspect final PR head` and `Claude PR review`) gr
 head. The two review jobs run on drafts on every push, so the final-head review is part of the gate,
 not a post-ready step. Never mark ready while local reviews, local verification or draft-run CI are open.
 
-"Ready" therefore means the local gate plus all draft-run CI green on the exact head; human approval
-is separate and is what arms auto-merge (`.github/workflows/auto-merge.yml`, which arms auto-merge or merges directly if already mergeable, and also needs the
-agent's APPROVE on that head). Agents (lead, steward, sweep, implementers) never approve, merge or arm
-auto-merge. The sweep marking a PR ready can lead to auto-merge only after a human has approved.
-Caveat: PRs opened through the owner's account cannot be approved by that same account (GitHub forbids
-self-approval), so a human approval may be impossible on them. When the PR is authored by the
-approver's own account, record in the sticky ready-gate comment (and the sweep in its outcome) the
-blocker "awaiting human approval from a different account" rather than treating the gate as stuck.
+"Ready" therefore means the local gate plus all draft-run CI green on the exact head; the human check
+is separate: the owner applies the `verified` label to the exact head, and that (with the agent's APPROVE
+on that head) arms auto-merge (`.github/workflows/auto-merge.yml`, which arms auto-merge or merges directly
+if already mergeable). A new push removes the label. Agents (lead, steward, sweep, implementers) never
+approve, merge, arm auto-merge or apply the `verified` label (policy; agent sessions use the owner's token, so it is not
+technically enforced). The sweep marking a PR ready can lead to auto-merge only after the owner applies
+`verified`. When the rest of the gate is green, record in the sticky ready-gate comment (and the sweep in its
+outcome) the blocker "awaiting `verified` label from the owner" rather than treating the gate as stuck.
 
 **Ready gate comment.** The lead keeps one sticky PR comment starting with `<!-- ready-gate -->`.
 Create it once; every later turn find it by that marker (`pull_request_read` method `get_comments`; create it with
@@ -179,10 +179,10 @@ independent check before ready. If it reports blockers/majors, run a repair roun
 repairs. Each new head re-runs it, so a ready PR that is repaired is again pending until it is green on
 the new head. Re-draft is not available through the GitHub MCP tools in cloud sessions, so a PR that
 is already ready stays ready during repair rounds; report the open findings as the named blocker. Do
-not claim completion until the final-head review is green on the current head; human approval is separate.
+not claim completion until the final-head review is green on the current head; the owner's `verified` label is separate.
 
 Keep the lightweight GitHub PR reviewer as an independent final-head correctness/security/evidence
-check. It does not repeat local specialist fan-out or replace human approval.
+check. It does not repeat local specialist fan-out or replace the `verified` label.
 
 ## 5a. Finish the PR's scope without being prompted
 
@@ -236,7 +236,7 @@ actionable change:
 - a final-head review that failed or reported blockers/majors on the current head;
 - outstanding in-scope work (section 5a) or a follow-up not yet filed as an issue.
 
-Unchanged pending CI or waiting human approval stays non-actionable. Fetch full logs only for
+Unchanged pending CI or a missing `verified` label stays non-actionable. Fetch full logs only for
 failures; unchanged states do not need a new LLM review.
 
 The steward is the single post-push repair coordinator. It batches validated findings and routes
@@ -245,7 +245,7 @@ threads only after the specific defect is verified fixed on the current head, af
 complete and required CI is green. Do not resolve a human thread without their authorization.
 
 Report batch branch/worktree, current head, selected verdicts, verification counts/run URLs, visual
-acceptance and preview link with `nuke=true`. Separate CI, unresolved findings and human approval.
+acceptance and preview link with `nuke=true`. Separate CI, unresolved findings and the `verified` label.
 Do not claim completion while any required gate remains open (including a pending final-head review
 or open final-head findings); give a named waiting/blocker state and record it in the sticky ready-gate comment.
 Never edit cache markers, screenshot baselines, disable tests or put place facts into specs.
