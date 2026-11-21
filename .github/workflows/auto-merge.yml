@@ -23,7 +23,11 @@ name: Merge after verified label and agent approval
 # GitHub rejects that mutation when the PR is already mergeable ("clean
 # status"). Then this workflow merges directly with the same App token,
 # squash, pinned to the head SHA (--match-head-commit), only after the same
-# checks passed. "Already enabled" (two events racing) counts as success.
+# checks passed. Right before arming or merging it re-fetches the PR and
+# requires the same head and the `verified` label still present.
+# A push (synchronize) removes the label AND disables native auto-merge, which
+# is a PR-level setting that otherwise survives a push. An armed PR that lacks
+# a valid label is also disarmed on the other events. "Already enabled" (two events racing) counts as success.
 #
 # Branch protection still gates every merge (required checks and approvals);
 # the settings below are repository configuration, not enforced by this file:
@@ -87,9 +91,22 @@ jobs:
             exit 0
           fi
 
+          disarm() {
+            # Native auto-merge is a PR-level setting that survives a push, so
+            # it must be switched off explicitly. Fail closed on any error.
+            local id="$1"
+            gh api graphql -f query='
+              mutation($id: ID!) {
+                disablePullRequestAutoMerge(input: {pullRequestId: $id}) {
+                  pullRequest { number }
+                }
+              }' -f id="$id" >/dev/null
+            echo "Disabled auto-merge on PR #$PR_NUMBER."
+          }
+
           if [ "$EVENT_NAME" = "pull_request_target" ] && [ "$EVENT_ACTION" = "synchronize" ]; then
-            # A new push invalidates the human check. A 404 means the label was
-            # not on the PR, which is fine.
+            # A new push invalidates the human check and any armed auto-merge.
+            # A 404 on the label means it was not on the PR, which is fine.
             if out=$(gh api -X DELETE "repos/$REPO/issues/$PR_NUMBER/labels/verified" 2>&1); then
               echo "Removed the verified label after a new push."
             elif grep -qiE '404|not found|label does not exist' <<<"$out"; then
@@ -97,6 +114,10 @@ jobs:
             else
               echo "$out" >&2
               exit 1
+            fi
+            live=$(gh api "repos/$REPO/pulls/$PR_NUMBER")
+            if [ "$(jq -r '.auto_merge != null' <<<"$live")" = "true" ]; then
+              disarm "$(jq -r .node_id <<<"$live")"
             fi
             exit 0
           fi
@@ -114,40 +135,62 @@ jobs:
             echo "PR is closed, a draft, or from a fork; not arming $HEAD_SHA."
             exit 0
           fi
-          if [ "$(jq -r '.auto_merge != null' <<<"$pr")" = "true" ]; then
-            echo "Auto-merge is already enabled on this PR."
+          armed=$(jq -r '.auto_merge != null' <<<"$pr")
+          # An armed PR without the verified label is stale: disarm it.
+          if [ "$(jq -r '[.labels[].name] | index("verified") != null' <<<"$pr")" != "true" ]; then
+            if [ "$armed" = "true" ]; then
+              echo "Auto-merge is enabled but $HEAD_SHA has no verified label."
+              disarm "$(jq -r .node_id <<<"$pr")"
+            else
+              echo "No verified label on $HEAD_SHA. Not arming."
+            fi
             exit 0
           fi
 
-          # Human check: the verified label, applied by a writer after the head commit.
-          if [ "$(jq -r '[.labels[].name] | index("verified") != null' <<<"$pr")" != "true" ]; then
-            echo "No verified label on $HEAD_SHA. Not arming."
+          # Human check: the verified label, applied by a writer after the head
+          # commit. Any failure (including API errors) means the gate is not met.
+          label_gate() {
+            local events label_event actor actor_type labeled_at permission head_date
+            events=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/events" | jq -s 'add // []') || return 1
+            label_event=$(jq '[.[] | select(.event == "labeled" and .label.name == "verified")] | sort_by(.id) | last // empty' <<<"$events") || return 1
+            if [ -z "$label_event" ]; then
+              echo "No labeled event found for verified."
+              return 1
+            fi
+            actor=$(jq -r '.actor.login // ""' <<<"$label_event") || return 1
+            actor_type=$(jq -r '.actor.type // ""' <<<"$label_event") || return 1
+            labeled_at=$(jq -r .created_at <<<"$label_event") || return 1
+            if [ "$actor_type" != "User" ] || [ -z "$actor" ]; then
+              echo "verified was applied by $actor ($actor_type), not a person."
+              return 1
+            fi
+            permission=$(gh api "repos/$REPO/collaborators/$actor/permission" --jq .permission 2>/dev/null || echo none)
+            case "$permission" in
+              admin|maintain|write) ;;
+              *)
+                echo "$actor has $permission permission; verified must come from a writer."
+                return 1
+                ;;
+            esac
+            head_date=$(gh api "repos/$REPO/commits/$HEAD_SHA" --jq '.commit.committer.date') || return 1
+            if [ "$(date -d "$labeled_at" +%s)" -le "$(date -d "$head_date" +%s)" ]; then
+              echo "verified ($labeled_at) is not newer than the head commit ($head_date); stale."
+              return 1
+            fi
+            VERIFIER="$actor"
+          }
+          if ! label_gate; then
+            if [ "$armed" = "true" ]; then
+              echo "Label gate failed on an armed PR; disarming."
+              disarm "$(jq -r .node_id <<<"$pr")"
+            else
+              echo "Not arming $HEAD_SHA."
+            fi
             exit 0
           fi
-          events=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/events" | jq -s 'add // []')
-          label_event=$(jq '[.[] | select(.event == "labeled" and .label.name == "verified")] | sort_by(.id) | last // empty' <<<"$events")
-          if [ -z "$label_event" ]; then
-            echo "No labeled event found for verified. Not arming."
-            exit 0
-          fi
-          actor=$(jq -r '.actor.login // ""' <<<"$label_event")
-          actor_type=$(jq -r '.actor.type // ""' <<<"$label_event")
-          labeled_at=$(jq -r .created_at <<<"$label_event")
-          if [ "$actor_type" != "User" ] || [ -z "$actor" ]; then
-            echo "verified was applied by $actor ($actor_type), not a person. Not arming."
-            exit 0
-          fi
-          permission=$(gh api "repos/$REPO/collaborators/$actor/permission" --jq .permission 2>/dev/null || echo none)
-          case "$permission" in
-            admin|maintain|write) ;;
-            *)
-              echo "$actor has $permission permission; verified must come from a writer. Not arming."
-              exit 0
-              ;;
-          esac
-          head_date=$(gh api "repos/$REPO/commits/$HEAD_SHA" --jq '.commit.committer.date')
-          if [ "$(date -d "$labeled_at" +%s)" -le "$(date -d "$head_date" +%s)" ]; then
-            echo "verified ($labeled_at) is not newer than the head commit ($head_date); stale. Not arming."
+          actor="$VERIFIER"
+          if [ "$armed" = "true" ]; then
+            echo "Auto-merge is already enabled and the label gate passes."
             exit 0
           fi
 
@@ -169,6 +212,18 @@ jobs:
           fi
 
           node_id=$(jq -r .node_id <<<"$pr")
+          # Re-check the live PR right before arming: a push or a label removal
+          # since this run started must win.
+          still_current() {
+            local live
+            live=$(gh api "repos/$REPO/pulls/$PR_NUMBER") || return 1
+            [ "$(jq -r .head.sha <<<"$live")" = "$HEAD_SHA" ] &&
+              [ "$(jq -r '[.labels[].name] | index("verified") != null' <<<"$live")" = "true" ]
+          }
+          if ! still_current; then
+            echo "Head moved or verified label removed since this run started; not arming $HEAD_SHA."
+            exit 0
+          fi
           if out=$(gh api graphql -f query='
             mutation($id: ID!) {
               enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: SQUASH}) {
@@ -181,6 +236,10 @@ jobs:
           elif grep -qiE 'clean status|already.*(mergeable|clean)' <<<"$out"; then
             # Already mergeable, so GitHub refuses to arm. Merge now; branch
             # protection still decides whether this is allowed.
+            if ! still_current; then
+              echo "Head moved or verified label removed before the direct merge; not merging $HEAD_SHA."
+              exit 0
+            fi
             echo "PR is already mergeable; merging directly."
             gh pr merge "$PR_NUMBER" --repo "$REPO" --squash --match-head-commit "$HEAD_SHA"
             echo "Merged PR #$PR_NUMBER on $HEAD_SHA (verified by $actor, agent approved)."

@@ -86,7 +86,7 @@ agent frontmatter sets the normal model and turn budget. Escalate for a concrete
   `verified` label, applied by a person with write access after the head commit
   (`.github/workflows/auto-merge.yml`, which arms native auto-merge or, if the PR is already
   mergeable, squash-merges with the App token; it re-evaluates when a PR is marked ready, and a new push
-  removes the label); required checks and branch protection still gate the merge.
+  both removes the label and disarms auto-merge); required checks and branch protection still gate the merge.
   Agents never approve, merge, arm auto-merge or apply the `verified` label; marking ready can lead to
   merge only after the owner applies `verified`. The label replaces a human approving review because
   PRs are opened through the owner's account and GitHub forbids self-approval. Agent sessions act
