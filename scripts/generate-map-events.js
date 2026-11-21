@@ -34,7 +34,7 @@ function toMapEvent(entry) {
     endsAt: new Date(endMs).toISOString()
   };
   const url = entry.sources && entry.sources[0] && entry.sources[0].url;
-  if (url) event.sourceUrl = url;
+  if (typeof url === "string" && /^https?:\/\//i.test(url)) event.sourceUrl = url;
   return event;
 }
 

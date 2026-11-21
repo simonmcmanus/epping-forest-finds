@@ -719,7 +719,8 @@ jobs:
                   (always -- they are this run's memory, and leaving them out
                   is what makes next week start from nothing),
                   data/road-closures.json, data/forest-notices.json and
-                  data/forest-events.json if step 2c/2d updated them, the new
+                  data/forest-events.json if step 2c/2d updated them,
+                  data/events.json if step 2c updated it, the new
                   report, and
                   data/cow-grazing-history.json if cow_boundary_tracker.py
                   updated it (see step 6), commit

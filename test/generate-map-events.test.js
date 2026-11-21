@@ -93,3 +93,10 @@ test("the CLI writes the events file only when run, not when imported", () => {
   assert.strictEqual(written, JSON.stringify(JSON.parse(written), null, 2) + "\n");
   assert.deepStrictEqual(JSON.parse(written).events.map((e) => e.id), ["e1"]);
 });
+
+test("only web links are kept as an event's source link", () => {
+  const bad = generateMapEvents({ entries: [entry({ sources: [{ label: "x", url: "javascript:alert(1)" }] })] }, { nowMs });
+  assert.strictEqual("sourceUrl" in bad.events[0], false);
+  const good = generateMapEvents({ entries: [entry({ sources: [{ label: "x", url: "https://example.org/a" }] })] }, { nowMs });
+  assert.strictEqual(good.events[0].sourceUrl, "https://example.org/a");
+});
