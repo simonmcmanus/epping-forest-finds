@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { mockCowApi, gotoAndWaitForMap } = require("./helpers");
+const { mockCowApi, gotoAndWaitForMap, waitForUiToSettle, settleMapIconsAndDraw } = require("./helpers");
 
 const FEATURES_URL = "**/api/features**";
 const answer = (community) => (route) =>
@@ -185,5 +185,91 @@ test.describe("Beta welcome sheet", () => {
       expect(overflow.right).toBeLessThanOrEqual(0);
       if (heading !== "What feedback helps") await page.getByRole("button", { name: "Next" }).click();
     }
+  });
+});
+
+test.describe("Beta welcome snapshots", () => {
+  const failTesterId = (page) =>
+    page.addInitScript(() => {
+      SubtleCrypto.prototype.digest = () => Promise.reject(new Error("unavailable"));
+    });
+
+  async function settle(page) {
+    await waitForUiToSettle(page);
+    await settleMapIconsAndDraw(page);
+  }
+
+  async function goToStep3(page) {
+    await goToStep2(page);
+    await page.getByRole("dialog", { name: "Your Tester ID" }).getByRole("button", { name: "Next" }).click();
+    await expect(page.getByRole("dialog", { name: "What feedback helps" })).toBeVisible();
+  }
+
+  test("snapshot: beta welcome step 1", async ({ page }) => {
+    await openAsNewVisitor(page);
+    await expect(page.getByRole("heading", { name: "Thanks for testing Epping Forest Finds" })).toBeVisible();
+    await settle(page);
+    await expect(page).toHaveScreenshot("beta-welcome-step-1.png", { fullPage: false });
+  });
+
+  test("snapshot: beta welcome step 2 with Tester ID and Send", async ({ page }) => {
+    await openAsNewVisitor(page, { community: false });
+    await goToStep2(page);
+    await expect(page.locator("#welcomeTesterStatus")).toHaveText("Send this to Simon to turn on Community for you.");
+    await settle(page);
+    // The Tester ID is random per browser.
+    await expect(page).toHaveScreenshot("beta-welcome-step-2.png", { fullPage: false, mask: [page.locator("#welcomeTesterId")] });
+  });
+
+  test("snapshot: beta welcome step 2 when the Tester ID cannot be made", async ({ page }) => {
+    await failTesterId(page);
+    await openAsNewVisitor(page);
+    await goToStep2(page);
+    const sheet = page.getByRole("dialog", { name: "Your Tester ID" });
+    await expect(page.locator("#welcomeTesterStatus")).toContainText("We couldn't get your Tester ID. Try again");
+    await expect(sheet.getByRole("button", { name: "Retry" })).toBeVisible();
+    await settle(page);
+    await expect(page).toHaveScreenshot("beta-welcome-step-2-failed.png", { fullPage: false });
+  });
+
+  test("snapshot: beta welcome feedback step", async ({ page }) => {
+    await openAsNewVisitor(page);
+    await goToStep3(page);
+    await settle(page);
+    await expect(page).toHaveScreenshot("beta-welcome-step-3.png", { fullPage: false });
+  });
+
+  test("snapshot: beta welcome feedback step at 320px", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await openAsNewVisitor(page);
+    await goToStep3(page);
+    await settle(page);
+    await expect(page).toHaveScreenshot("beta-welcome-step-3-320.png", { fullPage: false });
+  });
+
+  test("snapshot: settings beta welcome control", async ({ page }) => {
+    await openAsNewVisitor(page);
+    await page.getByRole("button", { name: "Skip" }).click();
+    await page.click("#settingsToggle");
+    await page.getByRole("button", { name: "Show the beta welcome again" }).scrollIntoViewIfNeeded();
+    await expect(page.locator("#testerIdDisplay")).not.toHaveText("…");
+    await settle(page);
+    await expect(page).toHaveScreenshot("beta-welcome-settings-reopen.png", {
+      fullPage: false,
+      mask: [page.locator("#testerIdDisplay"), page.locator("#appVersionDisplay")],
+    });
+  });
+
+  test("snapshot: settings Tester ID retry after the lookup fails", async ({ page }) => {
+    await failTesterId(page);
+    await openAsNewVisitor(page);
+    await page.getByRole("button", { name: "Skip" }).click();
+    await page.click("#settingsToggle");
+    await expect(page.locator("#testerIdStatus")).toContainText("We couldn't get your Tester ID. Try again");
+    const retry = page.getByRole("button", { name: "Retry" });
+    await expect(retry).toBeVisible();
+    await retry.scrollIntoViewIfNeeded();
+    await settle(page);
+    await expect(page).toHaveScreenshot("beta-welcome-settings-tester-id-retry.png", { fullPage: false });
   });
 });
