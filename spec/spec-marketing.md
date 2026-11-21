@@ -293,7 +293,9 @@ Sections, in order:
    The tree-data answer credits the City of London, acknowledges possible
    inaccuracies, and explains that the trial will investigate and improve the
    data and report findings back to the City of London. The visible answer and
-   JSON-LD use the same wording.
+   JSON-LD use the same wording. It also states that Epping Forest Finds is not
+   associated with the City of London and that the City of London has not
+   confirmed it will update its own data from our updates.
    Each question links to its own stable fragment: `#faq-offline`, `#faq-free`,
    `#faq-tree-data`, `#faq-cattle` and `#faq-coverage`. Direct links scroll to
    the answer with breathing room above it and highlight the targeted row in
