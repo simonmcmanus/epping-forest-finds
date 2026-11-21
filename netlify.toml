@@ -169,6 +169,12 @@
   status = 200
   force = true
 
+[[redirects]]
+  from = "/calendar.ics"
+  to = "/.netlify/functions/calendar"
+  status = 200
+  force = true
+
 [functions."community-rebuild-scheduled"]
   schedule = "@hourly"
 

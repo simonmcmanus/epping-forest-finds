@@ -279,6 +279,22 @@ is `scripts/prune_past_events.js`, which prunes the same expired rows out of the
 its `startsAt` — a display-only cap on the map, independent of the two filters above and never
 applied to the source file itself (an event already live is exempt, however long ago it started).
 
+#### Calendar feed
+
+`/calendar.ics` serves the same events as an iCalendar feed that a calendar app can subscribe to
+(for example Google Calendar, "From URL"). It is built by `netlify/functions/calendar.js` from
+`data/events.json` using `netlify/functions/lib/calendar-feed.js`, which holds a Node copy of the
+visibility rules in `js/normalize.js` (coordinates required, malformed start dropped, ended events
+dropped, no `endsAt` means 24 hours, nothing more than 7 days before its start). A parity test
+fails if the two drift. Because of the 7-day window, an event appears in a subscriber's calendar
+about a week before it starts.
+
+Each `VEVENT` carries: `UID` (`<id>@eppingforestfinds.uk`), `DTSTAMP` (now, UTC), `DTSTART` and
+`DTEND` in UTC, `SUMMARY` (name), `DESCRIPTION` (description, then the source link on its own line
+when there is one), `URL` (source link, when present) and `GEO` (`lat;lon`). Output is CRLF,
+TEXT-escaped and folded at 75 octets. The response is cached for an hour. The feed is public and
+outside the alpha gate, as the data is already public at `/data/events.json`.
+
 ### Combined Landmarks
 
 `state.landmarks = [...osmLandmarks, ...folkloreLandmarks, ...eventLandmarks]`

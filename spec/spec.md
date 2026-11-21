@@ -134,6 +134,10 @@ calendar icon.
   carry events further out (the weekly ledger report has its own longer-range view of upcoming
   events), they simply don't appear on the map yet. An event already under way is never held
   back by this, however long ago it started.
+- **Calendar feed.** `/calendar.ics` is a subscribable iCalendar feed of exactly the events the map
+  shows, under the same visibility rules (see `spec-data-fetching.md`, "Calendar feed"). Because of the
+  7-day window, an event reaches a subscriber's calendar about a week before it starts. Each entry has
+  a title, UTC start and end, description with the source link, and the location.
 - Live event pin and detail view: see "Map Layers and Markers" and "Details Content
   Requirements" below.
 - **Nearby-event alert (in-app only — no OS push).** On every GPS fix, if a *live* event (its
