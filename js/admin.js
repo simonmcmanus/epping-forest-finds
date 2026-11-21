@@ -12,6 +12,9 @@ const ADMIN_MAP_URLS = {
 };
 // Earlier versions kept the password under this key. It is only ever removed now, never written.
 const LEGACY_SESSION_PASSWORD_KEY = "ff-admin-session-password";
+// The session token from POST /api/admin/session ({ token, expiresAt }), kept in sessionStorage so a reload of this
+// tab stays signed in. It is not the password; the password is never stored anywhere.
+const ADMIN_SESSION_KEY = "ff-admin-session";
 const ADMIN_VIEWPORT_KEY = "ff-admin-map-viewport";
 const BASE_MAP_OPACITY = 0.42;
 const MIN_MAP_ZOOM = 0.85;
@@ -1421,13 +1424,13 @@ const ADMIN_WINDOW_FALLBACKS = [null, 7, 1];
 
 const HTTP_STATUS_NAMES = { 400: "Bad Request", 403: "Forbidden", 404: "Not Found", 500: "Internal Server Error", 502: "Bad Gateway", 503: "Service Unavailable", 504: "Gateway Timeout" };
 
-async function loadData(password) {
+async function loadData(token) {
   let resp;
   let url;
   for (const days of ADMIN_WINDOW_FALLBACKS) {
     url = days ? `/api/admin/tracks?days=${days}` : "/api/admin/tracks";
     try {
-      resp = await fetch(url, { headers: { "Authorization": `Bearer ${password}` } });
+      resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
     } catch (cause) {
       const failure = new Error("network");
       failure.network = true;
@@ -1454,8 +1457,8 @@ async function loadData(password) {
 }
 
 // Community verification usage (netlify/functions/community-overlay.js ?admin=1).
-async function loadCommunityStats(password) {
-  const resp = await fetch("/api/community/overlay?admin=1", { headers: { Authorization: `Bearer ${password}` } });
+async function loadCommunityStats(token) {
+  const resp = await fetch("/api/community/overlay?admin=1", { headers: { Authorization: `Bearer ${token}` } });
   if (!resp.ok) {
     const failure = new Error(`Server error ${resp.status}`);
     failure.status = resp.status;
@@ -1519,8 +1522,42 @@ function rewardCheckText(data) {
   return parts.join(" ");
 }
 
-// The password lives only in the page's memory (the `password` variable in adminBoot), so a reload
-// asks for it again. A copy left in browser storage by an earlier version is removed on load.
+// The typed password is used once, to get a session token, and is never stored. Only the token (with its expiry) is
+// kept, in this tab's sessionStorage, so a reload stays signed in while a new tab, Log out or expiry asks again.
+// A password copy left in browser storage by an earlier version is removed on load.
+function readStoredSession() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(ADMIN_SESSION_KEY) || "null");
+    if (saved && typeof saved.token === "string" && saved.token && Number(saved.expiresAt) > Date.now()) return saved;
+  } catch {}
+  return null;
+}
+function storeSession(session) {
+  try { sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ token: session.token, expiresAt: session.expiresAt })); } catch {}
+}
+function clearStoredSession() {
+  try { sessionStorage.removeItem(ADMIN_SESSION_KEY); } catch {}
+}
+// Trade the typed password for a session token. Failures look like loadData's: "wrong-password" for a 401,
+// `network` when the server cannot be reached, otherwise a "Server error <status>" message.
+async function requestSession(password) {
+  let resp;
+  try {
+    resp = await fetch("/api/admin/session", { method: "POST", headers: { Authorization: `Bearer ${password}` } });
+  } catch (cause) {
+    const failure = new Error("network");
+    failure.network = true;
+    throw failure;
+  }
+  if (resp.status === 401) throw new Error("wrong-password");
+  if (!resp.ok) {
+    const name = resp.statusText || HTTP_STATUS_NAMES[resp.status] || "";
+    throw new Error(`Server error ${resp.status}${name ? `: ${name}` : ""}`);
+  }
+  const session = await resp.json().catch(() => null);
+  if (!session || !session.token) throw new Error("Server error: no session token");
+  return session;
+}
 function clearLegacyStoredPassword() {
   for (const store of [sessionStorage, localStorage]) {
     try {
@@ -1730,7 +1767,7 @@ async function adminBoot() {
   const communityBody = document.getElementById("adminCommunityBody");
   const communityStatus = document.getElementById("adminCommunityStatus");
 
-  let password = "";
+  let sessionToken = "";
   clearLegacyStoredPassword();
   readSavedViewport();
   loadAdminBaseMap();
@@ -1806,7 +1843,8 @@ async function adminBoot() {
 
   function forgetSession(message = "") {
     sessionId++;
-    password = "";
+    sessionToken = "";
+    clearStoredSession();
     setRefreshing(false); // an answer still on its way is ignored, so it can no longer re-enable the button
     communityAction = null;
     communityResultStash = "";
@@ -1827,7 +1865,9 @@ async function adminBoot() {
     loginInput.focus();
   }
 
+  let signingIn = false; // true while a sign-in or a stored-session restore is in flight, so Enter cannot start a second one
   async function doLogin() {
+    if (signingIn) return;
     const pw = loginInput.value.trim();
     if (!pw) {
       loginError.textContent = "Enter the admin password.";
@@ -1835,13 +1875,16 @@ async function adminBoot() {
       loginInput.focus();
       return;
     }
+    signingIn = true;
     loginBtn.disabled = true;
     loginBtn.textContent = "Signing in…";
     loginError.textContent = "";
     loginInput.removeAttribute("aria-invalid");
     try {
-      allData = await loadData(pw);
-      password = pw;
+      const session = await requestSession(pw);
+      allData = await loadData(session.token);
+      sessionToken = session.token;
+      storeSession(session);
       showAdminApp();
     } catch (err) {
       console.error("[admin] login failed:", err, err.detail || "");
@@ -1857,7 +1900,33 @@ async function adminBoot() {
       loginBtn.textContent = "Sign in";
       loginInput.focus();
       loginInput.select();
+    } finally {
+      signingIn = false;
     }
+  }
+
+  // A session kept by this tab survives a reload: go straight to the data. If the server no longer accepts it, ask again.
+  // Only a refusal (401) ends the session; a network or server error keeps the token for the next reload.
+  const restored = readStoredSession();
+  if (restored) {
+    signingIn = true;
+    loginBtn.disabled = true;
+    loginBtn.textContent = "Signing in…";
+    loadData(restored.token).then((data) => {
+      allData = data;
+      sessionToken = restored.token;
+      showAdminApp();
+    }).catch((err) => {
+      console.error("[admin] stored session not usable:", err, err.detail || "");
+      if (err.message === "wrong-password") {
+        clearStoredSession();
+        showLogin("Admin session expired. Sign in again.");
+      } else {
+        showLogin(err.network ? "Cannot reach the server. Check your connection and try again." : err.message);
+      }
+    }).finally(() => { signingIn = false; });
+  } else {
+    clearStoredSession();
   }
 
   loginInput.addEventListener("input", () => loginInput.removeAttribute("aria-invalid"));
@@ -1950,7 +2019,7 @@ async function adminBoot() {
     communityStatus.textContent = "Loading…";
     const sid = sessionId;
     try {
-      const html = renderCommunityStats(await loadCommunityStats(password));
+      const html = renderCommunityStats(await loadCommunityStats(sessionToken));
       if (token !== communityToken || sid !== sessionId) return;
       communityStatus.textContent = "";
       communityBody.innerHTML = html;
@@ -2000,7 +2069,7 @@ async function adminBoot() {
     let ok = false;
     let text;
     try {
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${password}` } });
+      const resp = await fetch(url, { headers: { Authorization: `Bearer ${sessionToken}` } });
       if (sid !== sessionId) return;
       if (resp.status === 401) {
         forgetSession("Admin session expired. Sign in again.");
@@ -2018,7 +2087,7 @@ async function adminBoot() {
     }
     if (ok && refreshFigures) {
       try {
-        const stats = await loadCommunityStats(password);
+        const stats = await loadCommunityStats(sessionToken);
         if (sid !== sessionId) return;
         const figures = document.getElementById("communityFigures");
         if (figures) figures.innerHTML = renderCommunityFigures(stats);
@@ -2103,7 +2172,7 @@ async function adminBoot() {
     setAccessEditable(false);
     sayAccess("Loading…");
     try {
-      const resp = await fetch("/api/features?admin=1", { headers: { Authorization: `Bearer ${password}` } });
+      const resp = await fetch("/api/features?admin=1", { headers: { Authorization: `Bearer ${sessionToken}` } });
       if (token !== accessToken || sid !== sessionId) return;
       if (resp.status === 401) {
         forgetSession("Admin session expired. Sign in again.");
@@ -2164,7 +2233,7 @@ async function adminBoot() {
     setAccessEditable(false);
     sayAccess("Saving…");
     try {
-      const resp = await fetch("/api/features", { method: "POST", headers: { Authorization: `Bearer ${password}`, "Content-Type": "application/json" }, body: JSON.stringify({ community }) });
+      const resp = await fetch("/api/features", { method: "POST", headers: { Authorization: `Bearer ${sessionToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ community }) });
       if (sid !== sessionId) return;
       if (resp.status === 401) {
         forgetSession("Admin session expired. Sign in again.");
@@ -2215,7 +2284,7 @@ async function adminBoot() {
     const sid = sessionId;
     setRefreshing(true);
     try {
-      const data = await loadData(password);
+      const data = await loadData(sessionToken);
       if (sid !== sessionId) return;
       allData = data;
       lastLoadedAt = new Date();
@@ -2254,7 +2323,7 @@ async function adminBoot() {
   window.addEventListener("resize", () => { invalidateMapFit(); syncSheetInset(); refreshScrollCues(); render(); });
 
   // Auto-refresh every 5 minutes
-  setInterval(() => { if (password) refreshData(); }, 5 * 60 * 1000);
+  setInterval(() => { if (sessionToken) refreshData(); }, 5 * 60 * 1000);
 }
 
 document.addEventListener("DOMContentLoaded", adminBoot);
