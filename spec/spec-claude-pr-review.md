@@ -1,7 +1,7 @@
 # Claude Pull Request Review
 
 The local team reviews a frozen branch before its batched push. CI retains one
-independent final-head review for same-repository, non-draft pull requests. Its
+independent final-head review for same-repository pull requests, drafts included. Its
 remit is actionable correctness/security regressions and gaps in the regression
 test contract, including changes introduced while resolving conflicts. It does
 not dispatch the local specialist roster again or repeat formatting/style checks.
@@ -43,7 +43,7 @@ affected findings and dependencies. Uncertain impact still requires the full app
   checkout and never executes repository scripts with its write token. It
   rejects malformed/incomplete results, invalid priorities, off-diff lines and
   incomplete changed-file lists. Files and reviews are read with pagination.
-- Publication rechecks the current open, non-draft PR and its head SHA immediately
+- Publication rechecks the current open PR (draft or ready) and its head SHA immediately
   and target base before creating one formal review pinned with `commit_id`. Superseded-head output
   is discarded. Base-only drift on a still-current head fails the required check;
   merge the updated base and push for a new inspection rather than rerunning
@@ -83,12 +83,43 @@ Only verified addressed threads may then be resolved; a push alone is not proof.
 Human threads and decisions remain human-owned. Workflow/guidance/dependency
 changes go through the normal reviewed branch rather than an unattended bot fixer.
 
-`main` should require CI, **Claude PR review**, and human approval with stale
-approvals dismissed after a push. Workflow code cannot itself configure or prove
+`main` should require CI and two approving reviews (one person, one the
+**Claude PR review** agent APPROVE) with stale approvals dismissed after a push. Workflow code cannot itself configure or prove
 the repository's live branch protection. Same-repository workflow changes can
 change the workflow, so they require human review; no fork code receives these
 credentials. A setup or policy error is a reported blocker, never a reason to
 skip the current-head gate.
+
+## Auto-merge workflow
+
+`.github/workflows/auto-merge.yml` merges a PR once the current head has both
+approvals. It runs on `pull_request_review` (submitted), on `workflow_run` when
+CI completes, and on `pull_request_target` `ready_for_review` (so the
+default-branch copy runs; it never checks out PR code). Only same-repository,
+open, non-draft PRs whose head SHA still matches the event are considered.
+
+Conditions, all on the current head: a human `APPROVED` review whose
+`author_association` is OWNER, MEMBER or COLLABORATOR, and a `github-actions[bot]`
+`APPROVED` review carrying `CLAUDE_FINAL_REVIEW:<head>:<base>` with `<base>`
+equal to the PR's live base SHA. The latest review per reviewer wins, so a later
+change request or dismissal cancels an earlier approval.
+
+It first tries native auto-merge. GitHub rejects that when the PR is already
+mergeable (the usual case when the human approves last), so it then squash-merges
+directly with the same GitHub App token and `--match-head-commit`. "Already
+enabled" from a racing event counts as success. Branch protection still gates
+every merge. Agents never approve, arm or merge.
+
+Limitation: PRs opened through the owner's account cannot be approved by that
+account, so the human approval may be impossible; a different account must
+approve, or the PR is merged manually.
+
+Repository settings required (not enforced by the file): Allow auto-merge on;
+the `main` ruleset requiring two approvals, status checks and stale-approval
+dismissal; the GitHub App secrets `CACHE_VERSION_APP_ID` and
+`CACHE_VERSION_APP_PRIVATE_KEY`. CI's `pull_request` trigger deliberately
+omits `ready_for_review`: the review runs on drafts, so marking ready does not
+re-run the paid review.
 
 ## Specialist record on the PR
 
@@ -99,7 +130,7 @@ earlier rows stale: rerun the affected specialists, then update the SHA.
 
 `.github/workflows/claude-specialist.yml` runs one read-only specialist on demand.
 A repository writer (OWNER, MEMBER or COLLABORATOR) comments
-`@claude review <specialist-name>` on an open, non-draft PR. The name must be one
+`@claude review <specialist-name>` on an open, non-draft PR (unlike the final-head review, which also runs on drafts). The name must be one
 of the eight read-only reviewers in `.claude/agents/`; anything else is ignored.
 
 - The reviewer definition is read from the default branch checkout, and the
