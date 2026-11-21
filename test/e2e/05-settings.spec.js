@@ -28,6 +28,15 @@ test.describe("Settings screen", () => {
     await expect(link).toHaveAttribute("href", "/#signup");
   });
 
+  test("the early access link opens the homepage signup in a new tab and leaves the app on Settings", async ({ page }) => {
+    const link = page.locator("#settingsAccount").getByRole("link", { name: "Sign up for early access" });
+    const [popup] = await Promise.all([page.waitForEvent("popup", { timeout: 5000 }), link.click()]);
+    await popup.waitForLoadState("domcontentloaded");
+    expect(popup.url()).toMatch(/\/#signup$/);
+    await expect(popup.locator("#signup")).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe("/settings");
+  });
+
   test("settings screen shows a walking radius slider", async ({ page }) => {
     await expect(page.locator("#settingsWalkMins")).toHaveAttribute("type", "range");
   });

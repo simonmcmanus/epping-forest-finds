@@ -166,7 +166,7 @@ function settingsFormHtml() {
       <h3 class="settings-section-title">Account</h3>
       <div id="settingsAccountBody">${settingsAccountHtml(typeof communityReadAccount === "function" ? communityReadAccount() : null)}</div>
       ${Native.isNative ? "" : `<p class="settings-description">Get early access to the community features and weekly Ledger updates by email.</p>
-      <a id="settingsSignup" class="settings-btn settings-btn-link" href="/#signup">Sign up for early access</a>`}
+      <a id="settingsSignup" class="settings-btn settings-btn-link" href="/#signup" target="_blank" rel="noopener">Sign up for early access</a>`}
     </section>
     <section class="settings-section">
       <h3 class="settings-section-title">Reminders</h3>
