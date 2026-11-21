@@ -24,10 +24,12 @@ name: Merge after verified label and agent approval
 # status"). Then this workflow merges directly with the same App token,
 # squash, pinned to the head SHA (--match-head-commit), only after the same
 # checks passed. Right before arming or merging it re-fetches the PR and
-# requires the same head and the `verified` label still present.
+# requires the same head, the same base and the `verified` label still present.
+# The arming mutation also carries expectedHeadOid, so GitHub itself refuses
+# to arm if the head moved after the check.
 # A push (synchronize) removes the label AND disables native auto-merge, which
-# is a PR-level setting that otherwise survives a push. An armed PR that lacks
-# a valid label is also disarmed on the other events. "Already enabled" (two events racing) counts as success.
+# is a PR-level setting that otherwise survives a push. Removing the label (unlabeled) also disarms
+# an armed PR, as does any other event that finds an armed PR without a valid label. "Already enabled" (two events racing) counts as success.
 #
 # Branch protection still gates every merge (required checks and approvals);
 # the settings below are repository configuration, not enforced by this file:
@@ -47,7 +49,7 @@ name: Merge after verified label and agent approval
 # workflow_run and pull_request_target only once this file is on main.
 on:
   pull_request_target:
-    types: [labeled, synchronize, ready_for_review]
+    types: [labeled, unlabeled, synchronize, ready_for_review]
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -55,13 +57,21 @@ on:
 permissions:
   contents: read
 
+# Runs for one PR are serialised (synchronize, label and arming runs never
+# overlap). Nothing is cancelled: each run re-reads the live PR, so a queued
+# run that is superseded by a newer one still sees current state.
+concurrency:
+  group: auto-merge-${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.run_id }}
+  cancel-in-progress: false
+
 jobs:
   arm:
     name: Arm or merge when verified and approved
     if: >-
       (github.event_name == 'pull_request_target' &&
         github.event.pull_request.head.repo.full_name == github.repository &&
-        (github.event.action != 'labeled' || github.event.label.name == 'verified')) ||
+        ((github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
+          github.event.label.name == 'verified')) ||
       (github.event_name == 'workflow_run' &&
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.event == 'pull_request' &&
@@ -150,7 +160,7 @@ jobs:
           # Human check: the verified label, applied by a writer after the head
           # commit. Any failure (including API errors) means the gate is not met.
           label_gate() {
-            local events label_event actor actor_type labeled_at permission head_date
+            local events label_event actor actor_type labeled_at permission head_date labeled_ts head_ts
             events=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/events" | jq -s 'add // []') || return 1
             label_event=$(jq '[.[] | select(.event == "labeled" and .label.name == "verified")] | sort_by(.id) | last // empty' <<<"$events") || return 1
             if [ -z "$label_event" ]; then
@@ -173,7 +183,9 @@ jobs:
                 ;;
             esac
             head_date=$(gh api "repos/$REPO/commits/$HEAD_SHA" --jq '.commit.committer.date') || return 1
-            if [ "$(date -d "$labeled_at" +%s)" -le "$(date -d "$head_date" +%s)" ]; then
+            labeled_ts=$(date -d "$labeled_at" +%s) || return 1
+            head_ts=$(date -d "$head_date" +%s) || return 1
+            if [ "$labeled_ts" -le "$head_ts" ]; then
               echo "verified ($labeled_at) is not newer than the head commit ($head_date); stale."
               return 1
             fi
@@ -218,18 +230,19 @@ jobs:
             local live
             live=$(gh api "repos/$REPO/pulls/$PR_NUMBER") || return 1
             [ "$(jq -r .head.sha <<<"$live")" = "$HEAD_SHA" ] &&
+              [ "$(jq -r .base.sha <<<"$live")" = "$base_sha" ] &&
               [ "$(jq -r '[.labels[].name] | index("verified") != null' <<<"$live")" = "true" ]
           }
           if ! still_current; then
-            echo "Head moved or verified label removed since this run started; not arming $HEAD_SHA."
+            echo "Head or base moved or verified label removed since this run started; not arming $HEAD_SHA."
             exit 0
           fi
           if out=$(gh api graphql -f query='
-            mutation($id: ID!) {
-              enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: SQUASH}) {
+            mutation($id: ID!, $oid: GitObjectID!) {
+              enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: SQUASH, expectedHeadOid: $oid}) {
                 pullRequest { number autoMergeRequest { enabledAt } }
               }
-            }' -f id="$node_id" 2>&1); then
+            }' -f id="$node_id" -f oid="$HEAD_SHA" 2>&1); then
             echo "Auto-merge armed for PR #$PR_NUMBER on $HEAD_SHA (verified by $actor, agent approved)."
           elif grep -qi 'already enabled' <<<"$out"; then
             echo "Auto-merge was already enabled (concurrent event)."
@@ -237,7 +250,7 @@ jobs:
             # Already mergeable, so GitHub refuses to arm. Merge now; branch
             # protection still decides whether this is allowed.
             if ! still_current; then
-              echo "Head moved or verified label removed before the direct merge; not merging $HEAD_SHA."
+              echo "Head or base moved or verified label removed before the direct merge; not merging $HEAD_SHA."
               exit 0
             fi
             echo "PR is already mergeable; merging directly."

@@ -95,8 +95,8 @@ skip the current-head gate.
 
 `.github/workflows/auto-merge.yml` merges a PR once the current head has the
 human `verified` label and the agent approval. It runs on `workflow_run` when
-CI completes and on `pull_request_target` `labeled` (only for `verified`),
-`synchronize` and `ready_for_review` (so the default-branch copy runs; it never
+CI completes and on `pull_request_target` `labeled` and `unlabeled` (only for
+`verified`), `synchronize` and `ready_for_review` (so the default-branch copy runs; it never
 checks out PR code). The head SHA is read from the live PR, not the event. Only
 same-repository, open, non-draft PRs are considered.
 
@@ -106,7 +106,9 @@ from the owner's account and GitHub forbids approving your own PR. On
 check) and, if the live PR has native auto-merge enabled, disables it with the
 `disablePullRequestAutoMerge` mutation, because auto-merge is a PR-level setting
 that survives a push. A 404 on label removal is tolerated; any other failure of
-either step fails the job (fail closed). On the other events, an armed PR whose
+either step fails the job (fail closed). Removing the `verified` label
+(`unlabeled`) on an armed PR disarms it through the same path as a missing label.
+On the other events, an armed PR whose
 label is absent or fails the label checks is disarmed; it exits quietly only
 when auto-merge is enabled and the label gate passes.
 
@@ -123,8 +125,11 @@ cancels the agent approval.
 It first tries native auto-merge. GitHub rejects that when the PR is already
 mergeable, so it then squash-merges directly with the same GitHub App token and
 `--match-head-commit`. Immediately before arming or merging it re-fetches the PR
-and requires the head to still equal the evaluated SHA and the label to be
-present, otherwise it exits without arming. "Already enabled" from a racing event counts as success.
+and requires the head and base to still equal the evaluated SHAs and the label
+to be present, otherwise it exits without arming. The arming mutation also passes
+`expectedHeadOid`, so GitHub rejects it if the head moved. Runs are serialised
+per PR by a `concurrency` group (not cancelled), so push, label and arming runs
+for one PR never overlap. "Already enabled" from a racing event counts as success.
 Branch protection still gates every merge. Agents never approve, arm, merge or
 apply the `verified` label. Agent sessions act through the owner's token, so
 this cannot be technically enforced; it is a policy.
