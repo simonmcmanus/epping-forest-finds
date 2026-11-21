@@ -67,6 +67,64 @@ test.describe("Community sign-in", () => {
     await expect.poll(() => links).toBe(1);
   });
 
+  test("a signed-in visitor can copy their recovery code from under the Sign out line", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.route(ME_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Sam Walker", account: "acct-sam" }) })
+    );
+    await page.route(LINK_URL, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }));
+    await setup(page, "/community");
+    const account = page.locator("#communityAccount");
+    await expect(account).toContainText("Signed in as Sam Walker");
+    const copy = account.getByRole("button", { name: "Copy" });
+    await expect(copy).toBeVisible();
+    const signOut = await account.locator("a[href^='/api/auth/logout']").boundingBox();
+    const copyBox = await copy.boundingBox();
+    expect(copyBox.y).toBeGreaterThan(signOut.y);
+    await copy.click();
+    await expect(account.getByRole("status").filter({ hasText: "Copied." })).toBeVisible();
+    const code = await page.evaluate(() => communityRecoveryCode());
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(code);
+  });
+
+  test("on a shared browser a second account whose device could not be linked is not shown the first account's recovery code", async ({ page }) => {
+    const first = "aaaa1111bbbb2222cccc3333";
+    await page.addInitScript((id) => {
+      localStorage.setItem("ff-community-device-v1", id);
+      localStorage.setItem("ff-community-account-devices-v1", JSON.stringify({ "acct-aaaa": id }));
+      localStorage.setItem("ff-community-account-v1", JSON.stringify({ signedIn: true, name: "Ada", account: "acct-aaaa" }));
+    }, first);
+    await page.route(ME_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Ben", account: "acct-bbbb" }) })
+    );
+    let links = 0;
+    await page.route(LINK_URL, (route) => {
+      links += 1;
+      // The first account owns the browser's own id (409); the fresh id offered next then fails too.
+      return route.fulfill(links === 1
+        ? { status: 409, contentType: "application/json", body: JSON.stringify({ error: "This device is already linked to another account." }) }
+        : { status: 500, contentType: "application/json", body: JSON.stringify({ error: "Couldn't link this device right now." }) });
+    });
+    await setup(page, "/community");
+    const account = page.locator("#communityAccount");
+    await expect(account).toContainText("Signed in as Ben");
+    await expect.poll(() => links).toBe(2);
+    await expect(account.locator(".community-account-note")).toContainText("Couldn't link this device right now.");
+    await expect(account.locator("[data-account='copy']")).toBeHidden();
+    await expect(account.getByRole("button", { name: "Copy" })).toBeHidden();
+    expect((await account.textContent()).replace(/[\s-]+/g, "")).not.toContain(first);
+  });
+
+  test("a signed-out visitor sees the back-up disclosure and no copy row under the account line", async ({ page }) => {
+    await page.route(ME_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })
+    );
+    await setup(page, "/community");
+    await expect(page.locator("#communityAccount")).toContainText("Sign in to take your points with you");
+    await expect(page.locator("#communityAccount [data-account='copy']")).toBeHidden();
+    await expect(page.locator("#communityAccount .community-recover")).toBeVisible();
+  });
+
   test("Sign in leaves the app for the login page instead of opening a screen", async ({ page }) => {
     await page.route(ME_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })

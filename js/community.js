@@ -1591,7 +1591,9 @@ async function communityRestore() {
 }
 
 async function communityCopyCode() {
-  const status = document.getElementById("communityRecoveryStatus");
+  // Signed in, the copy row under Sign out carries its own status; otherwise the disclosure's one is used.
+  const copyRow = document.querySelector('#communityAccount [data-account="copy"]');
+  const status = copyRow && !copyRow.hidden ? copyRow.querySelector(".community-recover-status") : document.getElementById("communityRecoveryStatus");
   try {
     await navigator.clipboard.writeText(communityRecoveryCode());
     if (status) status.textContent = "Copied.";
@@ -2736,6 +2738,7 @@ function communityAccountHtml() {
   return `<section class="community-account" id="communityAccount" aria-live="polite">
       <p class="community-account-line is-loading" data-account="line"><span class="community-skel-text" aria-hidden="true"></span></p>
       <div data-account="note"></div>
+      <div class="community-account-copyrow" data-account="copy" hidden></div>
       <div data-account="recover" hidden>${communityRecoveryHtml()}</div>
     </section>`;
 }
@@ -2764,6 +2767,7 @@ function communityRenderAccount(account, note = "") {
   const line = host.querySelector('[data-account="line"]');
   const noteEl = host.querySelector('[data-account="note"]');
   const recover = host.querySelector('[data-account="recover"]');
+  const copyRow = host.querySelector('[data-account="copy"]');
   noteEl.innerHTML = note ? `<p class="community-account-note" role="status">${escapeHtml(note)}</p>` : "";
   line.classList.remove("is-loading");
   line.classList.toggle("community-account-quiet", !(account && account.signedIn));
@@ -2771,7 +2775,26 @@ function communityRenderAccount(account, note = "") {
   line.innerHTML = account && account.signedIn
     ? `<span class="community-account-copy">Signed in as <strong>${escapeHtml(account.name)}</strong>.</span><a href="/api/auth/logout?return=/community">Sign out</a>`
     : (Native.isNative ? "" : `<a href="/api/auth/login?return=/community">Sign in to take your points with you</a>`);
-  recover.hidden = Boolean(account && account.signedIn);
+  const signedIn = Boolean(account && account.signedIn);
+  recover.hidden = signedIn;
+  // The disclosure carries the browser's code, so while signed in it is not kept in the page at all.
+  if (signedIn) recover.innerHTML = "";
+  else if (!recover.innerHTML.trim()) recover.innerHTML = communityRecoveryHtml();
+  // The code is the device id, so it is shown only when this account has its own saved device on this browser.
+  // Without one (a failed link on a shared browser) the id in use would be another account's.
+  const own = signedIn && account.account ? communityAccountDevices()[account.account] : "";
+  if (!own) {
+    copyRow.hidden = true;
+    copyRow.innerHTML = "";
+  } else if (copyRow.hidden) {
+    // Drawn once per sign-in so a "Copied." message is not wiped by a later render of the same account.
+    copyRow.innerHTML = `<p class="community-recover-text">Your points are saved to your account. As a spare, keep this code somewhere safe to get them back on a new phone. Anyone with the code can act as you, so keep it private.</p>
+      <div class="community-recover-code"><code>${escapeHtml(communityRecoveryCode())}</code><button type="button" class="community-chip" data-action="community-copy-code">Copy</button></div>
+      <p class="community-recover-status" role="status"></p>`;
+    copyRow.hidden = false;
+  } else {
+    copyRow.querySelector("code").textContent = communityRecoveryCode();
+  }
 }
 
 function communityResetAccount() {
@@ -2782,7 +2805,12 @@ function communityResetAccount() {
   line.classList.remove("community-account-quiet");
   line.innerHTML = `<span class="community-skel-text" aria-hidden="true"></span>`;
   host.querySelector('[data-account="note"]').innerHTML = "";
-  host.querySelector('[data-account="recover"]').hidden = true;
+  const recover = host.querySelector('[data-account="recover"]');
+  recover.hidden = true;
+  recover.innerHTML = "";
+  const copyRow = host.querySelector('[data-account="copy"]');
+  copyRow.hidden = true;
+  copyRow.innerHTML = "";
 }
 
 // Learn who is signed in, and link this device to that account once. A 409 is shown, not retried.
