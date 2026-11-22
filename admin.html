@@ -52,6 +52,7 @@
         <div class="admin-panel-btns" role="group" aria-label="Panels">
           <button id="communityBtn" class="admin-btn" type="button" aria-expanded="false">Community</button>
           <button id="accessBtn" class="admin-btn" type="button" aria-expanded="false">Access</button>
+          <button id="betaBtn" class="admin-btn" type="button" aria-expanded="false">Beta codes</button>
         </div>
       </div>
       <div class="admin-actions">
@@ -97,6 +98,14 @@
           <p class="admin-panel-help">One tester per line: the Tester ID from their Settings screen, then an optional note. While the list is empty everyone has Community; once it has anyone in it, only they do. Changes apply the next time an app starts; no deploy needed.</p>
           <textarea id="adminAccessList" rows="10" spellcheck="false" placeholder="a1b2c3d4e5 Simon" disabled></textarea>
           <p class="admin-access-actions"><button id="adminAccessSave" class="admin-btn admin-btn-primary" type="button" disabled>Save</button> <button id="adminAccessRetry" class="admin-btn" type="button" hidden>Retry</button> <span id="adminAccessStatus" role="status"></span></p>
+        </section>
+        <section id="adminBeta" class="admin-click-details" role="region" aria-labelledby="adminBetaTitle" hidden>
+          <button id="adminBetaClose" class="admin-click-details-close" type="button" aria-label="Close Beta codes (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
+          <h3 id="adminBetaTitle" class="admin-panel-title">Beta codes</h3>
+          <p class="admin-panel-help">Each code is for one person. The first account to open its link claims it. Revoking a claimed code removes that person's beta access.</p>
+          <p class="admin-beta-create"><label for="adminBetaNote">Note</label> <input id="adminBetaNote" type="text" maxlength="80" placeholder="Who is it for? (optional)" autocomplete="off" disabled> <button id="adminBetaCreate" class="admin-btn admin-btn-primary" type="button" disabled>Create code</button> <button id="adminBetaRetry" class="admin-btn" type="button" hidden>Retry</button></p>
+          <p id="adminBetaStatus" class="admin-beta-status" role="status"></p>
+          <ul id="adminBetaList" class="admin-beta-list"></ul>
         </section>
         <section id="adminClickDetails" class="admin-click-details" role="region" aria-label="Tap details" hidden>
           <button id="adminClickDetailsClose" class="admin-click-details-close" type="button" aria-label="Close tap details (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>

@@ -1341,6 +1341,7 @@ function renderClickDetails(key) {
 const OVERLAY_PANELS = {
   community: { id: "adminCommunity", opener: "communityBtn" },
   access: { id: "adminAccess", opener: "accessBtn", onClose: null },
+  beta: { id: "adminBeta", opener: "betaBtn", onClose: null },
 };
 
 function closeOverlay(key) {
@@ -1366,7 +1367,7 @@ function syncPanelButtons() {
 }
 
 function closeOverlayPanels(except) {
-  for (const key of ["community", "access", "details"]) if (key !== except) closeOverlay(key);
+  for (const key of ["community", "access", "beta", "details"]) if (key !== except) closeOverlay(key);
 }
 
 // ---- Data loading ----
@@ -1855,6 +1856,7 @@ async function adminBoot() {
     closeOverlayPanels();
     resetView();
     resetAccessPanel();
+    resetBetaPanel();
     communityToken++;
     communityBody.textContent = "";
     communityStatus.textContent = "";
@@ -2275,6 +2277,188 @@ async function adminBoot() {
     }
     closeOverlayPanels();
   });
+
+  // ---- Beta codes: one code per person, shared as /beta/<code>. Revoking a claimed code removes that person's access. ----
+  const betaPanel = document.getElementById("adminBeta");
+  const betaList = document.getElementById("adminBetaList");
+  const betaStatus = document.getElementById("adminBetaStatus");
+  const betaNote = document.getElementById("adminBetaNote");
+  const betaCreate = document.getElementById("adminBetaCreate");
+  const betaRetry = document.getElementById("adminBetaRetry");
+  const betaClose = document.getElementById("adminBetaClose");
+  let betaCodes = [];
+  let betaLoaded = false;
+  let betaBusy = false;
+  let betaArmed = ""; // the code whose Revoke awaits its confirming second press
+  let betaToken = 0;
+  OVERLAY_PANELS.beta.onClose = () => { betaArmed = ""; renderBeta(); };
+
+  const betaLink = (code) => `${location.origin}/beta/${code}`;
+  const betaDate = (iso) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  };
+
+  function renderBeta(focusCode = "", focusWhat = "") {
+    betaList.textContent = "";
+    const enabled = betaLoaded && !betaBusy;
+    betaNote.disabled = !enabled;
+    betaCreate.disabled = !enabled;
+    for (const item of betaCodes) {
+      const li = document.createElement("li");
+      const code = document.createElement("span");
+      code.className = "admin-beta-code";
+      code.textContent = item.code;
+      const note = document.createElement("span");
+      note.className = "admin-beta-note";
+      note.textContent = item.note || "";
+      const state = document.createElement("span");
+      state.textContent = item.status === "claimed"
+        ? `claimed${item.claimedAt && betaDate(item.claimedAt) ? ` ${betaDate(item.claimedAt)}` : ""}`
+        : item.status === "revoked" ? "revoked" : "open";
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.className = "admin-btn";
+      copy.textContent = "Copy link";
+      copy.addEventListener("click", () => copyBetaLink(item.code));
+      li.append(code, note, state, copy);
+      if (item.status === "open" || item.status === "claimed") {
+        const revoke = document.createElement("button");
+        revoke.type = "button";
+        revoke.className = "admin-btn";
+        revoke.dataset.code = item.code;
+        revoke.textContent = betaArmed === item.code ? "Confirm revoke" : "Revoke";
+        revoke.disabled = !enabled;
+        revoke.addEventListener("click", () => revokeBeta(item.code));
+        li.append(revoke);
+      }
+      betaList.append(li);
+    }
+    if (focusCode) betaList.querySelector(`button[data-code="${focusCode}"]`)?.focus();
+  }
+
+  function resetBetaPanel() {
+    betaToken++;
+    betaCodes = [];
+    betaLoaded = false;
+    betaBusy = false;
+    betaArmed = "";
+    betaNote.value = "";
+    betaStatus.textContent = "";
+    betaRetry.hidden = true;
+    renderBeta();
+  }
+
+  async function betaFetch(options) {
+    const resp = await fetch("/api/beta/codes", { ...options, headers: { Authorization: `Bearer ${sessionToken}`, ...(options.headers || {}) } });
+    if (resp.status === 401) return { unauthorised: true };
+    let data = null;
+    try { data = await resp.json(); } catch { /* not JSON */ }
+    if (!resp.ok) throw Object.assign(new Error("http"), { status: resp.status, serverMessage: data && data.error });
+    return { data };
+  }
+
+  function betaProblem(error, what, useServerText = true) {
+    if (useServerText && error.status === 503 && error.serverMessage) return error.serverMessage;
+    return error.status ? `Could not ${what} (${error.status}). Try again.` : `Could not ${what}. Check your connection and try again.`;
+  }
+
+  async function loadBeta() {
+    const token = ++betaToken;
+    const sid = sessionId;
+    betaLoaded = false;
+    betaBusy = false;
+    betaArmed = "";
+    betaRetry.hidden = true;
+    betaStatus.textContent = "Loading…";
+    renderBeta();
+    try {
+      const result = await betaFetch({});
+      if (token !== betaToken || sid !== sessionId) return;
+      if (result.unauthorised) { forgetSession("Admin session expired. Sign in again."); return; }
+      betaCodes = Array.isArray(result.data.codes) ? result.data.codes : [];
+      betaLoaded = true;
+      betaStatus.textContent = "";
+    } catch (error) {
+      if (token !== betaToken || sid !== sessionId) return;
+      betaCodes = [];
+      betaStatus.textContent = betaProblem(error, "load beta codes", false);
+      betaRetry.hidden = false;
+    }
+    renderBeta();
+  }
+
+  async function betaAction(body, onDone, focusCode = "") {
+    const token = betaToken;
+    const sid = sessionId;
+    betaBusy = true;
+    renderBeta();
+    try {
+      const result = await betaFetch({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (token !== betaToken || sid !== sessionId) return;
+      if (result.unauthorised) { forgetSession("Admin session expired. Sign in again."); return; }
+      betaBusy = false;
+      onDone(result.data);
+    } catch (error) {
+      if (token !== betaToken || sid !== sessionId) return;
+      betaBusy = false;
+      betaStatus.textContent = betaProblem(error, body.action === "create" ? "create a code" : "revoke the code");
+    }
+    renderBeta(focusCode);
+  }
+
+  betaCreate.addEventListener("click", () => {
+    if (!betaLoaded || betaBusy) return;
+    betaArmed = "";
+    betaStatus.textContent = "Creating…";
+    betaAction({ action: "create", note: betaNote.value.trim().slice(0, 80) }, (created) => {
+      betaCodes.unshift(created);
+      betaNote.value = "";
+      betaStatus.textContent = `New code ${created.code}: ${betaLink(created.code)}`;
+    });
+  });
+
+  function revokeBeta(code) {
+    if (!betaLoaded || betaBusy) return;
+    if (betaArmed !== code) {
+      betaArmed = code;
+      betaStatus.textContent = `Revoke ${code}? Press Confirm revoke to be sure. A claimed code loses that person's beta access.`;
+      renderBeta(code);
+      return;
+    }
+    betaArmed = "";
+    betaStatus.textContent = "Revoking…";
+    betaAction({ action: "revoke", code }, () => {
+      const row = betaCodes.find((c) => c.code === code);
+      if (row) row.status = "revoked";
+      betaStatus.textContent = `Revoked ${code}.`;
+    });
+  }
+
+  async function copyBetaLink(code) {
+    const link = betaLink(code);
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error("no clipboard");
+      await navigator.clipboard.writeText(link);
+      betaStatus.textContent = `Copied ${link}`;
+    } catch {
+      betaStatus.textContent = `Could not copy automatically. Copy this link: ${link}`;
+    }
+  }
+
+  document.getElementById("betaBtn").addEventListener("click", () => {
+    leaveNavigationForMap();
+    closeOverlayPanels("beta");
+    betaPanel.hidden = false;
+    syncPanelButtons();
+    betaClose.focus();
+    loadBeta();
+  });
+  betaRetry.addEventListener("click", () => {
+    betaClose.focus();
+    loadBeta();
+  });
+  betaClose.addEventListener("click", () => closeOverlay("beta"));
 
   tracksBtn.addEventListener("click", () => showMapView("tracks"));
 
