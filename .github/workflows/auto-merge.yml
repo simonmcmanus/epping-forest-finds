@@ -22,8 +22,9 @@ name: Merge after verified label and agent approval
 # Order of operations: first try native auto-merge (enablePullRequestAutoMerge).
 # GitHub rejects that mutation when the PR is already mergeable ("clean
 # status") or when required checks pass but a non-required check is not
-# success ("unstable status"). Then this workflow merges directly with the same App token,
-# squash, pinned to the head SHA (--match-head-commit), only after the same
+# success ("unstable status"). Then this workflow merges directly with the
+# same App token, squash, pinned to the head SHA (--match-head-commit), only
+# after the same
 # checks passed. Right before arming or merging it re-fetches the PR and
 # requires the same head, the same base and the `verified` label still present.
 # The arming mutation also carries expectedHeadOid, so GitHub itself refuses
