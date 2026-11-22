@@ -11,9 +11,10 @@ permissions:
   pull-requests: write
   statuses: read
 
-# Serialise runs so two body rewrites cannot overwrite each other.
+# Serialise runs per PR (or per commit for status events). A single shared group would let GitHub
+# cancel a pending run for one PR when another PR's run queues behind the running one.
 concurrency:
-  group: preview-links
+  group: preview-links-${{ github.event.pull_request.number || github.event.sha }}
   cancel-in-progress: false
 
 jobs:
