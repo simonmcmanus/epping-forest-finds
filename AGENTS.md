@@ -22,8 +22,9 @@ After every push to a pull-request branch:
   explicitly instead of presenting an unverified link.
 
 The preview testing link is part of the handoff, not optional status text. When rewriting the PR
-description, preserve the preview-links block between `<!-- preview-links:start -->` and
-`<!-- preview-links:end -->`.
+description, leave the `<!-- preview-links:start -->` and `<!-- preview-links:end -->` markers in
+place and never write or copy the block's contents by hand; `update-preview-links.yml` regenerates
+the block on every PR body edit and after each Netlify deploy.
 
 ## Review
 
