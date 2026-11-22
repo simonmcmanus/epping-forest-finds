@@ -181,7 +181,7 @@ h1 {
     actionsEl.appendChild(b);
   }
   var NEXT_NEW = " Ask whoever sent you the link for a new one.";
-  var NEXT_USED = " Ask whoever sent you the link for a new one, or sign in with the account you used first.";
+  var NEXT_USED = " Ask whoever sent you the link for a new one, or sign in with the account you used first. If you already joined with this account, you're in.";
   function addLink(href, text) {
     var a = document.createElement("a");
     a.className = "btn";
@@ -220,6 +220,7 @@ h1 {
         if (res.status === 401) { showSignIn(); return; }
         if (res.status === 409) {
           say((text || "That beta link has already been used.") + NEXT_USED, true);
+          addLink("/nearby", "Open Nearby");
           addLink("/api/auth/logout?return=/beta/" + code, "Use a different account");
           return;
         }

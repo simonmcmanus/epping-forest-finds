@@ -52,6 +52,8 @@ test.describe("Beta sign-in page", () => {
     await expect(status).toContainText("That beta link has already been used.");
     await expect(status).toContainText("Ask whoever sent you the link for a new one, or sign in with the account you used first.");
     await expect(page.getByRole("link", { name: "Use a different account" })).toHaveAttribute("href", "/api/auth/logout?return=/beta/a234e");
+    await expect(status).toContainText("If you already joined with this account, you're in.");
+    await expect(page.getByRole("link", { name: "Open Nearby" })).toHaveAttribute("href", "/nearby");
   });
 
   test("a withdrawn link says to ask for a new one", async ({ page }) => {

@@ -140,10 +140,20 @@ test("a badly formed code or body is 400", async () => {
   });
 });
 
-test("a code belongs to one person: another account gets 409, the same account gets 200 again", async () => {
+test("a used code cannot be redeemed again, even by the account that claimed it, and that account keeps its access", async () => {
   await withStore(gated(), async () => {
     const { code } = await create();
     assert.equal((await redeemAs("auth0|a", code)).statusCode, 200);
+    const again = await redeemAs("auth0|a", code);
+    assert.equal(again.statusCode, 409);
+    assert.equal(JSON.parse(again.body).error, "That beta link has already been used.");
+    assert.equal(await communityFor("auth0|a"), true);
+  });
+});
+
+test("a code belongs to one person: another account gets 409 and has no access", async () => {
+  await withStore(gated(), async () => {
+    const { code } = await create();
     assert.equal((await redeemAs("auth0|a", code)).statusCode, 200);
     const second = await redeemAs("auth0|b", code);
     assert.equal(second.statusCode, 409);

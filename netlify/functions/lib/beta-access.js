@@ -97,13 +97,12 @@ async function redeem(store, session, value) {
   if (!record) return { ok: false, status: 404, error: INVALID };
   if (await revokedAtOf(store, code, record)) return WITHDRAWN;
   const used = { ok: false, status: 409, error: "That beta link has already been used." };
-  if (record.claimedBy && record.claimedBy !== account) return used;
-  if (!record.claimedBy) {
-    await store.put(`${CODE_PREFIX}${code}`, { ...record, claimedBy: account, claimedAt: Date.now() });
-    const held = await store.getStrict(`${CODE_PREFIX}${code}`);
-    if (await revokedAtOf(store, code, held)) return WITHDRAWN;
-    if (!held || held.claimedBy !== account) return used;
-  }
+  // A used code is used for everyone, including the account that claimed it; its access is left as it is.
+  if (record.claimedBy) return used;
+  await store.put(`${CODE_PREFIX}${code}`, { ...record, claimedBy: account, claimedAt: Date.now() });
+  const held = await store.getStrict(`${CODE_PREFIX}${code}`);
+  if (await revokedAtOf(store, code, held)) return WITHDRAWN;
+  if (!held || held.claimedBy !== account) return used;
   if (await revokedAtOf(store, code, record)) return WITHDRAWN;
   await store.put(`${USER_PREFIX}${account}`, { code, at: Date.now() });
   // A revoke may have landed since: take the access straight back.
