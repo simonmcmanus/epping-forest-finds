@@ -283,6 +283,8 @@ test.describe("Admin beta codes", () => {
     expect(shares[0].url).toBe(`${origin}/beta/b345f`);
     expect(JSON.stringify(shares[0])).not.toContain("Ann");
     expect(shares[0].text).not.toContain("Ann");
+    expect(shares[0].text).toContain("what you like");
+    expect(shares[0].text).toContain("isn't working");
     await expect(button).toBeFocused();
   });
 

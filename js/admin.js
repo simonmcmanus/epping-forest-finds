@@ -2539,7 +2539,7 @@ async function adminBoot() {
     let done = false;
     if (typeof navigator.share === "function") {
       try {
-        await navigator.share({ title: "Epping Forest Finds beta", text: "Join the Epping Forest Finds beta", url: betaLink(code) });
+        await navigator.share({ title: "Epping Forest Finds beta", text: "Join the Epping Forest Finds beta. Let us know what you like, what you don't like, and anything that isn't working.", url: betaLink(code) });
         done = true;
       } catch (error) {
         if (error && error.name === "AbortError") done = true;

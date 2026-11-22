@@ -144,6 +144,25 @@ test.describe("Beta sign-in page", () => {
     expect(await mark.evaluate((el) => getComputedStyle(el).opacity)).toBe("1");
   });
 
+  test("the tree rings pulse gently when motion is allowed", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await mockMe(page, false);
+    await page.goto("/beta/a234e");
+    const looping = await page.locator(".rings circle").evaluateAll((els) =>
+      els.map((el) => el.getAnimations().some((a) => a.effect.getComputedTiming().iterations === Infinity && a.playState === "running"))
+    );
+    expect(looping.some(Boolean)).toBe(true);
+  });
+
+  test("with reduced motion, the tree rings stay still", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await mockMe(page, false);
+    await page.goto("/beta/a234e");
+    const names = await page.locator(".rings circle").evaluateAll((els) => els.map((el) => getComputedStyle(el).animationName));
+    expect(names.length).toBeGreaterThan(0);
+    for (const n of names) expect(n).toBe("none");
+  });
+
   test("the page has a favicon from the homepage assets", async ({ page }) => {
     await mockMe(page, false);
     await page.goto("/beta/a234e");
