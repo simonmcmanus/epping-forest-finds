@@ -194,7 +194,8 @@ function treeAdventureShow(tree, straightLineMetres) {
       ? `<span>Look for this tag on the tree</span><strong>${escapeHtml(tag)}</strong>`
       : "";
   }
-  els.adventureMeta.innerHTML = `${age ? `<span class="adventure-age"><small>Estimated age</small><strong>${escapeHtml(age)} years</strong></span>` : ""}<span class="adventure-reward">+${TREE_ADVENTURE_REWARD} points when verified</span>`;
+  const showPoints = typeof communityEnabled === "function" && communityEnabled();
+  els.adventureMeta.innerHTML = `${age ? `<span class="adventure-age"><small>Estimated age</small><strong>${escapeHtml(age)} years</strong></span>` : ""}${showPoints ? `<span class="adventure-reward">+${TREE_ADVENTURE_REWARD} points when verified</span>` : ""}`;
   treeAdventureWrite(TREE_ADVENTURE_ACTIVE_KEY, { target, shownAt: Date.now() });
   banner.hidden = false;
   banner.classList.remove("fading-out");
@@ -227,7 +228,6 @@ function adventureMaybeShow() {
     }
     return;
   }
-  if (typeof communityEnabled === "function" && !communityEnabled()) return;
   const overlay = document.getElementById("onboardingOverlay");
   if (overlay && (overlay._onboardingActive || !overlay.hidden)) {
     treeAdventureRetry();

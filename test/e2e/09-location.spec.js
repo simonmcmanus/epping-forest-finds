@@ -154,6 +154,26 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#adventureBanner")).toContainText("Find the nearest veteran tree");
     });
 
+    test("the veteran tree adventure shows to everyone but mentions points only for Community testers", async ({ page }) => {
+      // Community is off for this visitor: the card still appears, without the points line.
+      await page.unroute("**/api/features**");
+      await page.route("**/api/features**", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ community: false }) })
+      );
+      await page.addInitScript(() => {
+        localStorage.removeItem("ff-features-v1");
+        localStorage.removeItem("ff-tree-adventure-seen-v1");
+      });
+      await page.reload();
+      await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded && state.userLocation);
+      await page.evaluate(() => { els.consentBanner.hidden = true; });
+      const adventure = page.locator("#adventureBanner");
+      await expect(adventure).toBeVisible({ timeout: 20_000 });
+      await expect(adventure).toContainText("Find the nearest veteran tree");
+      await expect(adventure.locator(".adventure-age small")).toHaveText("Estimated age");
+      await expect(adventure).not.toContainText(/points/i);
+    });
+
     test("on a train, the You marker keeps moving between GPS fixes rather than holding still and then jumping", async ({ page, context }) => {
       await page.waitForFunction((start) => state.rawUserLocation && state.rawUserLocation.latitude === start, FOREST_LOCATION.latitude);
       // A fix a second, 15m north each, at 15 m/s: the speed the phone's own GPS reports on a moving
