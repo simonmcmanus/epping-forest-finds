@@ -264,6 +264,26 @@
       "signal": "new",
       "source": "fsa"
     },
+    "fsa/1320203": {
+      "confident": true,
+      "detail": {
+        "address": "Ground Floor 624 Lea Bridge Road, Leyton, London, E10 6AP",
+        "authority": "Waltham Forest",
+        "businessType": "Retailers - other",
+        "category": "convenience",
+        "fhrsId": 1320203,
+        "lat": 51.5754922,
+        "lon": -0.0124035,
+        "name": "Miami Local",
+        "ratingDate": "2026-10-17T00:00:00"
+      },
+      "firstSeen": "2026-11-22",
+      "lastSeen": "2026-11-22",
+      "name": "Miami Local",
+      "runs": 1,
+      "signal": "new",
+      "source": "fsa"
+    },
     "fsa/1366274": {
       "confident": false,
       "detail": {
@@ -744,46 +764,6 @@
       "firstSeen": "2026-11-19",
       "lastSeen": "2026-11-19",
       "name": "CDZ INNS LTD TA THE OWL",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/2017364": {
-      "confident": true,
-      "detail": {
-        "address": "5 The Avenue, Chingford, London, E4 9LB",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 2017364,
-        "lat": 51.6088739,
-        "lon": 0.0001735,
-        "name": "The Avenue Express",
-        "ratingDate": "2026-11-16T00:00:00"
-      },
-      "firstSeen": "2026-11-21",
-      "lastSeen": "2026-11-21",
-      "name": "The Avenue Express",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/2017366": {
-      "confident": true,
-      "detail": {
-        "address": "Eastern Works 4 Eastern Road, Walthamstow, London, E17 9DU",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 2017366,
-        "lat": 51.5807084,
-        "lon": -0.0029098,
-        "name": "Fiana",
-        "ratingDate": "1901-01-01T00:00:00"
-      },
-      "firstSeen": "2026-11-21",
-      "lastSeen": "2026-11-21",
-      "name": "Fiana",
       "runs": 1,
       "signal": "new",
       "source": "fsa"
@@ -3713,7 +3693,7 @@
   ],
   "sources": {
     "fsa": {
-      "checkedAt": "2026-11-21",
+      "checkedAt": "2026-11-22",
       "population": 932
     },
     "osm": {
@@ -3721,6 +3701,6 @@
       "population": 2577
     }
   },
-  "updatedAt": "2026-11-21",
+  "updatedAt": "2026-11-22",
   "version": 1
 }
