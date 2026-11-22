@@ -329,8 +329,9 @@ their own sources and a `lastVerified` date, seeded and kept current by hand
 file's `sourceNotes` records which upstream sources were evaluated and why
 (an API worth building a scraper against, a page too JS-rendered to scrape,
 a URL that has gone 404) — that evaluation is the reusable part until a
-script like `osm_business_diff.py`'s exists for this data. Each weekly run then
-runs `node scripts/locate-events.js`, which gives every dated entry in
+script like `osm_business_diff.py`'s exists for this data. Each weekly run, once it has finished editing
+`data/forest-events.json` and just before the commit step, runs
+`node scripts/locate-events.js`, which gives every dated entry in
 `data/forest-events.json` that has no coordinates a real map location. It
 geocodes the entry's `place`, then venue phrases from its body (at most three
 queries), with OpenStreetMap Nominatim, and accepts a result only inside the
@@ -340,7 +341,7 @@ never typed by hand or recalled from memory, and existing coordinates are never
 overwritten. A dated entry that no candidate resolves is marked
 `locationStatus: "unlocated"` and reported as unlocated; the run may correct
 its `place` to a venue the source names and run the script again. Only entries
-dated today (UK date) or later are located. After locating, `node
+dated today (UK date) or later are located. Straight after locating, `node
 scripts/generate-map-events.js` regenerates `data/events.json` from the located,
 upcoming entries. An entry marked `needsReverification` is a research gap
 being surfaced honestly, not a finding ready to print;
