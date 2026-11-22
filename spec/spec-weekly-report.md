@@ -383,10 +383,9 @@ broadly as "Road closures & access".
 of this upkeep, because it checks Transport for London's own live status
 rather than a hand-researched file: the Central line (Epping, Theydon Bois,
 Debden, Loughton) and the Weaver line, London Overground's name for the
-Chingford branch, plus bus stop disruptions around the coverage settlements.
+Chingford branch, and the Elizabeth line, plus bus stop disruptions around the coverage settlements.
 Findings carry `line` (an icon beside the card title: Central, Elizabeth,
-Weaver or bus; the script does not monitor the Elizabeth line, but
-hand-written findings may use it) and `points` (the affected stops' numeric
+Weaver or bus) and `points` (the affected stops' numeric
 `lat`/`lon`). A finding is pinned, numbered and counted when it has `lon`/`lat`
 or a `points` entry on the map; each point draws the same numbered pin, and
 points off the map get none. No stop coordinates means no pin. A non-list
@@ -436,7 +435,7 @@ Business detection (see "Keeping the map's businesses current" above):
   "Road closures, events and standing notices" above)
 - `scripts/report/structured_findings.py` — turns the three files above into
   report-data.json findings that are still within their own recorded dates
-- `scripts/report/tfl_transit_status.py` — live Central line / Weaver line
+- `scripts/report/tfl_transit_status.py` — live Central line / Weaver line / Elizabeth line
   and bus stop disruption check; no file of its own, `TFL_APP_KEY` optional but recommended
 - `scripts/test_*.py` for each of the above — unit tests
 

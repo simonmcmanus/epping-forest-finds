@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Live check of Transport for London's own published status for the two rail
-lines serving the forest's coverage settlements -- the Central line (Epping,
-Theydon Bois, Debden, Loughton) and the Weaver line, London Overground's name
-for the Chingford branch -- plus bus stop disruptions around those same
+Live check of Transport for London's own published status for the rail
+lines monitored -- the Central line (Epping, Theydon Bois, Debden, Loughton),
+the Weaver line, London Overground's name for the Chingford branch, and the
+Elizabeth line -- plus bus stop disruptions around those same
 settlements. Turns whatever is currently disrupted into report-data.json
 "findings", the same shape scripts/report/structured_findings.py produces.
 
@@ -54,13 +54,14 @@ BASE_URL = "https://api.tfl.gov.uk"
 REQUEST_TIMEOUT_S = 20
 USER_AGENT = "epping-forest-finds-ledger/1.0 (+https://github.com/simonmcmanus/epping-forest-finds)"
 
-# The two lines that actually serve the forest's own stations. Chingford is
+# The monitored lines: Central and Weaver serve the forest's own stations. Chingford is
 # served by London Overground's "Weaver" line, not Greater Anglia -- an
 # earlier data/road-closures.json sourceNotes entry guessed Greater Anglia;
 # a live stop lookup on 2026-10-11 showed that was wrong.
 LINES = (
     {"id": "central", "label": "Central line"},
     {"id": "weaver", "label": "Weaver line (London Overground)"},
+    {"id": "elizabeth", "label": "Elizabeth line"},
 )
 
 # Mirrors scripts/report/places.py's coverage towns -- there is no single

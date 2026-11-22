@@ -90,6 +90,17 @@ class LineStatusFindingsTests(unittest.TestCase):
         findings = line_status_findings(lines_json, TEST_LINES)
         self.assertEqual(len(findings), 2)
 
+    def test_elizabeth_line_disruption_is_monitored_and_labelled(self):
+        lines_json = [disrupted_line("elizabeth", "Elizabeth", 6, "Severe Delays", description="Signal failure.")]
+        findings = line_status_findings(lines_json, tfl_transit_status.LINES)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["line"], "elizabeth")
+        self.assertEqual(findings[0]["place"], "Elizabeth line")
+
+    def test_elizabeth_line_good_service_produces_no_finding(self):
+        lines_json = [good_service_line("elizabeth", "Elizabeth line")]
+        self.assertEqual(line_status_findings(lines_json, tfl_transit_status.LINES), [])
+
 
 class StopDisruptionFindingsTests(unittest.TestCase):
     def test_no_disruptions_produces_no_findings(self):

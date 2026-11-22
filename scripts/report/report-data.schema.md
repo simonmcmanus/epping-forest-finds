@@ -112,7 +112,7 @@ python3 scripts/report/structured_findings.py --as-of 2026-10-10
 ```
 
 `scripts/report/tfl_transit_status.py` prints findings in the same shape from
-a live check instead of a hand-researched file: the Central line, the Weaver
+a live check instead of a hand-researched file: the Central line, the Elizabeth line, the Weaver
 line (London Overground's Chingford branch), and bus stop disruptions around
 the coverage settlements. No arguments. `TFL_APP_KEY` is optional but
 recommended (unauthenticated calls from shared GitHub runner IPs got HTTP 403
