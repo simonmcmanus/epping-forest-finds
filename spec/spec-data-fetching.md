@@ -252,6 +252,13 @@ Folklore topic classification detects: `blue_plaque`, `film_tv`, `ww2`, `royal`,
 
 Source: `{ events: [{ id, name, description, lat, lon, startsAt, endsAt, sourceUrl }] }`.
 
+The file is generated, not hand-edited: `scripts/generate-map-events.js` copies each dated entry of
+`data/forest-events.json` that has real coordinates, is not marked unlocated and is dated today (UK
+date) or later. `startsAt` is the entry's date and `startTime` in London time, or London midnight
+when there is no time; `endsAt` is one hour later, or the next London midnight for an all-day
+entry. Both are ISO strings in UTC, and `sourceUrl` is the entry's first source. The app's own
+normalising and 7-day window below still apply at runtime.
+
 Each item is normalized via `normalizeEventLocations(data, nowMs)` (`js/normalize.js`) to:
 
 ```
