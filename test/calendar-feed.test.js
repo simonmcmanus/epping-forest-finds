@@ -154,6 +154,8 @@ test("the real forest events file gives the upcoming dated events on 21 November
   assert.deepStrictEqual(starts, {
     "theydon-bois-christmas-market-2026-11-27": "20261127T170000Z",
     "waltham-abbey-cavalcade-of-light-2026-11-27": "20261127",
+    "bull-christmas-market-2026-11-28": "20261128T120000Z",
+    "woodford-charity-christmas-bazaar-2026-11-28": "20261128T103000Z",
     "epping-christmas-market-2026-12-04": "20261204T120000Z",
     "highams-park-christmas-fayre-2026-12-06": "20261206T110000Z",
     "loughton-staples-road-christmas-fair-2026-12-06": "20261206T120000Z",
