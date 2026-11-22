@@ -20,6 +20,9 @@ const TREE_ADVENTURE_PULSE_MS = 1500;
 let treeAdventureHighlightOn = false;
 let treeAdventurePulseFrame = null;
 let treeAdventurePulseStart = 0;
+let treeAdventureLastDraw = 0;
+// The pulse is slow, so redraw the overlay at about 30 fps; the rAF loop itself keeps running.
+const TREE_ADVENTURE_PULSE_FRAME_MS = 33;
 const treeAdventureHighlightStyle = { item: null, phase: 0, fill: "#e4cc85", ring: "#806100", halo: "rgba(240, 184, 58, 0.5)" };
 
 function treeAdventureCssColour(name, fallback) {
@@ -38,8 +41,11 @@ function treeAdventureHighlight() {
 function treeAdventurePulseTick(now) {
   treeAdventurePulseFrame = null;
   if (!treeAdventureHighlightOn) return;
-  treeAdventureHighlightStyle.phase = ((now - treeAdventurePulseStart) % TREE_ADVENTURE_PULSE_MS) / TREE_ADVENTURE_PULSE_MS;
-  if (typeof drawOverlay === "function") drawOverlay();
+  if (now - treeAdventureLastDraw >= TREE_ADVENTURE_PULSE_FRAME_MS) {
+    treeAdventureLastDraw = now;
+    treeAdventureHighlightStyle.phase = ((now - treeAdventurePulseStart) % TREE_ADVENTURE_PULSE_MS) / TREE_ADVENTURE_PULSE_MS;
+    if (typeof drawOverlay === "function") drawOverlay();
+  }
   treeAdventurePulseFrame = requestAnimationFrame(treeAdventurePulseTick);
 }
 
@@ -62,6 +68,7 @@ function treeAdventureHighlightStart() {
   if (typeof requestDraw === "function") requestDraw();
   if (typeof prefersReducedMotion === "function" && prefersReducedMotion()) return;
   treeAdventurePulseStart = performance.now();
+  treeAdventureLastDraw = 0;
   treeAdventurePulseFrame = requestAnimationFrame(treeAdventurePulseTick);
 }
 
