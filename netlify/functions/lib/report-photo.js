@@ -3,13 +3,14 @@
 // so both accept and store the same formats and sizes.
 const { randomUUID } = require("crypto");
 const { connectLambda, getStore } = require("@netlify/blobs");
+const { isProductionDeploy } = require("./deploy-context");
 const { branchName } = require("./community-store");
 
 const REPORT_PHOTO_MAX_BYTES = 3 * 1024 * 1024;
 const REPORT_PHOTO_STORE = "report-photos";
 
 function photoStoreName(env = process.env) {
-  if (env.CONTEXT === "production") return REPORT_PHOTO_STORE;
+  if (isProductionDeploy(env)) return REPORT_PHOTO_STORE;
   return `${REPORT_PHOTO_STORE}-${branchName(env)}`;
 }
 
