@@ -16,7 +16,7 @@ const START = '<!-- preview-links:start -->';
 const END = '<!-- preview-links:end -->';
 const block = (body) => body.slice(body.indexOf(START), body.indexOf(END) + END.length);
 
-function harness({ statuses, name = 'The Plough', payload }) {
+function harness({ statuses, name = 'The Plough', payload, latestBody }) {
   const updates = [];
   const index = { entries: [{ key: 'pubs', slug: 'the-plough', id: 'osm-1', name }] };
   const github = {
@@ -26,7 +26,9 @@ function harness({ statuses, name = 'The Plough', payload }) {
         listCommitStatusesForRef: async () => ({ data: statuses }),
         getContent: async () => ({ data: { content: Buffer.from(JSON.stringify(index)).toString('base64') } }),
       },
-      pulls: { listFiles: async () => ({ data: [] }), update: async (args) => { updates.push(args); return {}; } },
+      pulls: {
+        get: async () => ({ data: { ...payload.pull_request, body: latestBody === undefined ? payload.pull_request.body : latestBody } }),
+        listFiles: async () => ({ data: [] }), update: async (args) => { updates.push(args); return {}; } },
     },
     paginate: async () => [],
   };
@@ -72,4 +74,16 @@ test('business names containing replacement patterns appear literally', async ()
   const h = harness({ statuses: success, name: "Tom $& Jerry $1 $'", payload: prPayload(mangled) });
   await run(h.github, h.context, h.core);
   assert.ok(block(h.updates[0].body).includes("<sub>Tom $& Jerry $1 $'</sub>"));
+});
+
+test('a queued run keeps hand edits made after its event by reading the latest PR body', async () => {
+  const note = 'Hand-added note from a later edit';
+  const latest = `Intro text\n\n${note}\n\n${START}\n\`\`\`&lt;img src="x"&gt;\`\`\`\n${END}\n\nTail text\n`;
+  const h = harness({ statuses: success, payload: prPayload('Intro text\n'), latestBody: latest });
+  await run(h.github, h.context, h.core);
+  assert.equal(h.updates.length, 1);
+  const next = h.updates[0].body;
+  assert.ok(next.includes(note));
+  assert.ok(next.includes(`<img src="${PREVIEW}/data/icons/home.png"`));
+  assert.ok(!block(next).includes('&lt;'));
 });

@@ -38,7 +38,12 @@ jobs:
             let pullRequests;
             if (context.payload.pull_request) {
               sha = context.payload.pull_request.head.sha;
-              pullRequests = [context.payload.pull_request];
+              const { data: latestPr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+              });
+              pullRequests = [latestPr];
               // Statuses come newest first, so the first success is the latest deploy.
               const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
                 owner: context.repo.owner,
