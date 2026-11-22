@@ -1,7 +1,9 @@
 // Beta access: an admin makes a short code, one signed-in person redeems it, and that account then has every
 // gated feature. Kept in the community store:
-//   beta-code/<code> = { note, createdAt, claimedBy?, claimedAt?, revokedAt? }
+//   beta-code/<code> = { note, createdAt, claimedBy?, claimedAt? }
+//   beta-revoked/<code> = { at }   (its own record, so a claim writing the code record can never erase a revoke)
 //   beta-user/<account key> = { code, at }   (its existence is the access)
+// Codes revoked before beta-revoked existed carry revokedAt on the code record; that still counts as revoked.
 // Beta never touches the Tester ID list (features-allowlist), so it can never switch the gate on for others.
 const crypto = require("crypto");
 
@@ -9,6 +11,7 @@ const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"; // no i, l, o, 0, 1: easy to
 const CODE_RE = /^[abcdefghjkmnpqrstuvwxyz2-9]{5}$/;
 const CODE_PREFIX = "beta-code/";
 const USER_PREFIX = "beta-user/";
+const REVOKED_PREFIX = "beta-revoked/";
 const NOTE_MAX = 80;
 
 // Lowercase input is accepted; anything that is not a valid code comes back as null.
@@ -23,7 +26,14 @@ function generateCode() {
   return code;
 }
 
-const statusOf = (record) => (record.revokedAt ? "revoked" : record.claimedBy ? "claimed" : "open");
+// When was this code revoked (ms), or 0 if it was not. Reads the revoke record, then the old in-record field.
+async function revokedAtOf(store, code, record) {
+  const revoked = await store.getStrict(`${REVOKED_PREFIX}${code}`);
+  if (revoked) return Number(revoked.at) || 1;
+  return (record && record.revokedAt) || 0;
+}
+
+const WITHDRAWN = { ok: false, status: 410, error: "That beta link has been withdrawn." };
 
 // A note saying who the code is for is required: a blank one returns null and nothing is written.
 async function createCode(store, note) {
@@ -47,23 +57,25 @@ async function listCodes(store) {
     const code = normalizeCode(String(key).slice(-5));
     const record = code && (await store.getStrict(`${CODE_PREFIX}${code}`));
     if (!record) continue;
-    const item = { code, note: record.note || "", createdAt: record.createdAt || 0, status: statusOf(record) };
+    const revokedAt = await revokedAtOf(store, code, record);
+    const item = { code, note: record.note || "", createdAt: record.createdAt || 0,
+      status: revokedAt ? "revoked" : record.claimedBy ? "claimed" : "open" };
     if (record.claimedAt) item.claimedAt = record.claimedAt;
-    if (record.revokedAt) item.revokedAt = record.revokedAt;
+    if (revokedAt) item.revokedAt = revokedAt;
     out.push(item);
   }
   return out.sort((a, b) => b.createdAt - a.createdAt);
 }
 
-// Keeps the record and withdraws the code. Whoever had claimed it loses access.
+// Keeps the record and withdraws the code. The revoke is its own record, which a claim never writes, so it cannot be
+// lost to a claim in flight. Whoever had claimed it loses access.
 async function revokeCode(store, value) {
   const code = normalizeCode(value);
   const first = code && (await store.getStrict(`${CODE_PREFIX}${code}`));
   if (!first) return { ok: false, status: 404 };
-  // Re-read right before writing so a claim made since the first read is kept and its holder cleaned up. The store
-  // has no compare-and-set, so a small window remains; betaMember also checks the code, so access ends regardless.
+  if (!(await store.getStrict(`${REVOKED_PREFIX}${code}`))) await store.put(`${REVOKED_PREFIX}${code}`, { at: Date.now() });
+  // Read the claimant fresh, after the revoke is in place: a claim that lands later sees the revoke and backs out.
   const record = (await store.getStrict(`${CODE_PREFIX}${code}`)) || first;
-  if (!record.revokedAt) await store.put(`${CODE_PREFIX}${code}`, { ...record, revokedAt: Date.now() });
   if (record.claimedBy) await store.delete(`${USER_PREFIX}${record.claimedBy}`);
   return { ok: true };
 }
@@ -79,21 +91,22 @@ async function redeem(store, session, value) {
   const account = await accountOf(store, session);
   const record = await store.getStrict(`${CODE_PREFIX}${code}`);
   if (!record) return { ok: false, status: 404, error: INVALID };
-  if (record.revokedAt) return { ok: false, status: 410, error: "That beta link has been withdrawn." };
+  if (await revokedAtOf(store, code, record)) return WITHDRAWN;
   const used = { ok: false, status: 409, error: "That beta link has already been used." };
   if (record.claimedBy && record.claimedBy !== account) return used;
   if (!record.claimedBy) {
     await store.put(`${CODE_PREFIX}${code}`, { ...record, claimedBy: account, claimedAt: Date.now() });
     const held = await store.getStrict(`${CODE_PREFIX}${code}`);
+    if (await revokedAtOf(store, code, held)) return WITHDRAWN;
     if (!held || held.claimedBy !== account) return used;
-    if (held.revokedAt) return { ok: false, status: 410, error: "That beta link has been withdrawn." };
   }
+  if (await revokedAtOf(store, code, record)) return WITHDRAWN;
   await store.put(`${USER_PREFIX}${account}`, { code, at: Date.now() });
-  // A revoke may have landed since the claim was verified: take the access straight back.
+  // A revoke may have landed since: take the access straight back.
   const after = await store.getStrict(`${CODE_PREFIX}${code}`);
-  if (!after || after.revokedAt) {
+  if (!after || (await revokedAtOf(store, code, after))) {
     await store.delete(`${USER_PREFIX}${account}`);
-    return { ok: false, status: 410, error: "That beta link has been withdrawn." };
+    return WITHDRAWN;
   }
   return { ok: true };
 }
@@ -108,7 +121,7 @@ async function betaMember(store, session) {
     if (!member) return false;
     // The code is the authority: a revoked or re-claimed code ends access even if clean-up never ran.
     const record = await store.getStrict(`${CODE_PREFIX}${member.code}`);
-    return Boolean(record && !record.revokedAt && record.claimedBy === account);
+    return Boolean(record && record.claimedBy === account && !(await revokedAtOf(store, member.code, record)));
   } catch {
     return false;
   }

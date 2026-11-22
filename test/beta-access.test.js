@@ -282,3 +282,83 @@ test("the admin list gives the revoked date of a revoked code and never an accou
     assert.ok(!/claimedBy|account/i.test(response.body), "no account value is returned");
   });
 });
+
+const accountKeyOf = (sub) => require("../netlify/functions/lib/community-account").accountKey(sub);
+
+test("a revoke that runs in full while a claim is being written still ends as 410 with no access", async () => {
+  const inner = gated();
+  await withStore(inner, async () => {
+    const { code } = await create();
+    let revoked = false;
+    const interleaved = { ...inner, async put(key, value) {
+      if (key === `beta-code/${code}` && value.claimedBy && !revoked) { revoked = true; await beta.revokeCode(inner, code); }
+      await inner.put(key, value);
+    } };
+    const result = await beta.redeem(interleaved, { sub: "auth0|a" }, code);
+    assert.equal(result.status, 410);
+    assert.equal(result.error, "That beta link has been withdrawn.");
+    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await inner.get(`beta-user/${accountKeyOf("auth0|a")}`), null);
+    assert.equal((await adminList())[0].status, "revoked");
+  });
+});
+
+test("a revoke that lands after the claim and before the access is written is 410 with no access", async () => {
+  const inner = gated();
+  await withStore(inner, async () => {
+    const { code } = await create();
+    let revoked = false;
+    const interleaved = { ...inner, async put(key, value) {
+      if (key.startsWith("beta-user/") && !revoked) { revoked = true; await beta.revokeCode(inner, code); }
+      await inner.put(key, value);
+    } };
+    const result = await beta.redeem(interleaved, { sub: "auth0|a" }, code);
+    assert.equal(result.status, 410);
+    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await inner.get(`beta-user/${accountKeyOf("auth0|a")}`), null);
+  });
+});
+
+test("revoking removes an existing claimant's access record as well as refusing the code", async () => {
+  const inner = gated();
+  await withStore(inner, async () => {
+    const { code } = await create();
+    await redeemAs("auth0|a", code);
+    assert.ok(await inner.get(`beta-user/${accountKeyOf("auth0|a")}`));
+    await adminPost({ action: "revoke", code });
+    assert.equal(await inner.get(`beta-user/${accountKeyOf("auth0|a")}`), null);
+    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal((await redeemAs("auth0|a", code)).statusCode, 410);
+    assert.equal(await communityFor("auth0|a"), false);
+  });
+});
+
+test("a code revoked before revocation had its own record is still refused and gives no access", async () => {
+  const inner = gated();
+  await withStore(inner, async () => {
+    await inner.put("beta-code/abcde", { note: "old", createdAt: 5, revokedAt: 1234 });
+    assert.equal((await redeemAs("auth0|a", "abcde")).statusCode, 410);
+    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await inner.get(`beta-user/${accountKeyOf("auth0|a")}`), null);
+    const [row] = await adminList();
+    assert.equal(row.status, "revoked");
+    assert.equal(row.revokedAt, 1234);
+    // And an old claimed-then-revoked code with a left-over access record grants nothing.
+    await inner.put("beta-code/fghjk", { note: "old2", createdAt: 6, claimedBy: accountKeyOf("auth0|b"), claimedAt: 7, revokedAt: 9 });
+    await inner.put(`beta-user/${accountKeyOf("auth0|b")}`, { code: "fghjk", at: 7 });
+    assert.equal(await communityFor("auth0|b"), false);
+  });
+});
+
+test("the list shows a revoked claimed code as revoked with a numeric revoked date and no account", async () => {
+  await withStore(memoryStore(), async () => {
+    const { code } = await create("Sam");
+    await redeemAs("auth0|a", code);
+    await adminPost({ action: "revoke", code });
+    const response = await codes.handler({ httpMethod: "GET", headers: adminHeaders });
+    const row = JSON.parse(response.body).codes.find((c) => c.code === code);
+    assert.equal(row.status, "revoked");
+    assert.equal(typeof row.revokedAt, "number");
+    assert.ok(!/claimedBy|account/i.test(response.body));
+  });
+});
