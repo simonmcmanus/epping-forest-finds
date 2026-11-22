@@ -125,23 +125,22 @@ jobs:
           }
 
           remove_label() {
-            # Read the PR's labels first and only DELETE when verified is present.
-            # For this App, DELETE on an absent label returns 403, not 404, so
-            # the error text alone cannot tell "not on the PR" from a real failure.
-            # A failed read fails closed.
-            local live out
-            live=$(gh api "repos/$REPO/pulls/$PR_NUMBER") || {
-              echo "Could not read the labels on PR #$PR_NUMBER." >&2
-              return 1
-            }
-            if [ "$(jq -r '[.labels[].name] | index("verified") != null' <<<"$live")" != "true" ]; then
+            # Read the PR's labels first and DELETE only when `verified` is
+            # present. A PR without the label is a no-op: GitHub answers that
+            # DELETE with 403 when the App token lacks issue write access, which
+            # would fail every push on a PR that was never verified. The read
+            # uses the same pull request endpoint as the rest of this job.
+            # Any real removal failure still fails the job (fail closed).
+            local labels out
+            labels=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '[.labels[].name] | join("\n")') || return 1
+            if ! grep -qx 'verified' <<<"$labels"; then
               echo "No verified label to remove."
               return 0
             fi
-            # Still tolerate a 404 here: the label can be removed between the read and the DELETE.
             if out=$(gh api -X DELETE "repos/$REPO/issues/$PR_NUMBER/labels/verified" 2>&1); then
               echo "Removed the verified label."
             elif grep -qiE '404|not found|label does not exist' <<<"$out"; then
+              # Removed between the read and the DELETE: nothing left to do.
               echo "No verified label to remove."
             else
               echo "$out" >&2
