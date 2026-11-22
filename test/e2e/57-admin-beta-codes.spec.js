@@ -170,6 +170,37 @@ test.describe("Admin beta codes", () => {
     expect(await page.evaluate(() => !!document.activeElement.closest("#adminBeta"))).toBe(true);
   });
 
+  test("the note label says it is required", async ({ page }) => {
+    await openBeta(page, okHandler());
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    await expect(panel.locator("label[for=adminBetaNote]")).toContainText("(required)");
+  });
+
+  test("while a revoke is pending, the focused Revoke button stays in the page and focused", async ({ page }) => {
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    let seen;
+    const requestSeen = new Promise((resolve) => { seen = resolve; });
+    await openBeta(page, async (route, body) => {
+      if (route.request().method() === "GET") return json(route, 200, { codes: CODES });
+      if (body.action === "revoke") { seen(); await held; }
+      return json(route, 200, { ok: true });
+    });
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    await panel.getByRole("button", { name: "Revoke code b345f" }).click();
+    const confirm = panel.getByRole("button", { name: "Confirm revoke code b345f" });
+    const handle = await confirm.elementHandle();
+    await confirm.click();
+    await requestSeen;
+    await expect(panel.locator("#adminBetaStatus")).toContainText("Revoking");
+    expect(await handle.evaluate((el) => el.isConnected && el === document.activeElement)).toBe(true);
+    release();
+    await expect(panel.locator("li").nth(1)).toContainText(/revoked/);
+    expect(await page.evaluate(() => !!document.activeElement.closest("#adminBeta"))).toBe(true);
+  });
+
   test("pressing another row disarms a pending revoke", async ({ page }) => {
     await openBeta(page, okHandler());
     const panel = page.locator("#adminBeta");

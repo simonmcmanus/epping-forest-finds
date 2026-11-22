@@ -2326,9 +2326,25 @@ async function adminBoot() {
     }
   }
 
+  function syncBetaEnabled() {
+    const enabled = betaLoaded && !betaBusy;
+    // A focused control gets aria-disabled instead of disabled: disabling it would blur it and drop focus to the body.
+    const set = (el, off) => {
+      if (off && el === document.activeElement) { el.setAttribute("aria-disabled", "true"); el.disabled = false; }
+      else { el.removeAttribute("aria-disabled"); el.disabled = off; }
+    };
+    set(betaNote, !enabled);
+    for (const btn of betaList.querySelectorAll("button[data-revoke]")) set(btn, !enabled);
+    syncBetaCreate();
+    if (betaCreate === document.activeElement && betaBusy) { betaCreate.setAttribute("aria-disabled", "true"); betaCreate.disabled = false; }
+    else betaCreate.removeAttribute("aria-disabled");
+  }
+
   // focusWhat: "copy" focuses the row's Copy link button, or its code if there is none; "revoke" focuses its Revoke button.
   function renderBeta(focusCode = "", focusWhat = "") {
     betaList.textContent = "";
+    betaNote.removeAttribute("aria-disabled");
+    betaCreate.removeAttribute("aria-disabled");
     const enabled = betaLoaded && !betaBusy;
     betaNote.disabled = !enabled;
     syncBetaCreate();
@@ -2432,7 +2448,7 @@ async function adminBoot() {
     const sid = sessionId;
     let focus = onFailFocus;
     betaBusy = true;
-    renderBeta();
+    syncBetaEnabled(); // not renderBeta(): rebuilding the list would drop the focused button mid-request
     try {
       const result = await betaFetch({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (token !== betaToken || sid !== sessionId) return;
