@@ -345,7 +345,9 @@
     flex:none;
   }
   .line-icon{display:inline-flex;flex:none;line-height:0;}
-  /* Icons align to the first title line (28px line box), not the middle of a wrapped title. */
+  /* Icons align to the first title line (about 22.4px: 1.12rem x line-height 1.25), not the middle of a wrapped title.
+     The margin-top values are tuned to that h3 line-height: 3px puts the icon centre on the first line centre,
+     4px sits the smaller status label on the first line. Revisit both if the h3 size or line-height changes. */
   .card-head>.pin-chip,.card-head>.line-icon,.card-head>.card-subicon{margin-top:3px;}
   .card-head>.status-label{margin-top:4px;}
   /* 22px matches the numbered pin chip and the transport line icons so the card head reads as one row. */
