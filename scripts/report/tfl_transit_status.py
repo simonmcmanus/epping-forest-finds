@@ -163,7 +163,7 @@ def _stop_points(stops):
     coordinates. A stop without them is skipped: no coordinates means no pin,
     which is correct, not an error."""
     points = []
-    for stop in stops or []:
+    for stop in _stops_list(stops):
         if not isinstance(stop, dict):
             continue
         lat, lon = stop.get("lat"), stop.get("lon")
@@ -206,11 +206,16 @@ def line_status_findings(lines_json, lines=LINES):
             if line.get("id") in ICON_LINE_IDS:
                 finding["line"] = line["id"]
             # TfL lists the stops a disruption affects on the disruption itself.
-            points = _stop_points(list(disruption.get("affectedStops") or []) + list(status.get("affectedStops") or []))
+            points = _stop_points(_stops_list(disruption.get("affectedStops")) + _stops_list(status.get("affectedStops")))
             if points:
                 finding["points"] = points
             findings.append(finding)
     return findings
+
+
+def _stops_list(value):
+    """affectedStops as a list; anything else the API sends means no stops."""
+    return list(value) if isinstance(value, list) else []
 
 
 def stop_disruption_findings(disruptions_json):
@@ -220,8 +225,8 @@ def stop_disruption_findings(disruptions_json):
     for disruption in disruptions_json or []:
         stop_names = sorted({
             stop.get("commonName")
-            for stop in (disruption.get("affectedStops") or [])
-            if stop.get("commonName")
+            for stop in _stops_list(disruption.get("affectedStops"))
+            if isinstance(stop, dict) and stop.get("commonName")
         })
         place = ", ".join(stop_names) if stop_names else "Epping Forest area"
         status_label = disruption.get("closureText") or disruption.get("categoryDescription") or "Disrupted"

@@ -557,5 +557,42 @@ class PointsPinTests(unittest.TestCase):
         self.assertEqual(html.count('class="find-mini"'), 1)
 
 
+class RobustPointsTests(unittest.TestCase):
+    def test_numeric_points_value_is_treated_as_no_points(self):
+        html = render_findings([transit("central", points=5)])
+        self.assertIn("Transit thing", html)
+        self.assertEqual(map_pin_count(html), 0)
+        self.assertNotIn('<span class="pin-chip', html)
+
+    def test_bool_and_non_finite_points_are_not_drawn(self):
+        html = render_findings([transit(points=[{"lon": True, "lat": False}, {"lon": float("inf"), "lat": 51.6}])])
+        self.assertEqual(map_pin_count(html), 0)
+
+    def test_a_repeated_point_is_drawn_once(self):
+        spot = {"lon": 0.05, "lat": 51.62}
+        html = render_findings([transit(points=[spot, dict(spot)])])
+        self.assertEqual(map_pin_count(html), 1)
+
+    def test_off_canvas_finding_is_left_out_of_the_side_list(self):
+        inside = dict(transit(title="Inside thing", points=[{"lon": 0.05, "lat": 51.62}]), number=1)
+        outside = dict(transit(title="Outside thing", points=[{"lon": -1.5, "lat": 52.9}]), number=2)
+        html = rr.render_map_side_list([inside, outside])
+        self.assertIn("Inside thing", html)
+        self.assertNotIn("Outside thing", html)
+
+
+class MapProjectionConsistencyTests(unittest.TestCase):
+    def test_count_side_list_and_pins_agree_for_a_custom_projection(self):
+        from scripts.report.geo import MapProjection
+        # A small map around Epping only: the default-map spot at Loughton is off this canvas.
+        small = MapProjection(bbox={"south": 51.68, "north": 51.70, "west": 0.10, "east": 0.13})
+        finding = dict(transit(title="Loughton thing", points=[{"lon": 0.05, "lat": 51.64}]), number=1)
+        geojson = {"type": "FeatureCollection", "features": []}
+        html = rr.render_map_section(geojson, [finding], None, projection=small)
+        self.assertEqual(map_pin_count(html), 0)
+        self.assertIn("Nothing needed a pin on the map this week", html)
+        self.assertNotIn("Loughton thing", html)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -144,7 +144,8 @@ def located_points(finding, projection=None):
     lon, lat = finding.get("lon"), finding.get("lat")
     if lon is not None and lat is not None:
         spots.append((lon, lat))
-    for point in finding.get("points") or []:
+    points = finding.get("points")
+    for point in points if isinstance(points, list) else []:
         if not isinstance(point, dict):
             continue
         plon, plat = point.get("lon"), point.get("lat")

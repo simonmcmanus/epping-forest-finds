@@ -167,6 +167,14 @@ class FindingCoordinatesTests(unittest.TestCase):
         self.assertEqual(finding["line"], "weaver")
         self.assertNotIn("points", finding)
 
+    def test_a_numeric_affected_stops_value_gives_a_finding_with_no_points(self):
+        stop = stop_disruption_findings([{"description": "x", "affectedStops": 7}])[0]
+        self.assertNotIn("points", stop)
+        payload = [disrupted_line("weaver", "Weaver", 6, "Severe Delays", description="x", affectedStops=7)]
+        line = line_status_findings(payload, TEST_LINES)[0]
+        self.assertEqual(line["line"], "weaver")
+        self.assertNotIn("points", line)
+
 
 class FakeResponse:
     def __init__(self, payload):

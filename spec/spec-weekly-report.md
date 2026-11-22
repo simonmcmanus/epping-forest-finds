@@ -389,7 +389,10 @@ Weaver or bus; the script does not monitor the Elizabeth line, but
 hand-written findings may use it) and `points` (the affected stops' numeric
 `lat`/`lon`). A finding is pinned, numbered and counted when it has `lon`/`lat`
 or a `points` entry on the map; each point draws the same numbered pin, and
-points off the map get none. No stop coordinates means no pin.
+points off the map get none. No stop coordinates means no pin. A non-list
+`points` or `affectedStops` value counts as no points. Central and Weaver
+roundels sit on a white disc so they stay distinct from the coloured pin chip
+beside them; the bus icon takes `--status-critical`.
 It folds into `"road"` the same way notices do, takes an optional but recommended `TFL_APP_KEY`
 (see `.env.example` — the key doesn't unlock different data; it is
 recommended because unauthenticated calls from the shared GitHub runner IPs

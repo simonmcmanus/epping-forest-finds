@@ -249,6 +249,7 @@ REPORT_CSS = """
     flex:none;
   }
   .line-icon{display:inline-flex;flex:none;line-height:0;}
+  .line-bus{color:var(--status-critical);}
   .pin-chip.good{background:var(--status-good);}
   .pin-chip.critical{background:var(--status-critical);}
   .pin-chip.warning{background:var(--status-warning); color:var(--status-warning-ink);}

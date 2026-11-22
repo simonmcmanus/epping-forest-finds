@@ -321,18 +321,24 @@ def render_sources_line(sources):
     return f'<p class="src">{label}: {links}</p>'
 
 
-def is_pinned(finding):
-    return bool(svg_map.located_points(finding))
+def is_pinned(finding, projection=None):
+    """One rule for chip, count, side list and drawn pins: the finding has a
+    spot on the map `projection` (the default map when None)."""
+    return bool(svg_map.located_points(finding, projection))
 
 
 # Small decorative marks beside a transport card's title; the title itself
-# names the line. Central and Weaver are roundels (ring and bar), the
+# names the line. Central and Weaver are roundels (ring and bar) on a white
+# disc so the ring never blends into the coloured pin chip beside it, the
 # Elizabeth line is a solid purple tile with a white stripe, buses a red bus.
+# The rail roundel colours are TfL brand colours and are intentionally not
+# report tokens; the bus takes --status-critical via currentColor (.line-bus).
 LINE_ICONS = {
     "central": (
         '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
-        '<circle cx="12" cy="12" r="8.5" fill="none" stroke="#E32017" stroke-width="3.4"/>'
-        '<rect x="1" y="9.6" width="22" height="4.8" fill="#0019A8"/></svg>'
+        '<circle cx="12" cy="12" r="11.4" fill="#fff" stroke="#1a1a1a" stroke-opacity=".35" stroke-width="1"/>'
+        '<circle cx="12" cy="12" r="8.2" fill="none" stroke="#E32017" stroke-width="3.2"/>'
+        '<rect x="2" y="9.6" width="20" height="4.8" fill="#0019A8"/></svg>'
     ),
     "elizabeth": (
         '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
@@ -341,15 +347,16 @@ LINE_ICONS = {
     ),
     "weaver": (
         '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
-        '<circle cx="12" cy="12" r="8.5" fill="none" stroke="#EE7C0E" stroke-width="3.4"/>'
-        '<rect x="1" y="9.6" width="22" height="4.8" fill="#0019A8"/></svg>'
+        '<circle cx="12" cy="12" r="11.4" fill="#fff" stroke="#1a1a1a" stroke-opacity=".35" stroke-width="1"/>'
+        '<circle cx="12" cy="12" r="8.2" fill="none" stroke="#EE7C0E" stroke-width="3.2"/>'
+        '<rect x="2" y="9.6" width="20" height="4.8" fill="#0019A8"/></svg>'
     ),
     "bus": (
         '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
-        '<rect x="3.5" y="3" width="17" height="15" rx="3" fill="#B3261E"/>'
+        '<rect x="3.5" y="3" width="17" height="15" rx="3" fill="currentColor"/>'
         '<rect x="6" y="6" width="12" height="5" rx="1" fill="#fff"/>'
         '<circle cx="8" cy="15" r="1.4" fill="#fff"/><circle cx="16" cy="15" r="1.4" fill="#fff"/>'
-        '<rect x="5.5" y="18" width="3" height="3" fill="#B3261E"/><rect x="15.5" y="18" width="3" height="3" fill="#B3261E"/></svg>'
+        '<rect x="5.5" y="18" width="3" height="3" fill="currentColor"/><rect x="15.5" y="18" width="3" height="3" fill="currentColor"/></svg>'
     ),
 }
 
@@ -510,10 +517,10 @@ def render_map_legend():
     return f'<div class="legend">{"".join(items)}</div>'
 
 
-def render_map_side_list(findings):
+def render_map_side_list(findings, projection=None):
     items = []
     for f in findings:
-        if not is_pinned(f):
+        if not is_pinned(f, projection):
             continue
         style = style_for(f.get("category"))
         css_class = style["css_class"]
@@ -531,11 +538,11 @@ def render_map_side_list(findings):
     return "".join(items)
 
 
-def render_map_section(forest_geojson, findings, cow_icon):
-    pinned = [f for f in findings if is_pinned(f)]
-    svg = svg_map.render_map_svg(forest_geojson, pinned, cow_icon_url=cow_icon)
+def render_map_section(forest_geojson, findings, cow_icon, projection=None):
+    pinned = [f for f in findings if is_pinned(f, projection)]
+    svg = svg_map.render_map_svg(forest_geojson, pinned, projection=projection, cow_icon_url=cow_icon)
     legend = render_map_legend()
-    side_list = render_map_side_list(findings)
+    side_list = render_map_side_list(findings, projection)
     count_line = (
         f"{len(pinned)} thing{'s' if len(pinned) != 1 else ''} to know about this week. "
         "Full detail is below the map."
