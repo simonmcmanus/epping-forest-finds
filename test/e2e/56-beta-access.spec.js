@@ -126,4 +126,21 @@ test.describe("Beta sign-in page", () => {
     await expect(page.getByRole("link", { name: "Sign in to join the beta" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
+
+  test("signed out at 320px wide, nothing scrolls sideways", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await mockMe(page, false);
+    await page.goto("/beta/a234e");
+    await expect(page.getByRole("link", { name: "Sign in to join the beta" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  });
+
+  test("with reduced motion, the brand mark is fully visible at once", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await mockMe(page, false);
+    await page.goto("/beta/a234e");
+    const mark = page.locator(".brand-mark");
+    await expect(mark).toBeVisible();
+    expect(await mark.evaluate((el) => getComputedStyle(el).opacity)).toBe("1");
+  });
 });

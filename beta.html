@@ -5,38 +5,56 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Join the beta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #f6f4ee;
+  --bg: #f4f4ec;
   --surface: #ffffff;
-  --text: #1f2a22;
-  --muted: #55625a;
-  --border: #d9d6cb;
-  --accent: #2f6b3f;
+  --surface-alt: #eaeedd;
+  --text: #181c11;
+  --muted: #52514e;
+  --border: #ded9c6;
+  --accent: #1d4a2f;
   --accent-text: #ffffff;
+  --focus: #1d4a2f;
   --error: #9b2c2c;
+  --gold: #b69439;
+  --ring: #2e6b44;
+  --shadow: 0 1px 2px rgba(24, 28, 17, .06), 0 16px 36px -20px rgba(24, 28, 17, .35);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #131a15;
-    --surface: #1c251f;
-    --text: #e8ece8;
-    --muted: #a3b0a7;
-    --border: #324036;
-    --accent: #7fc08f;
-    --accent-text: #10170f;
+    --bg: #12170f;
+    --surface: #1b2216;
+    --surface-alt: #232c1d;
+    --text: #ecefe4;
+    --muted: #b4baa8;
+    --border: #36402d;
+    --accent: #f3d36b;
+    --accent-text: #181c11;
+    --focus: #f3d36b;
     --error: #f0a3a3;
+    --gold: #f3d36b;
+    --ring: #8fcf9d;
+    --shadow: none;
   }
 }
-[data-theme="dark"] {
-  --bg: #131a15;
-  --surface: #1c251f;
-  --text: #e8ece8;
-  --muted: #a3b0a7;
-  --border: #324036;
-  --accent: #7fc08f;
-  --accent-text: #10170f;
+:root[data-theme="dark"] {
+  --bg: #12170f;
+  --surface: #1b2216;
+  --surface-alt: #232c1d;
+  --text: #ecefe4;
+  --muted: #b4baa8;
+  --border: #36402d;
+  --accent: #f3d36b;
+  --accent-text: #181c11;
+  --focus: #f3d36b;
   --error: #f0a3a3;
+  --gold: #f3d36b;
+  --ring: #8fcf9d;
+  --shadow: none;
 }
 * { box-sizing: border-box; }
 html { color-scheme: light dark; }
@@ -44,44 +62,86 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 16px/1.6 "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-text-size-adjust: 100%;
 }
 main {
   max-width: 28rem;
   margin: 0 auto;
-  padding: 48px 16px;
+  padding: 32px 16px 48px;
 }
-h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 24px; overflow-wrap: anywhere; }
+.hero { text-align: center; margin-bottom: 24px; }
+.mark-wrap { position: relative; width: 112px; height: 112px; margin: 0 auto 16px; }
+.rings { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--ring); }
+.brand-mark { position: absolute; top: 24px; left: 24px; width: 64px; height: 64px; }
+.joined .rings { color: var(--gold); }
+.eyebrow { margin: 0 0 4px; color: var(--muted); font-family: "Fraunces", Georgia, serif; font-size: 1rem; font-style: italic; }
+h1 {
+  margin: 0;
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: clamp(1.75rem, 8vw, 2.2rem);
+  letter-spacing: -.03em;
+  line-height: 1.1;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px 16px;
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 24px 16px;
+  text-align: center;
 }
 #message { margin: 0 0 16px; overflow-wrap: anywhere; }
 #message.is-error { color: var(--error); }
 #message:empty { min-height: 1.5em; }
 #message:focus { outline: none; }
+.joined #message { font-weight: 600; }
 .actions:empty { display: none; }
 .btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 44px;
-  padding: 10px 20px;
+  max-width: 100%;
+  padding: 11px 22px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 9px;
   background: var(--accent);
   color: var(--accent-text);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   text-decoration: none;
   cursor: pointer;
 }
-.btn:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+.btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+@media (prefers-reduced-motion: no-preference) {
+  .brand-mark { animation: rise .9s ease-out backwards; }
+  .rings circle { animation: ring 1.4s ease-out backwards; }
+  .rings circle:nth-child(2) { animation-delay: .15s; }
+  .rings circle:nth-child(3) { animation-delay: .3s; }
+  .joined .rings { transition: color .6s ease; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  @keyframes ring { from { opacity: 0; } }
+}
 </style>
 </head>
 <body>
 <main>
-  <h1>Epping Forest Finds beta</h1>
+  <header class="hero">
+    <div class="mark-wrap">
+      <svg class="rings" viewBox="0 0 112 112" fill="none" stroke="currentColor" aria-hidden="true" focusable="false">
+        <circle cx="56" cy="56" r="54" stroke-width="1.5" opacity=".25"/>
+        <circle cx="56" cy="56" r="46" stroke-width="1.5" opacity=".4"/>
+        <circle cx="56" cy="56" r="38" stroke-width="1.5" opacity=".6"/>
+      </svg>
+      <img class="brand-mark" src="/assets/home/map-icons/oak.png" alt="" width="64" height="64">
+    </div>
+    <p class="eyebrow">You're invited</p>
+    <h1>Epping Forest Finds beta</h1>
+  </header>
   <div class="card">
     <p id="message" role="status" aria-live="polite" tabindex="-1"></p>
     <div class="actions" id="actions"></div>
@@ -137,6 +197,7 @@ h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 24px; overflow-wrap: anyw
       body: JSON.stringify({ code: code })
     }).then(function (res) {
       if (res.ok) {
+        document.body.classList.add("joined");
         say("Opening Nearby…", false);
         location.replace("/nearby");
         return null;
