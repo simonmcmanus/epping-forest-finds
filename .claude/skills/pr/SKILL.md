@@ -9,7 +9,9 @@ metadata:
     url: "https://github.com/humanlayer/skills/blob/main/plugins/show-me/skills/show-me/SKILL.md"
 ---
 
-Use this template for writing the PR body:
+Use this template for writing the PR body. Leave the `<!-- preview-links:start -->` and `<!-- preview-links:end -->` markers in place and never write or copy the block's contents by hand; `update-preview-links.yml` regenerates the block on every PR body edit and after each Netlify deploy. Keep the `Specialist review` table.
+
+Template:
 
 ```markdown
 ## Summary
