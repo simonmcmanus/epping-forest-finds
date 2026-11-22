@@ -120,7 +120,7 @@ jobs:
                 disablePullRequestAutoMerge(input: {pullRequestId: $id}) {
                   pullRequest { number }
                 }
-              }' -f id="$id" >/dev/null
+              }' -f id="$id" >/dev/null || return 1
             echo "Disabled auto-merge on PR #$PR_NUMBER."
           }
 
@@ -133,17 +133,34 @@ jobs:
               echo "No verified label to remove."
             else
               echo "$out" >&2
-              exit 1
+              return 1
             fi
+          }
+
+          # Disarm FIRST, then remove the label; run both whatever the other
+          # returns and fail the job (visibly) if either failed, so a label
+          # delete error can never leave the PR armed.
+          invalidate() {
+            local id="$1" rc=0
+            if [ -n "$id" ] && ! disarm "$id"; then
+              echo "::error::Failed to disable auto-merge on PR #$PR_NUMBER."
+              rc=1
+            fi
+            if ! remove_label; then
+              echo "::error::Failed to remove the verified label on PR #$PR_NUMBER."
+              rc=1
+            fi
+            return "$rc"
           }
 
           if [ "$EVENT_NAME" = "pull_request_target" ] && [ "$EVENT_ACTION" = "synchronize" ]; then
             # A new push invalidates the human check and any armed auto-merge.
-            remove_label
             live=$(gh api "repos/$REPO/pulls/$PR_NUMBER")
+            id=""
             if [ "$(jq -r '.auto_merge != null' <<<"$live")" = "true" ]; then
-              disarm "$(jq -r .node_id <<<"$live")"
+              id=$(jq -r .node_id <<<"$live")
             fi
+            invalidate "$id" || exit 1
             exit 0
           fi
 
@@ -156,8 +173,7 @@ jobs:
             # here is stale for the new head, so disarm it (fail closed).
             if [ "$(jq -r '.auto_merge != null' <<<"$pr")" = "true" ]; then
               echo "PR is armed on a head with stale CI; removing the label and disarming."
-              remove_label
-              disarm "$(jq -r .node_id <<<"$pr")"
+              invalidate "$(jq -r .node_id <<<"$pr")" || exit 1
             fi
             exit 0
           fi
@@ -172,7 +188,7 @@ jobs:
           if [ "$(jq -r '[.labels[].name] | index("verified") != null' <<<"$pr")" != "true" ]; then
             if [ "$armed" = "true" ]; then
               echo "Auto-merge is enabled but $HEAD_SHA has no verified label."
-              disarm "$(jq -r .node_id <<<"$pr")"
+              disarm "$(jq -r .node_id <<<"$pr")" || exit 1
             else
               echo "No verified label on $HEAD_SHA. Not arming."
             fi
@@ -216,7 +232,7 @@ jobs:
           if ! label_gate; then
             if [ "$armed" = "true" ]; then
               echo "Label gate failed on an armed PR; disarming."
-              disarm "$(jq -r .node_id <<<"$pr")"
+              disarm "$(jq -r .node_id <<<"$pr")" || exit 1
             else
               echo "Not arming $HEAD_SHA."
             fi
@@ -266,6 +282,14 @@ jobs:
               }
             }' -f id="$node_id" -f oid="$HEAD_SHA" 2>&1); then
             echo "Auto-merge armed for PR #$PR_NUMBER on $HEAD_SHA (verified by $actor, agent approved)."
+            # Parallel groups: the label may have been removed (and its
+            # unlabeled run may have seen the PR unarmed) between the check
+            # above and this call. Re-fetch and disarm if no longer valid.
+            if ! still_current; then
+              echo "::warning::Head moved or verified label removed during arming; disarming PR #$PR_NUMBER."
+              disarm "$node_id" || { echo "::error::Failed to disarm PR #$PR_NUMBER after arming race."; exit 1; }
+              echo "Disarmed PR #$PR_NUMBER after the arming race (label gone or head changed)."
+            fi
           elif grep -qi 'already enabled' <<<"$out"; then
             echo "Auto-merge was already enabled (concurrent event)."
           elif grep -qiE 'clean status|already.*(mergeable|clean)' <<<"$out"; then

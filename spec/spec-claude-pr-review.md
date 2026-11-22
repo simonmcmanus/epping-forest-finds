@@ -106,7 +106,11 @@ from the owner's account and GitHub forbids approving your own PR. On
 check) and, if the live PR has native auto-merge enabled, disables it with the
 `disablePullRequestAutoMerge` mutation, because auto-merge is a PR-level setting
 that survives a push. A 404 on label removal is tolerated; any other failure of
-either step fails the job (fail closed). Removing the `verified` label
+either step fails the job (fail closed). Disarming runs first and both steps
+always run, so a label-delete error cannot leave the PR armed. After a
+successful arming call the workflow re-fetches the PR and disarms again if the
+label is gone or the head changed (closes the race with a parallel `unlabeled`
+run). Removing the `verified` label
 (`unlabeled`) on an armed PR disarms it through the same path as a missing label.
 On the other events, an armed PR whose
 label is absent or fails the label checks is disarmed; it exits quietly only
