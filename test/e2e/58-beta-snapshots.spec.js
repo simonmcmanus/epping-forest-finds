@@ -7,6 +7,14 @@ const { skipOnboarding } = require("./helpers");
 
 const json = (route, status, data) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) });
 const NEVER = () => new Promise(() => {});
+// The link text is inline in the status line, so it cannot be masked on its own. Swap the browser origin for a
+// fixed one in the text nodes, so the image is the same on every host (local, CI).
+async function fixOrigin(panel) {
+  await panel.locator("#adminBetaStatus").evaluate((el) => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) n.nodeValue = n.nodeValue.split(location.origin).join("https://example.test");
+  });
+}
 
 async function mockMe(page, signedIn) {
   await page.route("**/api/auth/me", (route) => json(route, 200, signedIn ? { signedIn: true, name: "Sam" } : { signedIn: false }));
@@ -192,6 +200,7 @@ test.describe("Admin beta codes snapshots", () => {
     await expect(status).toContainText("/beta/z999q");
     await expect(status.getByRole("button", { name: "Share link for z999q" })).toBeVisible();
     await expect(panel.getByRole("button", { name: "Copy link for z999q" })).toBeVisible();
+    await fixOrigin(panel);
     await expect(panel).toHaveScreenshot("admin-beta-created.png");
   });
 
@@ -204,6 +213,7 @@ test.describe("Admin beta codes snapshots", () => {
     await panel.locator("li").nth(1).getByRole("button", { name: /Copy link/ }).click();
     await expect(panel.locator("#adminBetaStatus")).toContainText("Could not copy automatically. Copy this link:");
     await expect(panel.locator("#adminBetaStatus")).toContainText("/beta/b345f");
+    await fixOrigin(panel);
     await expect(panel).toHaveScreenshot("admin-beta-copy-fallback.png");
   });
 
