@@ -2291,6 +2291,7 @@ async function adminBoot() {
   let betaBusy = false;
   let betaArmed = ""; // the code whose Revoke awaits its confirming second press
   let betaToken = 0;
+  let betaStatusSeq = 0;
   OVERLAY_PANELS.beta.onClose = () => { betaArmed = ""; renderBeta(); };
 
   const betaLink = (code) => `${location.origin}/beta/${code}`;
@@ -2299,42 +2300,80 @@ async function adminBoot() {
     return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   };
 
+  function setBetaStatus(text) {
+    // Clear first, then set on the next tick, so identical text is announced again.
+    const seq = ++betaStatusSeq;
+    betaStatus.textContent = "";
+    if (!text) return;
+    setTimeout(() => { if (seq === betaStatusSeq) betaStatus.textContent = text; }, 0);
+  }
+
+  function syncBetaCreate() {
+    betaCreate.disabled = !(betaLoaded && !betaBusy && betaNote.value.trim());
+  }
+
+  function betaDisarm() {
+    if (!betaArmed) return;
+    betaArmed = "";
+    syncBetaArmed();
+  }
+
+  function syncBetaArmed() {
+    for (const btn of betaList.querySelectorAll("button[data-revoke]")) {
+      const armed = btn.dataset.revoke === betaArmed;
+      btn.textContent = armed ? "Confirm revoke" : "Revoke";
+      btn.setAttribute("aria-label", `${armed ? "Confirm revoke code" : "Revoke code"} ${btn.dataset.revoke}`);
+    }
+  }
+
+  // focusWhat: "copy" focuses the row's Copy link button, or its code if there is none; "revoke" focuses its Revoke button.
   function renderBeta(focusCode = "", focusWhat = "") {
     betaList.textContent = "";
     const enabled = betaLoaded && !betaBusy;
     betaNote.disabled = !enabled;
-    betaCreate.disabled = !enabled;
+    syncBetaCreate();
+    let target = null;
     for (const item of betaCodes) {
       const li = document.createElement("li");
       const code = document.createElement("span");
       code.className = "admin-beta-code";
+      code.tabIndex = -1;
       code.textContent = item.code;
       const note = document.createElement("span");
       note.className = "admin-beta-note";
       note.textContent = item.note || "";
       const state = document.createElement("span");
+      const claimed = item.claimedAt && betaDate(item.claimedAt) ? ` ${betaDate(item.claimedAt)}` : "";
+      const revokedOn = item.revokedAt && betaDate(item.revokedAt) ? ` ${betaDate(item.revokedAt)}` : "";
       state.textContent = item.status === "claimed"
-        ? `claimed${item.claimedAt && betaDate(item.claimedAt) ? ` ${betaDate(item.claimedAt)}` : ""}`
-        : item.status === "revoked" ? "revoked" : "open";
-      const copy = document.createElement("button");
-      copy.type = "button";
-      copy.className = "admin-btn";
-      copy.textContent = "Copy link";
-      copy.addEventListener("click", () => copyBetaLink(item.code));
-      li.append(code, note, state, copy);
+        ? `claimed${claimed}`
+        : item.status === "revoked" ? `${item.claimedAt ? `claimed${claimed}, ` : ""}revoked${revokedOn}` : "open";
+      li.append(code, note, state);
+      let copy = null;
+      if (item.status !== "revoked") {
+        copy = document.createElement("button");
+        copy.type = "button";
+        copy.className = "admin-btn";
+        copy.textContent = "Copy link";
+        copy.setAttribute("aria-label", `Copy link for ${item.code}`);
+        copy.addEventListener("click", () => { betaDisarm(); copyBetaLink(item.code); });
+        li.append(copy);
+      }
+      let revoke = null;
       if (item.status === "open" || item.status === "claimed") {
-        const revoke = document.createElement("button");
+        revoke = document.createElement("button");
         revoke.type = "button";
         revoke.className = "admin-btn";
-        revoke.dataset.code = item.code;
-        revoke.textContent = betaArmed === item.code ? "Confirm revoke" : "Revoke";
+        revoke.dataset.revoke = item.code;
         revoke.disabled = !enabled;
         revoke.addEventListener("click", () => revokeBeta(item.code));
         li.append(revoke);
       }
+      if (item.code === focusCode) target = focusWhat === "revoke" && revoke ? revoke : copy || code;
       betaList.append(li);
     }
-    if (focusCode) betaList.querySelector(`button[data-code="${focusCode}"]`)?.focus();
+    syncBetaArmed();
+    if (target) target.focus();
   }
 
   function resetBetaPanel() {
@@ -2344,7 +2383,7 @@ async function adminBoot() {
     betaBusy = false;
     betaArmed = "";
     betaNote.value = "";
-    betaStatus.textContent = "";
+    setBetaStatus("");
     betaRetry.hidden = true;
     renderBeta();
   }
@@ -2360,7 +2399,7 @@ async function adminBoot() {
 
   function betaProblem(error, what, useServerText = true) {
     if (useServerText && error.status === 503 && error.serverMessage) return error.serverMessage;
-    return error.status ? `Could not ${what} (${error.status}). Try again.` : `Could not ${what}. Check your connection and try again.`;
+    return error.status ? `Could not ${what}. Try again.` : `Could not ${what}. Check your connection and try again.`;
   }
 
   async function loadBeta() {
@@ -2370,7 +2409,7 @@ async function adminBoot() {
     betaBusy = false;
     betaArmed = "";
     betaRetry.hidden = true;
-    betaStatus.textContent = "Loading…";
+    setBetaStatus("Loading…");
     renderBeta();
     try {
       const result = await betaFetch({});
@@ -2378,19 +2417,20 @@ async function adminBoot() {
       if (result.unauthorised) { forgetSession("Admin session expired. Sign in again."); return; }
       betaCodes = Array.isArray(result.data.codes) ? result.data.codes : [];
       betaLoaded = true;
-      betaStatus.textContent = "";
+      setBetaStatus("");
     } catch (error) {
       if (token !== betaToken || sid !== sessionId) return;
       betaCodes = [];
-      betaStatus.textContent = betaProblem(error, "load beta codes", false);
+      setBetaStatus(betaProblem(error, "load beta codes", false));
       betaRetry.hidden = false;
     }
     renderBeta();
   }
 
-  async function betaAction(body, onDone, focusCode = "") {
+  async function betaAction(body, onDone, onFailFocus = null) {
     const token = betaToken;
     const sid = sessionId;
+    let focus = onFailFocus;
     betaBusy = true;
     renderBeta();
     try {
@@ -2398,23 +2438,27 @@ async function adminBoot() {
       if (token !== betaToken || sid !== sessionId) return;
       if (result.unauthorised) { forgetSession("Admin session expired. Sign in again."); return; }
       betaBusy = false;
-      onDone(result.data);
+      focus = onDone(result.data) || null;
     } catch (error) {
       if (token !== betaToken || sid !== sessionId) return;
       betaBusy = false;
-      betaStatus.textContent = betaProblem(error, body.action === "create" ? "create a code" : "revoke the code");
+      setBetaStatus(betaProblem(error, body.action === "create" ? "create a code" : "revoke the code"));
     }
-    renderBeta(focusCode);
+    if (focus) renderBeta(focus.code, focus.what);
+    else renderBeta();
+    if (!focus && body.action === "create") betaNote.focus();
   }
 
+  betaNote.addEventListener("input", syncBetaCreate);
   betaCreate.addEventListener("click", () => {
-    if (!betaLoaded || betaBusy) return;
+    if (!betaLoaded || betaBusy || !betaNote.value.trim()) return;
     betaArmed = "";
-    betaStatus.textContent = "Creating…";
+    setBetaStatus("Creating…");
     betaAction({ action: "create", note: betaNote.value.trim().slice(0, 80) }, (created) => {
       betaCodes.unshift(created);
       betaNote.value = "";
-      betaStatus.textContent = `New code ${created.code}: ${betaLink(created.code)}`;
+      setBetaStatus(`New code ${created.code}: ${betaLink(created.code)}`);
+      return { code: created.code, what: "copy" };
     });
   });
 
@@ -2422,17 +2466,18 @@ async function adminBoot() {
     if (!betaLoaded || betaBusy) return;
     if (betaArmed !== code) {
       betaArmed = code;
-      betaStatus.textContent = `Revoke ${code}? Press Confirm revoke to be sure. A claimed code loses that person's beta access.`;
-      renderBeta(code);
+      setBetaStatus(`Revoke ${code}? Press Confirm revoke to be sure. A claimed code loses that person's beta access.`);
+      syncBetaArmed();
       return;
     }
     betaArmed = "";
-    betaStatus.textContent = "Revoking…";
+    setBetaStatus("Revoking…");
     betaAction({ action: "revoke", code }, () => {
       const row = betaCodes.find((c) => c.code === code);
-      if (row) row.status = "revoked";
-      betaStatus.textContent = `Revoked ${code}.`;
-    });
+      if (row) { row.status = "revoked"; row.revokedAt = Date.now(); }
+      setBetaStatus(`Revoked ${code}.`);
+      return { code, what: "copy" };
+    }, { code, what: "revoke" });
   }
 
   async function copyBetaLink(code) {
@@ -2440,9 +2485,9 @@ async function adminBoot() {
     try {
       if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error("no clipboard");
       await navigator.clipboard.writeText(link);
-      betaStatus.textContent = `Copied ${link}`;
+      setBetaStatus(`Copied ${link}`);
     } catch {
-      betaStatus.textContent = `Could not copy automatically. Copy this link: ${link}`;
+      setBetaStatus(`Could not copy automatically. Copy this link: ${link}`);
     }
   }
 

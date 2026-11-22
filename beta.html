@@ -60,7 +60,8 @@ h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 24px; overflow-wrap: anyw
 }
 #message { margin: 0 0 16px; overflow-wrap: anywhere; }
 #message.is-error { color: var(--error); }
-#message:empty { display: none; }
+#message:empty { min-height: 1.5em; }
+#message:focus { outline: none; }
 .actions:empty { display: none; }
 .btn {
   display: inline-block;
@@ -82,7 +83,7 @@ h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 24px; overflow-wrap: anyw
 <main>
   <h1>Epping Forest Finds beta</h1>
   <div class="card">
-    <p id="message" role="status" aria-live="polite"></p>
+    <p id="message" role="status" aria-live="polite" tabindex="-1"></p>
     <div class="actions" id="actions"></div>
     <noscript><p>This page needs JavaScript to sign you in. Please turn it on, or contact the person who sent you the link.</p></noscript>
   </div>
@@ -106,14 +107,25 @@ h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 24px; overflow-wrap: anyw
     b.addEventListener("click", onClick);
     actionsEl.appendChild(b);
   }
-  function showSignIn() {
-    clearActions();
-    say("Sign in to join the beta", false);
+  var NEXT_NEW = " Ask whoever sent you the link for a new one.";
+  var NEXT_USED = " Ask whoever sent you the link for a new one, or sign in with the account you used first.";
+  function addLink(href, text) {
     var a = document.createElement("a");
     a.className = "btn";
-    a.href = "/api/auth/login?return=/beta/" + code;
-    a.textContent = "Sign in to join the beta";
+    a.href = href;
+    a.textContent = text;
     actionsEl.appendChild(a);
+  }
+  function showSignIn() {
+    clearActions();
+    say("Your invite is ready. Sign in to claim it.", false);
+    addLink("/api/auth/login?return=/beta/" + code, "Sign in to join the beta");
+  }
+  function retry(fn) {
+    return function () {
+      fn();
+      messageEl.focus();
+    };
   }
   function redeem() {
     clearActions();
@@ -125,18 +137,26 @@ h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 24px; overflow-wrap: anyw
       body: JSON.stringify({ code: code })
     }).then(function (res) {
       if (res.ok) {
-        say("You're in.", false);
+        say("Opening Nearby…", false);
         location.replace("/nearby");
         return null;
       }
       return res.json().catch(function () { return {}; }).then(function (data) {
+        var text = data && typeof data.error === "string" ? data.error : "";
         if (res.status === 401) { showSignIn(); return; }
-        say((data && data.error) || "Could not join the beta. Try again.", true);
-        if (res.status === 503) addRetry(redeem);
+        if (res.status === 409) {
+          say((text || "That beta link has already been used.") + NEXT_USED, true);
+          addLink("/api/auth/logout?return=/beta/" + code, "Use a different account");
+          return;
+        }
+        if (res.status === 410) { say((text || "That beta link has been withdrawn.") + NEXT_NEW, true); return; }
+        if ((res.status === 400 || res.status === 404) && text) { say(text + NEXT_NEW, true); return; }
+        say(text || "Could not join the beta. Try again.", true);
+        addRetry(retry(redeem));
       });
     }).catch(function () {
       say("Could not join the beta. Try again.", true);
-      addRetry(redeem);
+      addRetry(retry(redeem));
     });
   }
   function start() {
@@ -149,12 +169,12 @@ h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 24px; overflow-wrap: anyw
       })
       .catch(function () {
         say("Could not check your sign-in. Check your connection and try again.", true);
-        addRetry(start);
+        addRetry(retry(start));
       });
   }
 
   if (!/^[abcdefghjkmnpqrstuvwxyz2-9]{5}$/.test(code)) {
-    say("That beta link isn't valid.", true);
+    say("That beta link isn't valid." + NEXT_NEW, true);
     return;
   }
   start();

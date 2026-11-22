@@ -55,7 +55,8 @@ test.describe("Admin beta codes", () => {
     await expect(rows.nth(1)).toContainText(/open/i);
     await expect(rows.nth(1)).toContainText("<b>Ann</b>");
     await expect(rows.nth(2)).toContainText(/revoked/i);
-    await expect(rows.nth(2).getByRole("button", { name: "Revoke" })).toHaveCount(0);
+    await expect(rows.nth(2).getByRole("button", { name: /^Revoke/ })).toHaveCount(0);
+    await expect(rows.nth(2).getByRole("button", { name: /Copy link/ })).toHaveCount(0);
     expect(calls[0].auth).toBe(`Bearer ${SESSION_TOKEN}`);
   });
 
@@ -65,7 +66,7 @@ test.describe("Admin beta codes", () => {
     }));
     const panel = page.locator("#adminBeta");
     await expect(panel.locator("li")).toHaveCount(3);
-    await panel.getByLabel("Note").fill("For Bob");
+    await panel.getByLabel("Who is it for?").fill("For Bob");
     await panel.getByRole("button", { name: "Create code" }).click();
     await expect(panel.locator("li")).toHaveCount(4);
     await expect(panel.locator("li").first()).toContainText("z999q");
@@ -79,7 +80,7 @@ test.describe("Admin beta codes", () => {
     await openBeta(page, okHandler());
     const panel = page.locator("#adminBeta");
     await expect(panel.locator("li")).toHaveCount(3);
-    await panel.locator("li").nth(1).getByRole("button", { name: "Copy link" }).click();
+    await panel.locator("li").nth(1).getByRole("button", { name: /Copy link/ }).click();
     const expected = await page.evaluate(() => `${location.origin}/beta/b345f`);
     await expect(panel.locator("#adminBetaStatus")).toContainText(/copied|\/beta\/b345f/i);
     const copied = await page.evaluate(() => navigator.clipboard.readText()).catch(() => null);
@@ -94,7 +95,7 @@ test.describe("Admin beta codes", () => {
     await openBeta(page, okHandler());
     const panel = page.locator("#adminBeta");
     await expect(panel.locator("li")).toHaveCount(3);
-    await panel.locator("li").nth(1).getByRole("button", { name: "Copy link" }).click();
+    await panel.locator("li").nth(1).getByRole("button", { name: /Copy link/ }).click();
     await expect(panel.locator("#adminBetaStatus")).toContainText("/beta/b345f");
     await expect(panel.locator("#adminBetaStatus")).toContainText(/copy/i);
   });
@@ -104,7 +105,7 @@ test.describe("Admin beta codes", () => {
     const panel = page.locator("#adminBeta");
     const row = panel.locator("li").nth(0);
     await expect(panel.locator("li")).toHaveCount(3);
-    await row.getByRole("button", { name: "Revoke" }).click();
+    await row.getByRole("button", { name: /^Revoke/ }).click();
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
     await expect(panel.locator("#adminBetaStatus")).toContainText(/sure|confirm/i);
     await row.getByRole("button", { name: /Confirm/ }).click();
@@ -120,11 +121,88 @@ test.describe("Admin beta codes", () => {
     const panel = page.locator("#adminBeta");
     const row = panel.locator("li").nth(1);
     await expect(panel.locator("li")).toHaveCount(3);
-    await row.getByRole("button", { name: "Revoke" }).click();
+    await row.getByRole("button", { name: /^Revoke/ }).click();
     await row.getByRole("button", { name: /Confirm/ }).click();
     await expect(panel.locator("#adminBetaStatus")).toContainText("Storage unavailable");
     await expect(row).toContainText(/open/i);
     await expect(row).not.toContainText(/revoked/i);
+  });
+
+  test("every row button names its code", async ({ page }) => {
+    await openBeta(page, okHandler());
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    await expect(panel.getByRole("button", { name: "Copy link for a234e" })).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Copy link for b345f" })).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Revoke code a234e" })).toBeVisible();
+    await panel.getByRole("button", { name: "Revoke code b345f" }).click();
+    await expect(panel.getByRole("button", { name: "Confirm revoke code b345f" })).toBeVisible();
+  });
+
+  test("a revoked row keeps its claimed history, says revoked and has no Copy link", async ({ page }) => {
+    await openBeta(page, (route) => json(route, 200, { codes: [{ code: "d567h", note: "", createdAt: "2026-10-01T10:00:00.000Z", status: "revoked", claimedAt: "2026-10-02T09:00:00.000Z" }] }));
+    const row = page.locator("#adminBeta li").first();
+    await expect(row).toContainText(/claimed 2 Oct 2026/);
+    await expect(row).toContainText(/revoked/);
+    await expect(row.getByRole("button")).toHaveCount(0);
+  });
+
+  test("after Create, focus is on the new row's Copy link button", async ({ page }) => {
+    await openBeta(page, okHandler((route, body) => {
+      if (body.action === "create") return json(route, 200, { code: "z999q", note: "", createdAt: "2026-11-22T10:00:00.000Z", status: "open" });
+    }));
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    await panel.getByLabel("Who is it for?").fill("Zoe");
+    await panel.getByRole("button", { name: "Create code" }).click();
+    await expect(panel.locator("li")).toHaveCount(4);
+    await expect(panel.getByRole("button", { name: "Copy link for z999q" })).toBeFocused();
+  });
+
+  test("after a confirmed revoke, focus stays inside the panel", async ({ page }) => {
+    await openBeta(page, okHandler());
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    await panel.getByRole("button", { name: "Revoke code b345f" }).click();
+    await panel.getByRole("button", { name: "Confirm revoke code b345f" }).click();
+    await expect(panel.locator("li").nth(1)).toContainText(/revoked/);
+    expect(await page.evaluate(() => document.activeElement && document.activeElement.tagName)).not.toBe("BODY");
+    expect(await page.evaluate(() => !!document.activeElement.closest("#adminBeta"))).toBe(true);
+  });
+
+  test("pressing another row disarms a pending revoke", async ({ page }) => {
+    await openBeta(page, okHandler());
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    await panel.getByRole("button", { name: "Revoke code b345f" }).click();
+    await panel.getByRole("button", { name: "Copy link for a234e" }).click();
+    await expect(panel.getByRole("button", { name: "Revoke code b345f" })).toBeVisible();
+    await expect(panel.getByRole("button", { name: /Confirm revoke/ })).toHaveCount(0);
+  });
+
+  test("Create code needs a note: it stays disabled until one is typed", async ({ page }) => {
+    const calls = await openBeta(page, okHandler());
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    const create = panel.getByRole("button", { name: "Create code" });
+    await expect(panel.getByLabel("Who is it for?")).toHaveAttribute("aria-required", "true");
+    await expect(create).toBeDisabled();
+    await panel.getByLabel("Who is it for?").fill("   ");
+    await expect(create).toBeDisabled();
+    await panel.getByLabel("Who is it for?").fill("Ann, Tuesday walk group");
+    await expect(create).toBeEnabled();
+    expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
+  });
+
+  test("a failed create shows wording without an HTTP number", async ({ page }) => {
+    await openBeta(page, okHandler((route, body) => {
+      if (body.action === "create") return json(route, 500, {});
+    }));
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    await panel.getByLabel("Who is it for?").fill("Zoe");
+    await panel.getByRole("button", { name: "Create code" }).click();
+    await expect(panel.locator("#adminBetaStatus")).toHaveText("Could not create a code. Try again.");
   });
 
   test("a 401 on load returns to admin sign-in", async ({ page }) => {
@@ -146,6 +224,8 @@ test.describe("Admin beta codes", () => {
     fail = false;
     await panel.getByRole("button", { name: "Retry" }).click();
     await expect(panel.locator("li")).toHaveCount(3);
+    await expect(panel.getByLabel("Who is it for?")).toBeEnabled();
+    await panel.getByLabel("Who is it for?").fill("Ann");
     await expect(panel.getByRole("button", { name: "Create code" })).toBeEnabled();
   });
 

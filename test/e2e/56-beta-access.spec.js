@@ -38,6 +38,60 @@ test.describe("Beta sign-in page", () => {
     expect(calls).toEqual([{ code: "a234e" }]);
   });
 
+  test("signed out, the status line invites the person to claim their invite", async ({ page }) => {
+    await mockMe(page, false);
+    await page.goto("/beta/a234e");
+    await expect(page.getByRole("status")).toHaveText("Your invite is ready. Sign in to claim it.");
+  });
+
+  test("a code already used says what to do next and offers a different account", async ({ page }) => {
+    await mockMe(page, true);
+    trackRedeem(page, 409, { error: "That beta link has already been used." });
+    await page.goto("/beta/a234e");
+    const status = page.getByRole("status");
+    await expect(status).toContainText("That beta link has already been used.");
+    await expect(status).toContainText("Ask whoever sent you the link for a new one, or sign in with the account you used first.");
+    await expect(page.getByRole("link", { name: "Use a different account" })).toHaveAttribute("href", "/api/auth/logout?return=/beta/a234e");
+  });
+
+  test("a withdrawn link says to ask for a new one", async ({ page }) => {
+    await mockMe(page, true);
+    trackRedeem(page, 410, { error: "That beta link has been withdrawn." });
+    await page.goto("/beta/a234e");
+    await expect(page.getByRole("status")).toContainText("That beta link has been withdrawn.");
+    await expect(page.getByRole("status")).toContainText("Ask whoever sent you the link for a new one.");
+    await expect(page.getByRole("button", { name: "Retry" })).toHaveCount(0);
+  });
+
+  test("a malformed link says to ask for a new one", async ({ page }) => {
+    await page.goto("/beta/AB");
+    await expect(page.getByRole("status")).toContainText("Ask whoever sent you the link for a new one.");
+  });
+
+  test("an unexpected server failure offers Retry, which tries again and moves focus to the message", async ({ page }) => {
+    await mockMe(page, true);
+    await mockNearby(page);
+    let n = 0;
+    await page.route("**/api/beta/redeem", (route) => {
+      n++;
+      if (n === 1) return route.fulfill({ status: 500, contentType: "text/html", body: "<h1>Bad gateway</h1>" });
+      return route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "That beta link has already been used." }) });
+    });
+    await page.goto("/beta/a234e");
+    await expect(page.getByRole("status")).toContainText("Could not join the beta. Try again.");
+    await page.getByRole("button", { name: "Retry" }).click();
+    await expect(page.getByRole("status")).toContainText("already been used");
+    expect(n).toBe(2);
+    await expect(page.locator("#message")).toBeFocused();
+  });
+
+  test("a 400 with no text offers Retry", async ({ page }) => {
+    await mockMe(page, true);
+    await page.route("**/api/beta/redeem", (route) => route.fulfill({ status: 400, contentType: "application/json", body: "{}" }));
+    await page.goto("/beta/a234e");
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+  });
+
   test("a code already used shows the server's message and stays on the page", async ({ page }) => {
     await mockMe(page, true);
     await mockNearby(page);
