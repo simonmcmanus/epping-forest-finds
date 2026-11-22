@@ -2,9 +2,9 @@
 // Exit 0 skips the build, exit 1 lets it proceed.
 //
 // Pull request builds always run, draft or not: draft PRs build previews on
-// purpose so a change can be tried early. Draft status only holds back the CI
-// review jobs (the ci.yml draft gates) and the Claude specialist run, not the
-// preview.
+// purpose so a change can be tried early. The CI review jobs also run on
+// drafts; draft status only holds back the on-demand Claude specialist run
+// (claude-specialist.yml), not the preview.
 //
 // Production app/data merges are intentionally skipped here. The matching
 // cache-version workflow commits the release marker and then explicitly calls

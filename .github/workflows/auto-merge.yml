@@ -1,0 +1,308 @@
+name: Merge after verified label and agent approval
+
+# The PR is armed (or merged) only when the CURRENT head has BOTH:
+#   1. the `verified` label, applied by a human (a non-bot user with admin,
+#      maintain or write permission) AFTER the head commit was made, and
+#   2. an approving review from the CI Claude reviewer (github-actions[bot])
+#      carrying its CLAUDE_FINAL_REVIEW:<head>:<base> marker, where <base> is
+#      the PR's live base SHA.
+# The `verified` label replaces a human approving review: PRs are opened from
+# the owner's account and GitHub forbids approving your own PR. The label
+# means "a person has tried the preview and accepts this head". A new push
+# (synchronize) removes the label, so the check never carries to a new head.
+# The label must exist in the repository (create `verified` once under Issues
+# > Labels). Agents must never add the label. That cannot be enforced
+# technically, because agent sessions act through the owner's token, so it is
+# a policy: only the owner applies `verified`, by hand.
+# Either condition can arrive last, so this runs when the label is applied,
+# when the CI run that publishes the agent review completes, and when the PR
+# is marked ready (both can land while the PR is still a draft, and a draft is
+# never armed). Agents never arm or merge themselves.
+#
+# Order of operations: first try native auto-merge (enablePullRequestAutoMerge).
+# GitHub rejects that mutation when the PR is already mergeable ("clean
+# status"). Then this workflow merges directly with the same App token,
+# squash, pinned to the head SHA (--match-head-commit), only after the same
+# checks passed. Right before arming or merging it re-fetches the PR and
+# requires the same head, the same base and the `verified` label still present.
+# The arming mutation also carries expectedHeadOid, so GitHub itself refuses
+# to arm if the head moved after the check.
+# A push (synchronize) removes the label AND disables native auto-merge, which
+# is a PR-level setting that otherwise survives a push. Removing the label (unlabeled) also disarms
+# an armed PR, as does any other event that finds an armed PR without a valid label. "Already enabled" (two events racing) counts as success.
+# Two mechanisms keep a stale arming from surviving a push: (1) synchronize and
+# unlabeled runs use their own concurrency group so they cannot be replaced by
+# a queued arming run; (2) a workflow_run for a stale CI head that finds the
+# live PR armed removes the label and disarms before exiting, in case the
+# synchronize run was lost anyway.
+#
+# Branch protection still gates every merge (required checks and approvals);
+# the settings below are repository configuration, not enforced by this file:
+# - Settings > General > Allow auto-merge: on.
+# - Label `verified` exists.
+# - Branch ruleset on main: require 1 approving review (the agent), require
+#   status checks, dismiss stale approvals on new pushes. Verify GitHub counts
+#   the github-actions[bot] APPROVE toward required approvals; if it does not,
+#   this workflow still gates on it.
+#
+# Uses the dedicated GitHub App token, not GITHUB_TOKEN, so the merge still
+# fires push-triggered workflows on main (for example cache-version-bump).
+# The labeled, synchronize and ready_for_review triggers use
+# pull_request_target so the default-branch copy of this file runs; there is
+# no checkout of PR code, and the PR number comes only from the event while
+# the head SHA is read from the live PR. Workflow changes take effect for
+# workflow_run and pull_request_target only once this file is on main.
+on:
+  pull_request_target:
+    types: [labeled, unlabeled, synchronize, ready_for_review]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: read
+
+# Runs for one PR are serialised per group and nothing is cancelled. A group
+# keeps only one PENDING run, though: a newer pending run replaces an older
+# pending one even with cancel-in-progress false. So the runs that disarm
+# (synchronize, and unlabeled of `verified`) live in their own group,
+# auto-merge-disarm-<PR number>, where arming and CI runs can never replace
+# them. Arming runs (labeled, ready_for_review, workflow_run) share
+# auto-merge-<PR number>. Each run re-reads the live PR, so a superseded
+# arming run still sees current state.
+concurrency:
+  group: ${{ (github.event_name == 'pull_request_target' && (github.event.action == 'synchronize' || (github.event.action == 'unlabeled' && github.event.label.name == 'verified'))) && format('auto-merge-disarm-{0}', github.event.pull_request.number) || format('auto-merge-{0}', github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.run_id) }}
+  cancel-in-progress: false
+
+jobs:
+  arm:
+    name: Arm or merge when verified and approved
+    if: >-
+      (github.event_name == 'pull_request_target' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        ((github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
+          github.event.label.name == 'verified')) ||
+      (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.CACHE_VERSION_APP_ID }}
+          private-key: ${{ secrets.CACHE_VERSION_APP_PRIVATE_KEY }}
+
+      - name: Arm or squash-merge if verified and approved on the head
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          PR_NUMBER: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            echo "No pull request for this run; nothing to arm."
+            exit 0
+          fi
+
+          disarm() {
+            # Native auto-merge is a PR-level setting that survives a push, so
+            # it must be switched off explicitly. Fail closed on any error.
+            local id="$1"
+            gh api graphql -f query='
+              mutation($id: ID!) {
+                disablePullRequestAutoMerge(input: {pullRequestId: $id}) {
+                  pullRequest { number }
+                }
+              }' -f id="$id" >/dev/null || return 1
+            echo "Disabled auto-merge on PR #$PR_NUMBER."
+          }
+
+          remove_label() {
+            # A 404 on the label means it was not on the PR, which is fine.
+            local out
+            if out=$(gh api -X DELETE "repos/$REPO/issues/$PR_NUMBER/labels/verified" 2>&1); then
+              echo "Removed the verified label."
+            elif grep -qiE '404|not found|label does not exist' <<<"$out"; then
+              echo "No verified label to remove."
+            else
+              echo "$out" >&2
+              return 1
+            fi
+          }
+
+          # Disarm FIRST, then remove the label; run both whatever the other
+          # returns and fail the job (visibly) if either failed, so a label
+          # delete error can never leave the PR armed.
+          invalidate() {
+            local id="$1" rc=0
+            if [ -n "$id" ] && ! disarm "$id"; then
+              echo "::error::Failed to disable auto-merge on PR #$PR_NUMBER."
+              rc=1
+            fi
+            if ! remove_label; then
+              echo "::error::Failed to remove the verified label on PR #$PR_NUMBER."
+              rc=1
+            fi
+            return "$rc"
+          }
+
+          if [ "$EVENT_NAME" = "pull_request_target" ] && [ "$EVENT_ACTION" = "synchronize" ]; then
+            # A new push invalidates the human check and any armed auto-merge.
+            live=$(gh api "repos/$REPO/pulls/$PR_NUMBER")
+            id=""
+            if [ "$(jq -r '.auto_merge != null' <<<"$live")" = "true" ]; then
+              id=$(jq -r .node_id <<<"$live")
+            fi
+            invalidate "$id" || exit 1
+            exit 0
+          fi
+
+          pr=$(gh api "repos/$REPO/pulls/$PR_NUMBER")
+          HEAD_SHA=$(jq -r .head.sha <<<"$pr")
+          # workflow_run: the CI run must be for the live head.
+          if [ "$EVENT_NAME" = "workflow_run" ] && [ "$RUN_HEAD_SHA" != "$HEAD_SHA" ]; then
+            echo "CI run was for $RUN_HEAD_SHA but the PR head is $HEAD_SHA; not arming."
+            # The synchronize run that disarms may have been lost; an armed PR
+            # here is stale for the new head, so disarm it (fail closed).
+            if [ "$(jq -r '.auto_merge != null' <<<"$pr")" = "true" ]; then
+              echo "PR is armed on a head with stale CI; removing the label and disarming."
+              invalidate "$(jq -r .node_id <<<"$pr")" || exit 1
+            fi
+            exit 0
+          fi
+          if [ "$(jq -r .state <<<"$pr")" != "open" ] ||
+             [ "$(jq -r .draft <<<"$pr")" != "false" ] ||
+             [ "$(jq -r .head.repo.full_name <<<"$pr")" != "$REPO" ]; then
+            echo "PR is closed, a draft, or from a fork; not arming $HEAD_SHA."
+            exit 0
+          fi
+          armed=$(jq -r '.auto_merge != null' <<<"$pr")
+          # An armed PR without the verified label is stale: disarm it.
+          if [ "$(jq -r '[.labels[].name] | index("verified") != null' <<<"$pr")" != "true" ]; then
+            if [ "$armed" = "true" ]; then
+              echo "Auto-merge is enabled but $HEAD_SHA has no verified label."
+              disarm "$(jq -r .node_id <<<"$pr")" || exit 1
+            else
+              echo "No verified label on $HEAD_SHA. Not arming."
+            fi
+            exit 0
+          fi
+
+          # Human check: the verified label, applied by a writer after the head
+          # commit. Any failure (including API errors) means the gate is not met.
+          label_gate() {
+            local events label_event actor actor_type labeled_at permission head_date labeled_ts head_ts
+            events=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/events" | jq -s 'add // []') || return 1
+            label_event=$(jq '[.[] | select(.event == "labeled" and .label.name == "verified")] | sort_by(.id) | last // empty' <<<"$events") || return 1
+            if [ -z "$label_event" ]; then
+              echo "No labeled event found for verified."
+              return 1
+            fi
+            actor=$(jq -r '.actor.login // ""' <<<"$label_event") || return 1
+            actor_type=$(jq -r '.actor.type // ""' <<<"$label_event") || return 1
+            labeled_at=$(jq -r .created_at <<<"$label_event") || return 1
+            if [ "$actor_type" != "User" ] || [ -z "$actor" ]; then
+              echo "verified was applied by $actor ($actor_type), not a person."
+              return 1
+            fi
+            permission=$(gh api "repos/$REPO/collaborators/$actor/permission" --jq .permission 2>/dev/null || echo none)
+            case "$permission" in
+              admin|maintain|write) ;;
+              *)
+                echo "$actor has $permission permission; verified must come from a writer."
+                return 1
+                ;;
+            esac
+            head_date=$(gh api "repos/$REPO/commits/$HEAD_SHA" --jq '.commit.committer.date') || return 1
+            labeled_ts=$(date -d "$labeled_at" +%s) || return 1
+            head_ts=$(date -d "$head_date" +%s) || return 1
+            if [ "$labeled_ts" -le "$head_ts" ]; then
+              echo "verified ($labeled_at) is not newer than the head commit ($head_date); stale."
+              return 1
+            fi
+            VERIFIER="$actor"
+          }
+          if ! label_gate; then
+            if [ "$armed" = "true" ]; then
+              echo "Label gate failed on an armed PR; disarming."
+              disarm "$(jq -r .node_id <<<"$pr")" || exit 1
+            else
+              echo "Not arming $HEAD_SHA."
+            fi
+            exit 0
+          fi
+          actor="$VERIFIER"
+          if [ "$armed" = "true" ]; then
+            echo "Auto-merge is already enabled and the label gate passes."
+            exit 0
+          fi
+
+          reviews=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/reviews" | jq -s 'add // []')
+          # Each reviewer's latest decision on this head, ignoring plain comments.
+          # A later CHANGES_REQUESTED or DISMISSED supersedes an earlier approval.
+          latest=$(jq --arg sha "$HEAD_SHA" '
+            [.[] | select(.commit_id == $sha and .state != "COMMENTED")]
+            | group_by(.user.login)
+            | map(sort_by(.id) | last)' <<<"$reviews")
+          base_sha=$(jq -r .base.sha <<<"$pr")
+          marker="CLAUDE_FINAL_REVIEW:${HEAD_SHA}:${base_sha}"
+          agent=$(jq --arg marker "$marker" \
+            '[.[] | select(.user.login == "github-actions[bot]" and .state == "APPROVED"
+               and ((.body // "") | contains($marker)))] | length' <<<"$latest")
+          if [ "$agent" -lt 1 ]; then
+            echo "Waiting on the agent approval for $HEAD_SHA. Not arming."
+            exit 0
+          fi
+
+          node_id=$(jq -r .node_id <<<"$pr")
+          # Re-check the live PR right before arming: a push or a label removal
+          # since this run started must win.
+          still_current() {
+            local live
+            live=$(gh api "repos/$REPO/pulls/$PR_NUMBER") || return 1
+            [ "$(jq -r .head.sha <<<"$live")" = "$HEAD_SHA" ] &&
+              [ "$(jq -r .base.sha <<<"$live")" = "$base_sha" ] &&
+              [ "$(jq -r '[.labels[].name] | index("verified") != null' <<<"$live")" = "true" ]
+          }
+          if ! still_current; then
+            echo "Head or base moved or verified label removed since this run started; not arming $HEAD_SHA."
+            exit 0
+          fi
+          if out=$(gh api graphql -f query='
+            mutation($id: ID!, $oid: GitObjectID!) {
+              enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: SQUASH, expectedHeadOid: $oid}) {
+                pullRequest { number autoMergeRequest { enabledAt } }
+              }
+            }' -f id="$node_id" -f oid="$HEAD_SHA" 2>&1); then
+            echo "Auto-merge armed for PR #$PR_NUMBER on $HEAD_SHA (verified by $actor, agent approved)."
+            # Parallel groups: the label may have been removed (and its
+            # unlabeled run may have seen the PR unarmed) between the check
+            # above and this call. Re-fetch and disarm if no longer valid.
+            if ! still_current; then
+              echo "::warning::Head moved or verified label removed during arming; disarming PR #$PR_NUMBER."
+              disarm "$node_id" || { echo "::error::Failed to disarm PR #$PR_NUMBER after arming race."; exit 1; }
+              echo "Disarmed PR #$PR_NUMBER after the arming race (label gone or head changed)."
+            fi
+          elif grep -qi 'already enabled' <<<"$out"; then
+            echo "Auto-merge was already enabled (concurrent event)."
+          elif grep -qiE 'clean status|already.*(mergeable|clean)' <<<"$out"; then
+            # Already mergeable, so GitHub refuses to arm. Merge now; branch
+            # protection still decides whether this is allowed.
+            if ! still_current; then
+              echo "Head or base moved or verified label removed before the direct merge; not merging $HEAD_SHA."
+              exit 0
+            fi
+            echo "PR is already mergeable; merging directly."
+            gh pr merge "$PR_NUMBER" --repo "$REPO" --squash --match-head-commit "$HEAD_SHA"
+            echo "Merged PR #$PR_NUMBER on $HEAD_SHA (verified by $actor, agent approved)."
+          else
+            echo "$out" >&2
+            exit 1
+          fi

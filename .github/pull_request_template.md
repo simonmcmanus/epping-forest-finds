@@ -41,6 +41,10 @@
 - [ ] Relevant browser coverage passed
 - [ ] Spec updated, or this is implementation/data-only
 
+## Follow-ups
+
+<!-- Link GitHub issues filed for out-of-scope work, or write "none". -->
+
 ## Specialist review
 
 <!-- List every local or on-demand specialist that reviewed this PR. Record the head SHA each one
