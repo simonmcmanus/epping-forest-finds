@@ -44,7 +44,10 @@ function treeAdventurePulseTick(now) {
   if (now - treeAdventureLastDraw >= TREE_ADVENTURE_PULSE_FRAME_MS) {
     treeAdventureLastDraw = now;
     treeAdventureHighlightStyle.phase = ((now - treeAdventurePulseStart) % TREE_ADVENTURE_PULSE_MS) / TREE_ADVENTURE_PULSE_MS;
-    if (typeof drawOverlay === "function") drawOverlay();
+    // While a tilt change is still catching up, the main draw repaints the overlay together with
+    // the map; painting it here would put the pins at the new tilt over a map at the old one.
+    const mapInSync = typeof tiltRotateXDeg !== "function" || Math.abs(tiltRotateXDeg() - state.renderedTiltRotateXDeg) <= 0.05;
+    if (mapInSync && typeof drawOverlay === "function") drawOverlay();
   }
   treeAdventurePulseFrame = requestAnimationFrame(treeAdventurePulseTick);
 }
