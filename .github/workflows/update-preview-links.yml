@@ -2,32 +2,72 @@ name: Update deploy preview links
 
 on:
   status:
+  # A hand edit of the PR body can mangle the preview-links block; regenerate it on every edit.
+  pull_request:
+    types: [edited]
 
 permissions:
   contents: read
   pull-requests: write
+  statuses: read
+
+# Serialise runs per PR (or per commit for status events). A single shared group would let GitHub
+# cancel a pending run for one PR when another PR's run queues behind the running one.
+concurrency:
+  group: preview-links-${{ github.event.pull_request.number || github.event.sha }}
+  cancel-in-progress: false
 
 jobs:
   update-pr:
     # Netlify publishes deploy previews as the legacy `deploy/netlify` commit status, whose
     # target URL is the preview. Production and other status providers must not rewrite PRs.
+    # A pull_request edit looks the latest successful deploy/netlify status up itself.
     if: >-
+      (github.event_name == 'status' &&
       github.event.state == 'success' &&
       github.event.context == 'deploy/netlify' &&
-      github.event.target_url
+      github.event.target_url) ||
+      github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Add deploy-preview test links to the pull request
         uses: actions/github-script@v7
         with:
           script: |
-            const previewUrl = context.payload.target_url.replace(/\/$/, "");
-            const sha = context.payload.sha;
-            const { data: pullRequests } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: sha,
-            });
+            let previewUrl;
+            let sha;
+            let pullRequests;
+            if (context.payload.pull_request) {
+              // A queued run can start after a newer push, so take the head from the latest PR,
+              // not from the event payload.
+              const { data: latestPr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+              });
+              sha = latestPr.head.sha;
+              pullRequests = [latestPr];
+              // Statuses come newest first, so the first success is the latest deploy.
+              const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: sha,
+              });
+              const deploy = statuses.find((status) => status.context === "deploy/netlify" && status.state === "success");
+              if (!deploy || !deploy.target_url) {
+                core.notice(`No successful deploy/netlify status for ${sha}; leaving the PR body as it is.`);
+                return;
+              }
+              previewUrl = deploy.target_url.replace(/\/$/, "");
+            } else {
+              previewUrl = context.payload.target_url.replace(/\/$/, "");
+              sha = context.payload.sha;
+              ({ data: pullRequests } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: sha,
+              }));
+            }
 
             const categoryGroups = [
               ["nature", "data/icons/nature.png", [["trees", "tree"], ["cows", "cow"], ["ponds-streams", "ponds"]]],
@@ -142,10 +182,22 @@ jobs:
                 continue;
               }
 
-              const body = pr.body || "";
+              // Re-read the PR right before writing: skip if it closed or got a newer head (that
+              // head's own run writes the block), and build from the freshest body.
+              const { data: fresh } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+              });
+              if (fresh.state !== "open" || fresh.head.sha !== sha) {
+                core.notice(`#${pr.number} changed while this run was working (state ${fresh.state}, head ${fresh.head.sha}, expected ${sha}); skipping the write.`);
+                continue;
+              }
+
+              const body = fresh.body || "";
               const replacement = `<!-- preview-links:start -->\n${links}\n<!-- preview-links:end -->`;
               let nextBody = marker.test(body)
-                ? body.replace(marker, replacement)
+                ? body.replace(marker, () => replacement)
                 : `${body.trim()}\n\n${replacement}\n`;
               nextBody = nextBody.replace(reportLine, "");
               if (reportName) {

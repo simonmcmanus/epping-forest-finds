@@ -7,17 +7,17 @@
 //    without it, the issue numbers are returned as `pending` for a person to handle.
 // The procedure around it is in docs/community-data-deletion.md.
 const { openStore } = require("./lib/community-store");
-const { isAdminRequest } = require("./lib/admin-auth");
+const { isPasswordRequest } = require("./lib/admin-auth");
 const { deleteCommunityData } = require("./lib/community-delete");
 const { deletePhoto } = require("./lib/report-photo");
-const { makeGithubIssueEditor } = require("./lib/community-fetch");
+const { makeFetchJson, makeGithubIssueEditor } = require("./lib/community-fetch");
 
 function respond(statusCode, body) {
   return { statusCode, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }, body: JSON.stringify(body) };
 }
 
 exports.handler = async (event) => {
-  if (!isAdminRequest(event, process.env.ADMIN_PASSWORD || "")) return respond(401, { error: "Unauthorized" });
+  if (!isPasswordRequest(event, process.env.ADMIN_PASSWORD || "")) return respond(401, { error: "Unauthorized" });
   if (event.httpMethod !== "POST") return respond(405, { error: "POST only" });
   let input;
   try { input = JSON.parse(event.body || "{}"); } catch { return respond(400, { error: "Invalid JSON" }); }
@@ -32,6 +32,7 @@ exports.handler = async (event) => {
       includeAccount: input.includeAccount === true,
       github: redact ? makeGithubIssueEditor() : null,
       redactIssues: redact,
+      fetchJson: makeFetchJson(event),
     });
     return respond(200, { deleted: true, ...summary });
   } catch (error) {

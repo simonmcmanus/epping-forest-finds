@@ -17,7 +17,7 @@ function queryParam(event, name) {
 exports.handler = async (event) => {
   if (event.httpMethod !== "GET") return { statusCode: 405, body: "GET only" };
   const origin = originOf(event);
-  const computed = await loadComputed(openStore(event));
+  const computed = await loadComputed(openStore(event), { fetchJson: makeFetchJson(event) });
 
   const rows = [
     ...Object.entries(computed.overlay || {}).filter(([k, e]) => k.startsWith("tree:") && e.s === "questioned").map(([k, e]) => ({ recordNumber: k.slice(5), tlat: e.tlat, tlon: e.tlon })),

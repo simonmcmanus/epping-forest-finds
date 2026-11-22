@@ -30,7 +30,7 @@ const ROBOTS_FILE_NAME = "robots.txt";
  * Pages that always exist, in the order we want them crawled. The map itself
  * matters most; the report index is the hub every weekly report hangs off.
  *
- * `admin.html` is deliberately absent -- it is a password-protected dashboard
+ * `admin.html` is deliberately absent -- it is a sign-in-protected dashboard
  * with nothing in it for a reader, so it is disallowed in robots.txt below
  * rather than listed here.
  */

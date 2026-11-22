@@ -257,6 +257,15 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Mirrors netlify.toml's /beta/* -> /beta.html rewrite: the standalone beta sign-in page (ungated).
+  if (url.pathname.startsWith("/beta/")) {
+    const betaFile = path.join(ROOT, "beta.html");
+    if (!fs.existsSync(betaFile)) { send(res, 404, "Beta page not found"); return; }
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    fs.createReadStream(betaFile).pipe(res);
+    return;
+  }
+
   if (url.pathname === "/admin") {
     const adminFile = path.join(ROOT, "admin.html");
     if (!fs.existsSync(adminFile)) { send(res, 404, "Admin not found"); return; }
@@ -281,10 +290,13 @@ const server = http.createServer((req, res) => {
     "/api/auth/link": "auth-link",
     "/api/auth/logout": "auth-logout",
     "/api/features": "features",
+    "/api/beta/codes": "beta-codes",
+    "/api/beta/redeem": "beta-redeem",
     // Tracking runs the real function too; with no Blobs context it falls back to data/tracking/*.ndjson.
     "/api/track": "track",
     "/api/admin/tracks": "track",
-    "/api/admin/session": "admin-session",
+    "/api/admin/me": "admin-me",
+    "/api/admin/logout": "admin-logout",
   };
   if (COMMUNITY_FUNCTION_ROUTES[url.pathname]) {
     const fnName = COMMUNITY_FUNCTION_ROUTES[url.pathname];
@@ -350,10 +362,12 @@ const server = http.createServer((req, res) => {
 if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`Forest Finds server running at http://localhost:${PORT}`);
-    if (ADMIN_PASSWORD) {
-      console.log(`Admin dashboard: http://localhost:${PORT}/admin  (password set ✓)`);
+    if (process.env.ADMIN_SUBJECTS) {
+      console.log(`Admin dashboard: http://localhost:${PORT}/admin  (Auth0 sign-in for ADMIN_SUBJECTS ✓)`);
+    } else if (ADMIN_PASSWORD) {
+      console.log(`Admin dashboard: Auth0 sign-in disabled (set ADMIN_SUBJECTS); admin API open to scripts with the password`);
     } else {
-      console.log(`Admin dashboard: disabled — set ADMIN_PASSWORD in .env to enable`);
+      console.log(`Admin dashboard: disabled — set ADMIN_SUBJECTS (and the AUTH0_* vars) in .env to enable`);
     }
   });
 }

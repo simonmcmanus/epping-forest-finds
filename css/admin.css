@@ -91,6 +91,7 @@ textarea:focus-visible,
 
 /* Light surfaces need a darker ring to keep 3:1 against the paper and card colours. */
 .login-screen button:focus-visible,
+.login-screen a:focus-visible,
 .login-screen input:focus-visible,
 .admin-nav-view :focus-visible {
   outline-color: var(--focus-ring-light);
@@ -183,6 +184,10 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 
 .login-btn {
+  display: block;
+  box-sizing: border-box;
+  text-align: center;
+  text-decoration: none;
   width: 100%;
   min-height: var(--tap);
   padding: 11px;
@@ -744,6 +749,17 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 #adminAccessList::placeholder { color: var(--text-low); }
 
 .admin-access-actions { display: flex; align-items: center; gap: var(--sp-3); margin: 0; }
+.admin-beta-create { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); margin: 0 0 var(--sp-3); color: var(--text-hi); font-size: var(--fs-sm); }
+#adminBetaNote { flex: 1; min-width: 140px; padding: var(--sp-2) var(--sp-3); background: rgba(0, 0, 0, 0.4); border: 1px solid var(--border-dark); border-radius: var(--radius-md); color: var(--text-hi); font: inherit; }
+#adminBetaNote::placeholder { color: var(--text-low); }
+#adminBetaNote:disabled { opacity: 0.55; cursor: not-allowed; }
+#adminBeta button[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+#adminBetaNote:focus-visible { border-color: var(--accent); }
+.admin-beta-status { margin: 0 0 var(--sp-3); min-height: 1.2em; color: var(--text-hi); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.admin-beta-list { list-style: none; margin: 0; padding: 0; }
+.admin-beta-list li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: var(--sp-2) 0; border-bottom: 1px solid var(--border-dark-soft); color: var(--text-hi); font-size: var(--fs-sm); }
+.admin-beta-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 700; }
+.admin-beta-note { flex: 1; min-width: 0; color: var(--text-mid); overflow-wrap: anywhere; }
 #adminAccessStatus { flex: 1; min-width: 0; color: var(--text-hi); font-size: var(--fs-sm); overflow-wrap: anywhere; }
 
 .admin-click-title {

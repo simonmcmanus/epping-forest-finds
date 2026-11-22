@@ -12,9 +12,16 @@ const ADMIN_MAP_URLS = {
 };
 // Earlier versions kept the password under this key. It is only ever removed now, never written.
 const LEGACY_SESSION_PASSWORD_KEY = "ff-admin-session-password";
-// The session token from POST /api/admin/session ({ token, expiresAt }), kept in sessionStorage so a reload of this
-// tab stays signed in. It is not the password; the password is never stored anywhere.
-const ADMIN_SESSION_KEY = "ff-admin-session";
+// The dashboard signs in with Auth0 (GET /api/auth/login?admin=1). The server keeps the sign-in in an HttpOnly
+// cookie this script cannot read, so nothing about it is stored here. Every admin request carries this header
+// instead: with a cookie it is the CSRF guard (another site cannot add it without a preflight, which is refused).
+const ADMIN_FETCH_HEADERS = { "X-Requested-With": "admin" };
+const adminFetch = (url, options = {}) => fetch(url, { ...options, headers: { ...ADMIN_FETCH_HEADERS, ...(options.headers || {}) } });
+const SIGNIN_MESSAGES = {
+  denied: "This account isn't on the admin list. Ask an existing admin to add it, or sign in with a different account.",
+  failed: "Sign-in didn't finish. Try again.",
+  unavailable: "Admin sign-in isn't set up on this site yet. The site owner needs to configure Auth0 and ADMIN_SUBJECTS.",
+};
 const ADMIN_VIEWPORT_KEY = "ff-admin-map-viewport";
 const BASE_MAP_OPACITY = 0.42;
 const MIN_MAP_ZOOM = 0.85;
@@ -1341,6 +1348,7 @@ function renderClickDetails(key) {
 const OVERLAY_PANELS = {
   community: { id: "adminCommunity", opener: "communityBtn" },
   access: { id: "adminAccess", opener: "accessBtn", onClose: null },
+  beta: { id: "adminBeta", opener: "betaBtn", onClose: null },
 };
 
 function closeOverlay(key) {
@@ -1366,7 +1374,7 @@ function syncPanelButtons() {
 }
 
 function closeOverlayPanels(except) {
-  for (const key of ["community", "access", "details"]) if (key !== except) closeOverlay(key);
+  for (const key of ["community", "access", "beta", "details"]) if (key !== except) closeOverlay(key);
 }
 
 // ---- Data loading ----
@@ -1424,19 +1432,19 @@ const ADMIN_WINDOW_FALLBACKS = [null, 7, 1];
 
 const HTTP_STATUS_NAMES = { 400: "Bad Request", 403: "Forbidden", 404: "Not Found", 500: "Internal Server Error", 502: "Bad Gateway", 503: "Service Unavailable", 504: "Gateway Timeout" };
 
-async function loadData(token) {
+async function loadData() {
   let resp;
   let url;
   for (const days of ADMIN_WINDOW_FALLBACKS) {
     url = days ? `/api/admin/tracks?days=${days}` : "/api/admin/tracks";
     try {
-      resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
+      resp = await adminFetch(url);
     } catch (cause) {
       const failure = new Error("network");
       failure.network = true;
       throw failure;
     }
-    if (resp.status === 401) throw new Error("wrong-password");
+    if (resp.status === 401) throw new Error("unauthorised");
     if (resp.ok || resp.status < 500) break;
   }
   if (!resp.ok) {
@@ -1457,8 +1465,8 @@ async function loadData(token) {
 }
 
 // Community verification usage (netlify/functions/community-overlay.js ?admin=1).
-async function loadCommunityStats(token) {
-  const resp = await fetch("/api/community/overlay?admin=1", { headers: { Authorization: `Bearer ${token}` } });
+async function loadCommunityStats() {
+  const resp = await adminFetch("/api/community/overlay?admin=1");
   if (!resp.ok) {
     const failure = new Error(`Server error ${resp.status}`);
     failure.status = resp.status;
@@ -1522,42 +1530,7 @@ function rewardCheckText(data) {
   return parts.join(" ");
 }
 
-// The typed password is used once, to get a session token, and is never stored. Only the token (with its expiry) is
-// kept, in this tab's sessionStorage, so a reload stays signed in while a new tab, Log out or expiry asks again.
 // A password copy left in browser storage by an earlier version is removed on load.
-function readStoredSession() {
-  try {
-    const saved = JSON.parse(sessionStorage.getItem(ADMIN_SESSION_KEY) || "null");
-    if (saved && typeof saved.token === "string" && saved.token && Number(saved.expiresAt) > Date.now()) return saved;
-  } catch {}
-  return null;
-}
-function storeSession(session) {
-  try { sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ token: session.token, expiresAt: session.expiresAt })); } catch {}
-}
-function clearStoredSession() {
-  try { sessionStorage.removeItem(ADMIN_SESSION_KEY); } catch {}
-}
-// Trade the typed password for a session token. Failures look like loadData's: "wrong-password" for a 401,
-// `network` when the server cannot be reached, otherwise a "Server error <status>" message.
-async function requestSession(password) {
-  let resp;
-  try {
-    resp = await fetch("/api/admin/session", { method: "POST", headers: { Authorization: `Bearer ${password}` } });
-  } catch (cause) {
-    const failure = new Error("network");
-    failure.network = true;
-    throw failure;
-  }
-  if (resp.status === 401) throw new Error("wrong-password");
-  if (!resp.ok) {
-    const name = resp.statusText || HTTP_STATUS_NAMES[resp.status] || "";
-    throw new Error(`Server error ${resp.status}${name ? `: ${name}` : ""}`);
-  }
-  const session = await resp.json().catch(() => null);
-  if (!session || !session.token) throw new Error("Server error: no session token");
-  return session;
-}
 function clearLegacyStoredPassword() {
   for (const store of [sessionStorage, localStorage]) {
     try {
@@ -1751,8 +1724,8 @@ async function adminBoot() {
   const loginScreen = document.getElementById("loginScreen");
   const adminApp = document.getElementById("adminApp");
   const loginBtn = document.getElementById("loginBtn");
-  const loginInput = document.getElementById("loginPassword");
   const loginError = document.getElementById("loginError");
+  const loginRetry = document.getElementById("loginRetry");
   const heatmapBtn = document.getElementById("heatmapBtn");
   const tracksBtn = document.getElementById("tracksBtn");
   const refreshBtn = document.getElementById("refreshBtn");
@@ -1767,7 +1740,7 @@ async function adminBoot() {
   const communityBody = document.getElementById("adminCommunityBody");
   const communityStatus = document.getElementById("adminCommunityStatus");
 
-  let sessionToken = "";
+  let signedIn = false;
   clearLegacyStoredPassword();
   readSavedViewport();
   loadAdminBaseMap();
@@ -1837,14 +1810,12 @@ async function adminBoot() {
     adminApp.hidden = true;
     loginScreen.hidden = false;
     loginError.textContent = message;
-    loginBtn.disabled = false;
-    loginBtn.textContent = "Sign in";
+    loginRetry.hidden = true;
   }
 
   function forgetSession(message = "") {
     sessionId++;
-    sessionToken = "";
-    clearStoredSession();
+    signedIn = false;
     setRefreshing(false); // an answer still on its way is ignored, so it can no longer re-enable the button
     communityAction = null;
     communityResultStash = "";
@@ -1855,6 +1826,7 @@ async function adminBoot() {
     closeOverlayPanels();
     resetView();
     resetAccessPanel();
+    resetBetaPanel();
     communityToken++;
     communityBody.textContent = "";
     communityStatus.textContent = "";
@@ -1862,77 +1834,34 @@ async function adminBoot() {
     document.getElementById("adminClickDetailsBody").textContent = "";
     setRefreshNote("");
     showLogin(message);
-    loginInput.focus();
+    loginBtn.focus();
   }
 
-  let signingIn = false; // true while a sign-in or a stored-session restore is in flight, so Enter cannot start a second one
-  async function doLogin() {
-    if (signingIn) return;
-    const pw = loginInput.value.trim();
-    if (!pw) {
-      loginError.textContent = "Enter the admin password.";
-      loginInput.setAttribute("aria-invalid", "true");
-      loginInput.focus();
-      return;
-    }
-    signingIn = true;
-    loginBtn.disabled = true;
-    loginBtn.textContent = "Signing in…";
-    loginError.textContent = "";
-    loginInput.removeAttribute("aria-invalid");
+  // On load, ask the server who is signed in (the HttpOnly cookie rides along). 200 shows the dashboard, 401 the
+  // sign-in card. Coming back from Auth0 with ?signin=denied|failed shows why, then the address is cleaned.
+  const signinResult = new URLSearchParams(location.search).get("signin");
+  const signinMessage = Object.prototype.hasOwnProperty.call(SIGNIN_MESSAGES, signinResult) ? SIGNIN_MESSAGES[signinResult] : "";
+  if (signinResult !== null) history.replaceState(null, "", `/admin${location.hash}`);
+  async function restoreSession() {
     try {
-      const session = await requestSession(pw);
-      allData = await loadData(session.token);
-      sessionToken = session.token;
-      storeSession(session);
+      const me = await adminFetch("/api/admin/me");
+      if (me.status === 401) { showLogin(signinMessage); return; }
+      if (!me.ok) throw Object.assign(new Error(`Server error ${me.status}`), { status: me.status });
+      const data = await loadData();
+      allData = data;
+      signedIn = true;
       showAdminApp();
     } catch (err) {
-      console.error("[admin] login failed:", err, err.detail || "");
-      loginInput.setAttribute("aria-invalid", "true");
-      if (err.message === "wrong-password") {
-        loginError.textContent = "Incorrect password. Try again.";
-      } else if (err.network) {
-        loginError.textContent = "Cannot reach the server. Check your connection and try again.";
-      } else {
-        loginError.textContent = err.message;
+      console.error("[admin] could not restore the sign-in:", err, err.detail || "");
+      if (err.message === "unauthorised") showLogin(signinMessage || "Admin session expired. Sign in again.");
+      else {
+        showLogin(err.network || err instanceof TypeError ? "Cannot reach the server. Check your connection and try again." : "Couldn't check your sign-in. Try again.");
+        loginRetry.hidden = false;
       }
-      loginBtn.disabled = false;
-      loginBtn.textContent = "Sign in";
-      loginInput.focus();
-      loginInput.select();
-    } finally {
-      signingIn = false;
     }
   }
-
-  // A session kept by this tab survives a reload: go straight to the data. If the server no longer accepts it, ask again.
-  // Only a refusal (401) ends the session; a network or server error keeps the token for the next reload.
-  const restored = readStoredSession();
-  if (restored) {
-    signingIn = true;
-    loginBtn.disabled = true;
-    loginBtn.textContent = "Signing in…";
-    loadData(restored.token).then((data) => {
-      allData = data;
-      sessionToken = restored.token;
-      showAdminApp();
-    }).catch((err) => {
-      console.error("[admin] stored session not usable:", err, err.detail || "");
-      if (err.message === "wrong-password") {
-        clearStoredSession();
-        showLogin("Admin session expired. Sign in again.");
-      } else {
-        showLogin(err.network ? "Cannot reach the server. Check your connection and try again." : err.message);
-      }
-    }).finally(() => { signingIn = false; });
-  } else {
-    clearStoredSession();
-  }
-
-  loginInput.addEventListener("input", () => loginInput.removeAttribute("aria-invalid"));
-  const loginForm = document.getElementById("loginForm");
-  if (loginForm) loginForm.addEventListener("submit", (e) => { e.preventDefault(); doLogin(); });
-  else loginBtn.addEventListener("click", doLogin);
+  loginRetry.addEventListener("click", () => { loginRetry.hidden = true; loginError.textContent = ""; restoreSession(); });
+  restoreSession();
 
   const navigationBtn = document.getElementById("navigationBtn");
   const navigationPanel = document.getElementById("adminNavigation");
@@ -2019,7 +1948,7 @@ async function adminBoot() {
     communityStatus.textContent = "Loading…";
     const sid = sessionId;
     try {
-      const html = renderCommunityStats(await loadCommunityStats(sessionToken));
+      const html = renderCommunityStats(await loadCommunityStats());
       if (token !== communityToken || sid !== sessionId) return;
       communityStatus.textContent = "";
       communityBody.innerHTML = html;
@@ -2069,7 +1998,7 @@ async function adminBoot() {
     let ok = false;
     let text;
     try {
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${sessionToken}` } });
+      const resp = await adminFetch(url);
       if (sid !== sessionId) return;
       if (resp.status === 401) {
         forgetSession("Admin session expired. Sign in again.");
@@ -2087,7 +2016,7 @@ async function adminBoot() {
     }
     if (ok && refreshFigures) {
       try {
-        const stats = await loadCommunityStats(sessionToken);
+        const stats = await loadCommunityStats();
         if (sid !== sessionId) return;
         const figures = document.getElementById("communityFigures");
         if (figures) figures.innerHTML = renderCommunityFigures(stats);
@@ -2172,7 +2101,7 @@ async function adminBoot() {
     setAccessEditable(false);
     sayAccess("Loading…");
     try {
-      const resp = await fetch("/api/features?admin=1", { headers: { Authorization: `Bearer ${sessionToken}` } });
+      const resp = await adminFetch("/api/features?admin=1");
       if (token !== accessToken || sid !== sessionId) return;
       if (resp.status === 401) {
         forgetSession("Admin session expired. Sign in again.");
@@ -2233,7 +2162,7 @@ async function adminBoot() {
     setAccessEditable(false);
     sayAccess("Saving…");
     try {
-      const resp = await fetch("/api/features", { method: "POST", headers: { Authorization: `Bearer ${sessionToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ community }) });
+      const resp = await adminFetch("/api/features", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ community }) });
       if (sid !== sessionId) return;
       if (resp.status === 401) {
         forgetSession("Admin session expired. Sign in again.");
@@ -2276,6 +2205,302 @@ async function adminBoot() {
     closeOverlayPanels();
   });
 
+  // ---- Beta codes: one code per person, shared as /beta/<code>. Revoking a claimed code removes that person's access. ----
+  const betaPanel = document.getElementById("adminBeta");
+  const betaList = document.getElementById("adminBetaList");
+  const betaStatus = document.getElementById("adminBetaStatus");
+  const betaNote = document.getElementById("adminBetaNote");
+  const betaCreate = document.getElementById("adminBetaCreate");
+  const betaRetry = document.getElementById("adminBetaRetry");
+  const betaClose = document.getElementById("adminBetaClose");
+  let betaCodes = [];
+  let betaLoaded = false;
+  let betaBusy = false;
+  let betaArmed = ""; // the code whose Revoke awaits its confirming second press
+  let betaToken = 0;
+  let betaStatusSeq = 0;
+  OVERLAY_PANELS.beta.onClose = () => { betaArmed = ""; renderBeta(); };
+
+  const betaLink = (code) => `${location.origin}/beta/${code}`;
+  const betaDate = (iso) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  };
+
+  function betaShareButton(code) {
+    const share = document.createElement("button");
+    share.type = "button";
+    share.className = "admin-btn";
+    share.dataset.share = code;
+    share.textContent = "Share link";
+    share.setAttribute("aria-label", `Share link for ${code}`);
+    share.addEventListener("click", () => { betaDisarm(); shareBetaLink(code, share); });
+    return share;
+  }
+
+  // shareCode adds a Share link button after the text (used right after a code is created).
+  function setBetaStatus(text, shareCode = "") {
+    // Clear first, then set on the next tick, so identical text is announced again.
+    const seq = ++betaStatusSeq;
+    betaStatus.textContent = "";
+    if (!text) return;
+    setTimeout(() => {
+      if (seq !== betaStatusSeq) return;
+      betaStatus.textContent = text;
+      if (shareCode) {
+        const share = betaShareButton(shareCode);
+        share.disabled = !betaLoaded || betaBusy;
+        betaStatus.append(" ", share);
+      }
+    }, 0);
+  }
+
+  function syncBetaCreate() {
+    betaCreate.disabled = !(betaLoaded && !betaBusy && betaNote.value.trim());
+  }
+
+  function betaDisarm() {
+    if (!betaArmed) return;
+    betaArmed = "";
+    syncBetaArmed();
+  }
+
+  function syncBetaArmed() {
+    for (const btn of betaList.querySelectorAll("button[data-revoke]")) {
+      const armed = btn.dataset.revoke === betaArmed;
+      btn.textContent = armed ? "Confirm revoke" : "Revoke";
+      btn.setAttribute("aria-label", `${armed ? "Confirm revoke code" : "Revoke code"} ${btn.dataset.revoke}`);
+    }
+  }
+
+  function syncBetaEnabled() {
+    const enabled = betaLoaded && !betaBusy;
+    // A focused control gets aria-disabled instead of disabled: disabling it would blur it and drop focus to the body.
+    const set = (el, off) => {
+      if (off && el === document.activeElement) { el.setAttribute("aria-disabled", "true"); el.disabled = false; }
+      else { el.removeAttribute("aria-disabled"); el.disabled = off; }
+    };
+    set(betaNote, !enabled);
+    betaNote.readOnly = betaBusy; // text typed while a request is pending would be lost when it finishes
+    for (const btn of betaList.querySelectorAll("button[data-revoke]")) set(btn, !enabled);
+    for (const btn of betaPanel.querySelectorAll("button[data-share]")) set(btn, !enabled);
+    syncBetaCreate();
+    if (betaCreate === document.activeElement && betaBusy) { betaCreate.setAttribute("aria-disabled", "true"); betaCreate.disabled = false; }
+    else betaCreate.removeAttribute("aria-disabled");
+  }
+
+  // focusWhat: "copy" focuses the row's Copy link button, or its code if there is none; "revoke" focuses its Revoke button.
+  function renderBeta(focusCode = "", focusWhat = "") {
+    betaList.textContent = "";
+    betaNote.removeAttribute("aria-disabled");
+    betaCreate.removeAttribute("aria-disabled");
+    const enabled = betaLoaded && !betaBusy;
+    betaNote.disabled = !enabled;
+    betaNote.readOnly = betaBusy;
+    syncBetaCreate();
+    let target = null;
+    for (const item of betaCodes) {
+      const li = document.createElement("li");
+      const code = document.createElement("span");
+      code.className = "admin-beta-code";
+      code.tabIndex = -1;
+      code.textContent = item.code;
+      const note = document.createElement("span");
+      note.className = "admin-beta-note";
+      note.textContent = item.note || "";
+      const state = document.createElement("span");
+      const claimed = item.claimedAt && betaDate(item.claimedAt) ? ` ${betaDate(item.claimedAt)}` : "";
+      const revokedOn = item.revokedAt && betaDate(item.revokedAt) ? ` ${betaDate(item.revokedAt)}` : "";
+      state.textContent = item.status === "claimed"
+        ? `claimed${claimed}`
+        : item.status === "revoked" ? `${item.claimedAt ? `claimed${claimed}, ` : ""}revoked${revokedOn}` : "open";
+      li.append(code, note, state);
+      let copy = null;
+      if (item.status !== "revoked") {
+        copy = document.createElement("button");
+        copy.type = "button";
+        copy.className = "admin-btn";
+        copy.textContent = "Copy link";
+        copy.setAttribute("aria-label", `Copy link for ${item.code}`);
+        copy.addEventListener("click", () => { betaDisarm(); copyBetaLink(item.code); });
+        copy.dataset.copy = item.code;
+        li.append(copy);
+        const share = betaShareButton(item.code);
+        share.disabled = !enabled;
+        li.append(share);
+      }
+      let revoke = null;
+      if (item.status === "open" || item.status === "claimed") {
+        revoke = document.createElement("button");
+        revoke.type = "button";
+        revoke.className = "admin-btn";
+        revoke.dataset.revoke = item.code;
+        revoke.disabled = !enabled;
+        revoke.addEventListener("click", () => revokeBeta(item.code));
+        li.append(revoke);
+      }
+      if (item.code === focusCode) target = focusWhat === "revoke" && revoke ? revoke : copy || code;
+      betaList.append(li);
+    }
+    syncBetaArmed();
+    if (target) target.focus();
+  }
+
+  function resetBetaPanel() {
+    betaToken++;
+    betaCodes = [];
+    betaLoaded = false;
+    betaBusy = false;
+    betaArmed = "";
+    betaNote.value = "";
+    setBetaStatus("");
+    betaRetry.hidden = true;
+    renderBeta();
+  }
+
+  async function betaFetch(options) {
+    const resp = await adminFetch("/api/beta/codes", options);
+    if (resp.status === 401) return { unauthorised: true };
+    let data = null;
+    try { data = await resp.json(); } catch { /* not JSON */ }
+    if (!resp.ok) throw Object.assign(new Error("http"), { status: resp.status, serverMessage: data && data.error });
+    return { data };
+  }
+
+  function betaProblem(error, what, useServerText = true) {
+    if (useServerText && error.status === 503 && error.serverMessage) return error.serverMessage;
+    return error.status ? `Could not ${what}. Try again.` : `Could not ${what}. Check your connection and try again.`;
+  }
+
+  async function loadBeta() {
+    const token = ++betaToken;
+    const sid = sessionId;
+    betaLoaded = false;
+    betaBusy = false;
+    betaArmed = "";
+    betaRetry.hidden = true;
+    setBetaStatus("Loading…");
+    renderBeta();
+    try {
+      const result = await betaFetch({});
+      if (token !== betaToken || sid !== sessionId) return;
+      if (result.unauthorised) { forgetSession("Admin session expired. Sign in again."); return; }
+      betaCodes = Array.isArray(result.data.codes) ? result.data.codes : [];
+      betaLoaded = true;
+      setBetaStatus("");
+    } catch (error) {
+      if (token !== betaToken || sid !== sessionId) return;
+      betaCodes = [];
+      setBetaStatus(betaProblem(error, "load beta codes", false));
+      betaRetry.hidden = false;
+    }
+    renderBeta();
+  }
+
+  async function betaAction(body, onDone, onFailFocus = null) {
+    const token = betaToken;
+    const sid = sessionId;
+    let focus = onFailFocus;
+    betaBusy = true;
+    syncBetaEnabled(); // not renderBeta(): rebuilding the list would drop the focused button mid-request
+    try {
+      const result = await betaFetch({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (token !== betaToken || sid !== sessionId) return;
+      if (result.unauthorised) { forgetSession("Admin session expired. Sign in again."); return; }
+      betaBusy = false;
+      focus = onDone(result.data) || null;
+    } catch (error) {
+      if (token !== betaToken || sid !== sessionId) return;
+      betaBusy = false;
+      setBetaStatus(betaProblem(error, body.action === "create" ? "create a code" : "revoke the code"));
+    }
+    if (focus) renderBeta(focus.code, focus.what);
+    else renderBeta();
+    if (!focus && body.action === "create") betaNote.focus();
+  }
+
+  betaNote.addEventListener("input", syncBetaCreate);
+  betaCreate.addEventListener("click", () => {
+    if (!betaLoaded || betaBusy || !betaNote.value.trim()) return;
+    betaArmed = "";
+    setBetaStatus("Creating…");
+    betaAction({ action: "create", note: betaNote.value.trim().slice(0, 80) }, (created) => {
+      betaCodes.unshift(created);
+      betaNote.value = "";
+      setBetaStatus(`New code ${created.code}: ${betaLink(created.code)}`, created.code);
+      return { code: created.code, what: "copy" };
+    });
+  });
+
+  function revokeBeta(code) {
+    if (!betaLoaded || betaBusy) return;
+    if (betaArmed !== code) {
+      betaArmed = code;
+      setBetaStatus(`Revoke ${code}? Press Confirm revoke to be sure. A claimed code loses that person's beta access.`);
+      syncBetaArmed();
+      return;
+    }
+    betaArmed = "";
+    setBetaStatus("Revoking…");
+    betaAction({ action: "revoke", code }, () => {
+      const row = betaCodes.find((c) => c.code === code);
+      if (row) { row.status = "revoked"; row.revokedAt = Date.now(); }
+      setBetaStatus(`Revoked ${code}.`);
+      return { code, what: "copy" };
+    }, { code, what: "revoke" });
+  }
+
+  async function copyBetaLink(code) {
+    const link = betaLink(code);
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error("no clipboard");
+      await navigator.clipboard.writeText(link);
+      setBetaStatus(`Copied ${link}`);
+    } catch {
+      setBetaStatus(`Could not copy automatically. Copy this link: ${link}`);
+    }
+  }
+
+  // The native share sheet where there is one; otherwise (or if it fails) the copy behaviour. The note is never shared.
+  async function shareBetaLink(code, button) {
+    if (!betaLoaded || betaBusy) return;
+    const token = betaToken;
+    let done = false;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: "Epping Forest Finds beta", text: "Join the Epping Forest Finds beta. Let us know what you like, what you don't like, and anything that isn't working.", url: betaLink(code) });
+        done = true;
+      } catch (error) {
+        if (error && error.name === "AbortError") done = true;
+      }
+    }
+    if (token !== betaToken) return;
+    if (!done) {
+      await copyBetaLink(code);
+      if (token !== betaToken) return;
+    }
+    if (button.isConnected) button.focus();
+    else if (betaCodes.some((c) => c.code === code)) {
+      const copy = betaList.querySelector(`button[data-copy="${code}"]`);
+      const row = copy || [...betaList.querySelectorAll(".admin-beta-code")].find((el) => el.textContent === code);
+      if (row) row.focus();
+    }
+  }
+
+  document.getElementById("betaBtn").addEventListener("click", () => {
+    leaveNavigationForMap();
+    closeOverlayPanels("beta");
+    betaPanel.hidden = false;
+    syncPanelButtons();
+    betaClose.focus();
+    loadBeta();
+  });
+  betaRetry.addEventListener("click", () => {
+    betaClose.focus();
+    loadBeta();
+  });
+  betaClose.addEventListener("click", () => closeOverlay("beta"));
+
   tracksBtn.addEventListener("click", () => showMapView("tracks"));
 
   // Refresh and the 5-minute auto-refresh share this: a failure leaves the data on screen and says so (a 401 still signs out).
@@ -2284,7 +2509,7 @@ async function adminBoot() {
     const sid = sessionId;
     setRefreshing(true);
     try {
-      const data = await loadData(sessionToken);
+      const data = await loadData();
       if (sid !== sessionId) return;
       allData = data;
       lastLoadedAt = new Date();
@@ -2295,7 +2520,7 @@ async function adminBoot() {
       render();
     } catch (err) {
       if (sid !== sessionId) return;
-      if (err.message === "wrong-password") {
+      if (err.message === "unauthorised") {
         forgetSession("Admin session expired. Sign in again.");
       } else {
         const again = refreshStatus.textContent.startsWith("Could not refresh");
@@ -2310,8 +2535,11 @@ async function adminBoot() {
   refreshBtn.addEventListener("click", refreshData);
 
   if (logoutBtn) {
-    logoutBtn.addEventListener("click", () => {
-      loginInput.value = "";
+    logoutBtn.addEventListener("click", async () => {
+      // Clear the cookie on the server first. If that fails the admin is still signed in, so say so and keep the dashboard.
+      let ok = false;
+      try { const resp = await adminFetch("/api/admin/logout", { method: "POST" }); ok = resp.ok || resp.status === 401; } catch {}
+      if (!ok) { setRefreshNote("Couldn't log out. Check your connection and try again.", true); return; }
       forgetSession("");
     });
   }
@@ -2323,7 +2551,7 @@ async function adminBoot() {
   window.addEventListener("resize", () => { invalidateMapFit(); syncSheetInset(); refreshScrollCues(); render(); });
 
   // Auto-refresh every 5 minutes
-  setInterval(() => { if (sessionToken) refreshData(); }, 5 * 60 * 1000);
+  setInterval(() => { if (signedIn) refreshData(); }, 5 * 60 * 1000);
 }
 
 document.addEventListener("DOMContentLoaded", adminBoot);

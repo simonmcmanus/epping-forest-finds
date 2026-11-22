@@ -9,7 +9,7 @@ metadata:
     url: "https://github.com/humanlayer/skills/blob/main/plugins/show-me/skills/show-me/SKILL.md"
 ---
 
-Use this template for writing the PR body. It adds to `.github/pull_request_template.md`, never replaces it: any PR body you write or rewrite must keep the template's `## Specialist review` table (update status, reviewed SHA and verdict; keep every specialist row) and the `<!-- preview-links:start -->` ... `<!-- preview-links:end -->` block verbatim.
+Use this template for writing the PR body. It adds to `.github/pull_request_template.md`, never replaces it: any PR body you write or rewrite must keep the template's `## Specialist review` table (update status, reviewed SHA and verdict; keep every specialist row). Leave the `<!-- preview-links:start -->` ... `<!-- preview-links:end -->` markers in place and never write or copy the block's contents by hand; `update-preview-links.yml` regenerates the block on every PR body edit and after each Netlify deploy.
 
 ```markdown
 ## Summary
@@ -44,7 +44,6 @@ Use this template for writing the PR body. It adds to `.github/pull_request_temp
 ## Deploy preview
 
 <!-- preview-links:start -->
-<copy the existing block verbatim>
 <!-- preview-links:end -->
 ```
 

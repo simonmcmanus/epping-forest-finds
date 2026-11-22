@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Join the beta</title>
+<meta name="theme-color" content="#24382f">
+<link rel="icon" href="/assets/home/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="/assets/home/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f4f4ec;
+  --surface: #ffffff;
+  --surface-alt: #eaeedd;
+  --text: #181c11;
+  --muted: #52514e;
+  --border: #ded9c6;
+  --accent: #1d4a2f;
+  --accent-text: #ffffff;
+  --accent-hover: #2e6b44;
+  --focus: #1d4a2f;
+  --error: #9b2c2c;
+  --celebrate: #b69439;
+  --ring: #2e6b44;
+  --shadow: 0 1px 2px rgba(24, 28, 17, .06), 0 16px 36px -20px rgba(24, 28, 17, .35);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12170f;
+    --surface: #1b2216;
+    --surface-alt: #232c1d;
+    --text: #ecefe4;
+    --muted: #b4baa8;
+    --border: #36402d;
+    --accent: #f3d36b;
+    --accent-text: #181c11;
+    --accent-hover: #ffe58f;
+    --focus: #f3d36b;
+    --error: #f0a3a3;
+    --celebrate: #f3d36b;
+    --ring: #8fcf9d;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12170f;
+  --surface: #1b2216;
+  --surface-alt: #232c1d;
+  --text: #ecefe4;
+  --muted: #b4baa8;
+  --border: #36402d;
+  --accent: #f3d36b;
+  --accent-text: #181c11;
+  --accent-hover: #ffe58f;
+  --focus: #f3d36b;
+  --error: #f0a3a3;
+  --celebrate: #f3d36b;
+  --ring: #8fcf9d;
+  --shadow: none;
+}
+* { box-sizing: border-box; }
+html { color-scheme: light dark; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.6 "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+main {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 32px 16px 48px;
+}
+.hero { text-align: center; margin-bottom: 24px; }
+.mark-wrap { position: relative; width: 112px; height: 112px; margin: 0 auto 16px; }
+.rings { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--ring); }
+.brand-mark { position: absolute; top: 24px; left: 24px; width: 64px; height: 64px; }
+.joined .rings { color: var(--celebrate); }
+.eyebrow { margin: 0 0 4px; color: var(--muted); font-family: "Fraunces", Georgia, serif; font-size: 1rem; font-style: italic; }
+h1 {
+  margin: 0;
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+  font-size: clamp(1.75rem, 8vw, 2.2rem);
+  letter-spacing: -.03em;
+  line-height: 1.1;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 24px 16px;
+  text-align: center;
+}
+#message { margin: 0 0 16px; overflow-wrap: anywhere; }
+#message.is-error { color: var(--error); }
+#message:empty { min-height: 1.5em; }
+#message:focus { outline: none; }
+.joined #message { font-weight: 600; }
+.actions:empty { display: none; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 11px 22px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn:hover { background: var(--accent-hover); }
+.btn:active { background: var(--accent-hover); }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+/* The ring stays a solid colour: the homepage's softer rgba(46,107,68,.45) is only about 2:1 on white, below the 3:1 floor. */
+.btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+@media (prefers-reduced-motion: no-preference) {
+  .btn { transition: background-color .2s ease, transform .25s ease; }
+  .btn:active:not(:disabled) { transform: scale(.98); }
+  .brand-mark { animation: rise .9s ease-out backwards; }
+  .rings circle { transform-box: fill-box; transform-origin: center; animation: ring 1.4s ease-out backwards, pulse 4.5s ease-in-out 1.4s infinite; }
+  .rings circle:nth-child(2) { animation-delay: .15s, 1.9s; }
+  .rings circle:nth-child(3) { animation-delay: .3s, 2.4s; }
+  .joined .rings { transition: color .6s ease; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  @keyframes ring { from { opacity: 0; } }
+  @keyframes pulse { 0%, 100% { transform: scale(.97); opacity: 1; } 50% { transform: scale(1.03); opacity: .7; } }
+}
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="mark-wrap">
+      <svg class="rings" viewBox="0 0 112 112" fill="none" stroke="currentColor" aria-hidden="true" focusable="false">
+        <circle cx="56" cy="56" r="54" stroke-width="1.5" opacity=".25"/>
+        <circle cx="56" cy="56" r="46" stroke-width="1.5" opacity=".4"/>
+        <circle cx="56" cy="56" r="38" stroke-width="1.5" opacity=".6"/>
+      </svg>
+      <img class="brand-mark" src="/assets/home/map-icons/oak.png" alt="" width="64" height="64">
+    </div>
+    <p class="eyebrow">You’re invited</p>
+    <h1>Epping Forest Finds beta</h1>
+  </header>
+  <div class="card">
+    <p id="message" role="status" aria-live="polite" tabindex="-1"></p>
+    <div class="actions" id="actions"></div>
+    <noscript><p>This page needs JavaScript to sign you in. Please turn it on, or contact the person who sent you the link.</p></noscript>
+  </div>
+</main>
+<script>
+(function () {
+  var messageEl = document.getElementById("message");
+  var actionsEl = document.getElementById("actions");
+  var code = (location.pathname.split("/")[2] || "").toLowerCase();
+
+  function say(text, isError) {
+    messageEl.textContent = text;
+    messageEl.className = isError ? "is-error" : "";
+  }
+  function clearActions() { actionsEl.textContent = ""; }
+  function addRetry(onClick) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn";
+    b.textContent = "Retry";
+    b.addEventListener("click", onClick);
+    actionsEl.appendChild(b);
+  }
+  var NEXT_NEW = " Ask whoever sent you the link for a new one.";
+  var NEXT_USED = " Ask whoever sent you the link for a new one, or sign in with the account you used first. If you already joined with this account, you're in.";
+  function addLink(href, text) {
+    var a = document.createElement("a");
+    a.className = "btn";
+    a.href = href;
+    a.textContent = text;
+    actionsEl.appendChild(a);
+  }
+  function showSignIn() {
+    clearActions();
+    say("Your invite is ready. Sign in to claim it.", false);
+    addLink("/api/auth/login?return=/beta/" + code, "Sign in to join the beta");
+  }
+  function retry(fn) {
+    return function () {
+      fn();
+      messageEl.focus();
+    };
+  }
+  function redeem() {
+    clearActions();
+    say("Joining the beta…", false);
+    fetch("/api/beta/redeem", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: code })
+    }).then(function (res) {
+      if (res.ok) {
+        document.body.classList.add("joined");
+        say("Opening Community…", false);
+        location.replace("/community");
+        return null;
+      }
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        var text = data && typeof data.error === "string" ? data.error : "";
+        if (res.status === 401) { showSignIn(); return; }
+        if (res.status === 409 && data && data.member === true) {
+          document.body.classList.add("joined");
+          say("Opening Community…", false);
+          location.replace("/community");
+          return;
+        }
+        if (res.status === 409) {
+          say((text || "That beta link has already been used.") + NEXT_USED, true);
+          addLink("/community", "Open Community");
+          addLink("/api/auth/logout?return=/beta/" + code, "Use a different account");
+          return;
+        }
+        if (res.status === 410) { say((text || "That beta link has been withdrawn.") + NEXT_NEW, true); return; }
+        if ((res.status === 400 || res.status === 404) && text) { say(text + NEXT_NEW, true); return; }
+        say(text || "Could not join the beta. Try again.", true);
+        addRetry(retry(redeem));
+      });
+    }).catch(function () {
+      say("Could not join the beta. Try again.", true);
+      addRetry(retry(redeem));
+    });
+  }
+  function start() {
+    clearActions();
+    say("Checking your sign-in…", false);
+    fetch("/api/auth/me", { credentials: "same-origin" })
+      .then(function (res) { if (!res.ok) throw new Error("me"); return res.json(); })
+      .then(function (me) {
+        if (me && me.signedIn) redeem(); else showSignIn();
+      })
+      .catch(function () {
+        say("Could not check your sign-in. Check your connection and try again.", true);
+        addRetry(retry(start));
+      });
+  }
+
+  if (!/^[abcdefghjkmnpqrstuvwxyz2-9]{5}$/.test(code)) {
+    say("That beta link isn't valid." + NEXT_NEW, true);
+    return;
+  }
+  start();
+})();
+</script>
+</body>
+</html>
