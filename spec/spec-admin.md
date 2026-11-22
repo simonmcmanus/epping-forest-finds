@@ -315,6 +315,18 @@ The local NDJSON fallback has no day layout, so it reads the whole file and filt
   to   = "/.netlify/functions/track"
   status = 200
   force  = true
+
+[[redirects]]
+  from = "/api/beta/codes"
+  to   = "/.netlify/functions/beta-codes"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from = "/api/beta/redeem"
+  to   = "/.netlify/functions/beta-redeem"
+  status = 200
+  force  = true
 ```
 
 `admin.html` is resolved as `/admin` by Netlify's default pretty-URL behaviour (strips `.html`).
@@ -334,6 +346,9 @@ Colours are assigned from a fixed 15-colour palette in the order users are first
 
 ## Early access (feature gate)
 The **Access** top-bar button opens a panel with one tester per line (Tester ID from the person's Settings screen, then an optional note). Save posts the list to `POST /api/features`; no deploy is needed. The panel has a monospace textarea, a primary **Save** button and a `role="status"` message beside it; the helper text is quieter than the field. An empty list means the gate is off and everyone has Community, so the list is only editable once it has loaded: while loading, and after a failed load ("Could not load the list (500). Try again." for a server error, "Could not load the list. Check your connection and try again." with no answer, never the browser's raw "Failed to fetch"; a **Retry** button appears; clicking Access again also retries), the textarea and Save are disabled and nothing can be posted, so a failed load can never save an empty list. A late load response cannot overwrite typing because the field is disabled until it arrives. Save disables the field and button and shows "Saving…" while the request runs (no double submit), then "Saved N testers." and, only when lines were dropped, "M lines were not valid tester IDs (10 characters, 0-9 and a-f) or were repeated, and were dropped." (singular "1 line was not a valid tester ID (…) or was repeated, and was dropped."). A failed save reads "Could not save (500). Try again." or "Could not save. Check your connection and try again."; the typed text stays and Save is enabled again. A 401 on a load or save returns to sign-in like Community does. **Unsaved edits are never lost silently:** Escape while the list differs from the last loaded or saved text does not close the panel but shows "Unsaved changes — Save or press Esc again to discard." in the status line; a second Escape discards and closes (typing in between cancels the warning). The warning stays armed, with no timeout, until the admin types or the panel is hidden; hiding it (the close button, Community opening, Escape) disarms it, so after coming back one Escape only warns again. The close button, opening Community, and re-clicking Access keep the typed text instead: reopening Access shows it again with "Unsaved changes kept — Save, or press Esc twice to discard." (typing clears that note). Re-clicking Access while it is open and has unsaved text (or is saving) only refocuses the field; when it is open and clean it reloads the list. Only a second Escape, a save, or logging out discards the draft. See `spec/spec-community.md` (Feature gate). `/api/features` is routed in `netlify.toml`.
+
+## Beta codes
+Beta codes are managed from the admin page (panel detail to follow); the routes are `GET`/`POST /api/beta/codes` (admin) and `POST /api/beta/redeem`. See `spec/spec-community.md` (Beta access).
 
 ## Planned future features
 

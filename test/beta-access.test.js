@@ -1,0 +1,212 @@
+/**
+ * Beta access (netlify/functions/beta-codes.js, beta-redeem.js, lib/beta-access.js): an admin makes a code, a
+ * signed-in person redeems it once, and that account then has every gated feature. Revoking takes it away.
+ */
+
+"use strict";
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const auth = require("../netlify/functions/lib/auth-session.js");
+const features = require("../netlify/functions/features.js");
+const codes = require("../netlify/functions/beta-codes.js");
+const redeem = require("../netlify/functions/beta-redeem.js");
+const beta = require("../netlify/functions/lib/beta-access.js");
+
+const ADMIN = "beta-admin-pw";
+const KEY = "k".repeat(40);
+const ENV = { AUTH0_DOMAIN: "tenant.example.auth0.test", AUTH0_CLIENT_ID: "id", AUTH0_CLIENT_SECRET: "s", AUTH_SECRET: KEY, ADMIN_PASSWORD: ADMIN };
+const OTHER_ID = "9876543210";
+
+function memoryStore(initial = {}) {
+  const data = new Map(Object.entries(initial));
+  return {
+    async get(key) { return data.has(key) ? JSON.parse(JSON.stringify(data.get(key))) : null; },
+    async getStrict(key) { return this.get(key); },
+    async put(key, value) { data.set(key, JSON.parse(JSON.stringify(value))); },
+    async delete(key) { data.delete(key); },
+    async list(prefix) { return [...data.keys()].filter((k) => k.startsWith(prefix)); },
+  };
+}
+
+async function withStore(store, run) {
+  const saved = {};
+  for (const k of Object.keys(ENV)) saved[k] = process.env[k];
+  Object.assign(process.env, ENV);
+  for (const m of [features, codes, redeem]) m.setStore(store);
+  try { return await run(); } finally {
+    for (const m of [features, codes, redeem]) m.setStore(null);
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+}
+
+const cookieFor = (sub) => `ff_session=${encodeURIComponent(auth.sign({ sub, name: "Sam", exp: Date.now() + 60000 }, KEY))}`;
+const adminHeaders = { authorization: `Bearer ${ADMIN}` };
+const adminPost = (body) => codes.handler({ httpMethod: "POST", headers: adminHeaders, body: JSON.stringify(body) });
+const adminList = async () => JSON.parse((await codes.handler({ httpMethod: "GET", headers: adminHeaders })).body).codes;
+const redeemAs = (sub, code) => redeem.handler({ httpMethod: "POST", headers: sub ? { cookie: cookieFor(sub) } : {}, body: JSON.stringify({ code }) });
+const communityFor = async (sub) => JSON.parse((await features.handler({ httpMethod: "GET", queryStringParameters: { id: OTHER_ID }, headers: sub ? { cookie: cookieFor(sub) } : {} })).body).community;
+const create = async (note) => JSON.parse((await adminPost({ action: "create", note })).body);
+const gated = () => memoryStore({ "features-allowlist": { community: [{ id: "0123456789", note: "" }] } });
+
+test("an admin creates a five-character beta code that is easy to read aloud", async () => {
+  await withStore(memoryStore(), async () => {
+    const response = await adminPost({ action: "create", note: "Sam" });
+    assert.equal(response.statusCode, 200);
+    const made = JSON.parse(response.body);
+    assert.match(made.code, /^[abcdefghjkmnpqrstuvwxyz2-9]{5}$/);
+    assert.equal(made.status, "open");
+    assert.equal(made.note, "Sam");
+  });
+});
+
+test("beta codes cannot be made or listed without the admin password", async () => {
+  const store = memoryStore();
+  await withStore(store, async () => {
+    for (const headers of [{}, { authorization: "Bearer wrong" }]) {
+      const post = await codes.handler({ httpMethod: "POST", headers, body: JSON.stringify({ action: "create" }) });
+      assert.equal(post.statusCode, 401);
+      assert.equal((await codes.handler({ httpMethod: "GET", headers })).statusCode, 401);
+    }
+    assert.deepEqual(await adminList(), [], "nothing was created");
+  });
+});
+
+test("an unrecognised admin request is a 400", async () => {
+  await withStore(memoryStore(), async () => {
+    assert.equal((await adminPost({ action: "explode" })).statusCode, 400);
+    assert.equal((await codes.handler({ httpMethod: "POST", headers: adminHeaders, body: "{nope" })).statusCode, 400);
+  });
+});
+
+test("the admin list shows open, claimed and revoked codes and never an account", async () => {
+  await withStore(memoryStore(), async () => {
+    const open = await create("open one");
+    const claimed = await create("claimed one");
+    const revoked = await create("revoked one");
+    assert.equal((await redeemAs("auth0|a", claimed.code)).statusCode, 200);
+    assert.equal((await adminPost({ action: "revoke", code: revoked.code })).statusCode, 200);
+    const response = await codes.handler({ httpMethod: "GET", headers: adminHeaders });
+    const list = JSON.parse(response.body).codes;
+    const status = Object.fromEntries(list.map((c) => [c.code, c.status]));
+    assert.deepEqual(status, { [open.code]: "open", [claimed.code]: "claimed", [revoked.code]: "revoked" });
+    assert.ok(list.find((c) => c.code === claimed.code).claimedAt);
+    assert.ok(!/claimedBy|account/i.test(response.body), "no account value is returned");
+  });
+});
+
+test("redeeming an open code gives that account Community even when the tester list names someone else", async () => {
+  await withStore(gated(), async () => {
+    const { code } = await create();
+    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal((await redeemAs("auth0|a", code.toUpperCase())).statusCode, 200);
+    assert.equal(await communityFor("auth0|a"), true);
+    assert.equal(await communityFor(null), false, "anonymous readers are unchanged");
+    assert.equal(await communityFor("auth0|b"), false, "other accounts are unchanged");
+  });
+});
+
+test("beta access does not switch the gate on for others when the tester list is empty", async () => {
+  await withStore(memoryStore(), async () => {
+    const { code } = await create();
+    await redeemAs("auth0|a", code);
+    assert.equal(await communityFor(null), true, "an empty list still means everyone");
+    const stored = await features.handler({ httpMethod: "GET", queryStringParameters: { admin: "1" }, headers: adminHeaders });
+    assert.deepEqual(JSON.parse(stored.body), { community: [] });
+  });
+});
+
+test("an unknown code is 404 and a revoked code is 410", async () => {
+  await withStore(memoryStore(), async () => {
+    assert.equal((await redeemAs("auth0|a", "zzzzz")).statusCode, 404);
+    const { code } = await create();
+    await adminPost({ action: "revoke", code });
+    const gone = await redeemAs("auth0|a", code);
+    assert.equal(gone.statusCode, 410);
+    assert.equal(JSON.parse(gone.body).error, "That beta link has been withdrawn.");
+    assert.equal((await adminPost({ action: "revoke", code: "zzzzz" })).statusCode, 404);
+  });
+});
+
+test("a badly formed code or body is 400", async () => {
+  await withStore(memoryStore(), async () => {
+    for (const code of ["", "abc", "a234el", "a2340", "ab-de", null]) {
+      const response = await redeemAs("auth0|a", code);
+      assert.equal(response.statusCode, 400, String(code));
+      assert.equal(JSON.parse(response.body).error, "That beta link isn't valid.");
+    }
+    const bad = await redeem.handler({ httpMethod: "POST", headers: { cookie: cookieFor("auth0|a") }, body: "{nope" });
+    assert.equal(bad.statusCode, 400);
+  });
+});
+
+test("a code belongs to one person: another account gets 409, the same account gets 200 again", async () => {
+  await withStore(gated(), async () => {
+    const { code } = await create();
+    assert.equal((await redeemAs("auth0|a", code)).statusCode, 200);
+    assert.equal((await redeemAs("auth0|a", code)).statusCode, 200);
+    const second = await redeemAs("auth0|b", code);
+    assert.equal(second.statusCode, 409);
+    assert.equal(JSON.parse(second.body).error, "That beta link has already been used.");
+    assert.equal(await communityFor("auth0|b"), false);
+    assert.equal(await communityFor("auth0|a"), true);
+  });
+});
+
+test("revoking a claimed code removes that person's Community access", async () => {
+  await withStore(gated(), async () => {
+    const { code } = await create();
+    await redeemAs("auth0|a", code);
+    assert.equal(await communityFor("auth0|a"), true);
+    assert.deepEqual(JSON.parse((await adminPost({ action: "revoke", code })).body), { ok: true });
+    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal((await adminList())[0].status, "revoked", "the record is kept");
+  });
+});
+
+test("a signed-out redeem is 401 and reveals nothing about the code", async () => {
+  await withStore(memoryStore(), async () => {
+    const { code } = await create();
+    for (const tried of [code, "zzzzz", "bad"]) {
+      const response = await redeemAs(null, tried);
+      assert.equal(response.statusCode, 401);
+      assert.deepEqual(JSON.parse(response.body), { error: "Sign in first." });
+    }
+  });
+});
+
+test("when the beta record cannot be read, nobody is given access", async () => {
+  const inner = gated();
+  const store = { ...inner, get: async (key) => { if (key.startsWith("beta-user/")) throw new Error("down"); return inner.get(key); },
+    getStrict: async (key) => { if (key.startsWith("beta-user/")) throw new Error("down"); return inner.getStrict(key); } };
+  await withStore(store, async () => {
+    const response = await features.handler({ httpMethod: "GET", queryStringParameters: { id: OTHER_ID }, headers: { cookie: cookieFor("auth0|a") } });
+    assert.equal(response.statusCode, 200);
+    assert.equal(JSON.parse(response.body).community, false);
+  });
+});
+
+test("an admin change that cannot reach storage is a 503", async () => {
+  const fail = async () => { throw new Error("down"); };
+  await withStore({ get: fail, getStrict: fail, put: fail, delete: fail, list: fail }, async () => {
+    const response = await adminPost({ action: "create" });
+    assert.equal(response.statusCode, 503);
+    assert.equal(JSON.parse(response.body).error, "Storage unavailable: nothing was saved. Try again.");
+  });
+});
+
+test("when two accounts race for one code, only the one that holds the claim is let in", async () => {
+  const inner = memoryStore();
+  await withStore(inner, async () => {
+    const { code } = await create();
+    // The rival's claim lands between our write and our re-read.
+    let rival = false;
+    const racing = { ...inner, async put(key, value) {
+      await inner.put(key, value);
+      if (key === `beta-code/${code}` && !rival) { rival = true; await inner.put(key, { ...value, claimedBy: "someone-else" }); }
+    } };
+    const result = await beta.redeem(racing, { sub: "auth0|a" }, code);
+    assert.equal(result.status, 409);
+    assert.equal(await inner.get(`beta-user/${require("../netlify/functions/lib/community-account").accountKey("auth0|a")}`), null);
+  });
+});

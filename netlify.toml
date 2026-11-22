@@ -164,6 +164,18 @@
   force = true
 
 [[redirects]]
+  from = "/api/beta/codes"
+  to = "/.netlify/functions/beta-codes"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/beta/redeem"
+  to = "/.netlify/functions/beta-redeem"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/subscribe"
   to = "/.netlify/functions/subscribe"
   status = 200
