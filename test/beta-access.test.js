@@ -210,3 +210,41 @@ test("when two accounts race for one code, only the one that holds the claim is 
     assert.equal(await inner.get(`beta-user/${require("../netlify/functions/lib/community-account").accountKey("auth0|a")}`), null);
   });
 });
+
+test("an account whose code was revoked has no Community access even if its beta record was left behind", async () => {
+  const inner = gated();
+  await withStore(inner, async () => {
+    const { code } = await create();
+    await redeemAs("auth0|a", code);
+    assert.equal(await communityFor("auth0|a"), true);
+    // A revoke that landed after the claim, with no clean-up of the account's record.
+    await inner.put(`beta-code/${code}`, { ...(await inner.get(`beta-code/${code}`)), revokedAt: Date.now() });
+    assert.equal(await communityFor("auth0|a"), false);
+  });
+});
+
+test("an account whose beta record names a code it does not hold has no Community access", async () => {
+  const inner = gated();
+  await withStore(inner, async () => {
+    const { code } = await create();
+    await redeemAs("auth0|a", code);
+    await inner.put(`beta-code/${code}`, { ...(await inner.get(`beta-code/${code}`)), claimedBy: "someone-else" });
+    assert.equal(await communityFor("auth0|a"), false);
+  });
+});
+
+test("a code revoked while it is being redeemed is 410 and leaves the account without access", async () => {
+  const inner = gated();
+  await withStore(inner, async () => {
+    const { code } = await create();
+    const revokingMidWay = { ...inner, async put(key, value) {
+      await inner.put(key, value);
+      if (key.startsWith("beta-user/")) await inner.put(`beta-code/${code}`, { ...(await inner.get(`beta-code/${code}`)), revokedAt: Date.now() });
+    } };
+    const result = await beta.redeem(revokingMidWay, { sub: "auth0|a" }, code);
+    assert.equal(result.status, 410);
+    assert.equal(result.error, "That beta link has been withdrawn.");
+    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await inner.get(`beta-user/${require("../netlify/functions/lib/community-account").accountKey("auth0|a")}`), null);
+  });
+});

@@ -54,8 +54,11 @@ async function listCodes(store) {
 // Keeps the record and withdraws the code. Whoever had claimed it loses access.
 async function revokeCode(store, value) {
   const code = normalizeCode(value);
-  const record = code && (await store.getStrict(`${CODE_PREFIX}${code}`));
-  if (!record) return { ok: false, status: 404 };
+  const first = code && (await store.getStrict(`${CODE_PREFIX}${code}`));
+  if (!first) return { ok: false, status: 404 };
+  // Re-read right before writing so a claim made since the first read is kept and its holder cleaned up. The store
+  // has no compare-and-set, so a small window remains; betaMember also checks the code, so access ends regardless.
+  const record = (await store.getStrict(`${CODE_PREFIX}${code}`)) || first;
   if (!record.revokedAt) await store.put(`${CODE_PREFIX}${code}`, { ...record, revokedAt: Date.now() });
   if (record.claimedBy) await store.delete(`${USER_PREFIX}${record.claimedBy}`);
   return { ok: true };
@@ -82,6 +85,12 @@ async function redeem(store, session, value) {
     if (held.revokedAt) return { ok: false, status: 410, error: "That beta link has been withdrawn." };
   }
   await store.put(`${USER_PREFIX}${account}`, { code, at: Date.now() });
+  // A revoke may have landed since the claim was verified: take the access straight back.
+  const after = await store.getStrict(`${CODE_PREFIX}${code}`);
+  if (!after || after.revokedAt) {
+    await store.delete(`${USER_PREFIX}${account}`);
+    return { ok: false, status: 410, error: "That beta link has been withdrawn." };
+  }
   return { ok: true };
 }
 
@@ -90,7 +99,12 @@ async function betaMember(store, session) {
   if (!session || !session.sub) return false;
   try {
     const { accountOf } = require("./community-account");
-    return Boolean(await store.getStrict(`${USER_PREFIX}${await accountOf(store, session)}`));
+    const account = await accountOf(store, session);
+    const member = await store.getStrict(`${USER_PREFIX}${account}`);
+    if (!member) return false;
+    // The code is the authority: a revoked or re-claimed code ends access even if clean-up never ran.
+    const record = await store.getStrict(`${CODE_PREFIX}${member.code}`);
+    return Boolean(record && !record.revokedAt && record.claimedBy === account);
   } catch {
     return false;
   }
