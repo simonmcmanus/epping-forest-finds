@@ -77,7 +77,10 @@
         }
       ],
       "lastVerified": "2026-11-15",
-      "startTime": "17:00"
+      "startTime": "17:00",
+      "lat": 51.672538,
+      "lon": 0.095577,
+      "locationSource": "nominatim: Village Hall, Coppice Row, Theydon Bois"
     },
     {
       "id": "waltham-abbey-cavalcade-of-light-2026-11-27",
@@ -91,7 +94,10 @@
           "url": "https://www.walthamabbey-tc.gov.uk/events"
         }
       ],
-      "lastVerified": "2026-11-15"
+      "lastVerified": "2026-11-15",
+      "lat": 51.680501,
+      "lon": 0.0331,
+      "locationSource": "nominatim: Waltham Abbey"
     },
     {
       "id": "epping-christmas-market-2026-12-04",
@@ -106,7 +112,10 @@
         }
       ],
       "lastVerified": "2026-11-15",
-      "startTime": "12:00"
+      "startTime": "12:00",
+      "lat": 51.702024,
+      "lon": 0.11587,
+      "locationSource": "nominatim: Epping High Street"
     },
     {
       "id": "highams-park-christmas-fayre-2026-12-06",
@@ -121,7 +130,10 @@
         }
       ],
       "lastVerified": "2026-11-15",
-      "startTime": "11:00"
+      "startTime": "11:00",
+      "lat": 51.608066,
+      "lon": -0.000753,
+      "locationSource": "nominatim: Highams Park"
     },
     {
       "id": "loughton-staples-road-christmas-fair-2026-12-06",
@@ -136,7 +148,10 @@
         }
       ],
       "lastVerified": "2026-11-15",
-      "startTime": "12:00"
+      "startTime": "12:00",
+      "lat": 51.651264,
+      "lon": 0.053892,
+      "locationSource": "nominatim: Staples Road Primary School, Loughton, IG10 1HR"
     },
     {
       "id": "waltham-abbey-christmas-market-2026-12-12",
@@ -151,7 +166,8 @@
         }
       ],
       "lastVerified": "2026-11-15",
-      "startTime": "09:00"
+      "startTime": "09:00",
+      "locationStatus": "unlocated"
     },
     {
       "id": "north-chingford-christmas-market-2026-12-19",
@@ -170,7 +186,8 @@
         }
       ],
       "lastVerified": "2026-11-15",
-      "startTime": "11:00"
+      "startTime": "11:00",
+      "locationStatus": "unlocated"
     }
   ],
   "sourceNotes": [

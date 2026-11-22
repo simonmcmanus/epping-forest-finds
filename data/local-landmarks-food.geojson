@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-11-21T12:52:23.930722Z",
+  "generatedAt": "2026-11-22T08:42:54.036236Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -44017,6 +44017,41 @@
         "address": "Eastern Works 4 Eastern Road, Walthamstow, London, E17 9DU",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 256.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/miami-local",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0124035,
+          51.5754922
+        ]
+      },
+      "properties": {
+        "id": "manual/miami-local",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Miami Local",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Ground Floor 624 Lea Bridge Road, Leyton, London, E10 6AP",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 264.4,
         "distanceLimitFromForestBoundaryMetres": 466.7,
         "ledgerUrl": null
       }
