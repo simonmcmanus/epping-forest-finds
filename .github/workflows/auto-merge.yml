@@ -307,9 +307,8 @@ jobs:
             echo "Auto-merge was already enabled (concurrent event)."
           elif grep -qiE 'clean status|unstable status|already.*(mergeable|clean)' <<<"$out"; then
             # Already mergeable, so GitHub refuses to arm. "unstable status"
-            # means every required check passed but a non-required check is
-            # not success (e.g. a neutral Netlify check), which GitHub also
-            # refuses to arm. Merge now; branch protection still decides
+            # means every required check passed but a non-required check or
+            # status is failing or pending, which GitHub also refuses to arm. Merge now; branch protection still decides
             # whether this is allowed (a direct merge is refused if a required
             # check or approval is missing).
             if ! still_current; then
