@@ -13,12 +13,16 @@ exports.handler = async (event) => {
   const config = auth.authConfig();
   if (!config) return { statusCode: 503, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "Sign-in isn't set up yet." };
   const state = crypto.randomBytes(16).toString("base64url");
-  const returnTo = auth.safeReturnPath(event.queryStringParameters?.return);
+  // ?admin=1 is the dashboard's sign-in: the return path is forced to /admin, the provider is told to ask for a
+  // fresh login (prompt=login, max_age=0), and `admin` is sealed into the signed state cookie so the callback
+  // checks the ADMIN_SUBJECTS allowlist instead of starting a community session.
+  const admin = event.queryStringParameters?.admin === "1";
+  const returnTo = admin ? "/admin" : auth.safeReturnPath(event.queryStringParameters?.return);
   // ?merge=1 asks to bring a second sign-in into the account this person is signed in as right now. It is
   // honoured only when they are signed in, and the account is sealed into the signed state cookie, so the
   // callback can check that the same person is still signed in as the same account.
   let merge;
-  if (event.queryStringParameters?.merge === "1") {
+  if (!admin && event.queryStringParameters?.merge === "1") {
     const session = auth.sessionFrom(event);
     if (session) { try { merge = await accountOf(getStore(event), session); } catch { merge = undefined; } }
   }
@@ -29,11 +33,12 @@ exports.handler = async (event) => {
     redirect_uri: `${auth.baseUrl(event)}/api/auth/callback`,
     scope: "openid profile",
     state,
+    ...(admin ? { prompt: "login", max_age: "0" } : {}),
   }).toString();
   return {
     statusCode: 302,
     headers: { Location: url.toString(), "Cache-Control": "no-store" },
-    multiValueHeaders: { "Set-Cookie": [auth.stateCookie({ state, ret: returnTo, ...(merge ? { merge } : {}) }, config.secret, auth.isSecureRequest(event))] },
+    multiValueHeaders: { "Set-Cookie": [auth.stateCookie({ state, ret: returnTo, ...(admin ? { admin: true } : {}), ...(merge ? { merge } : {}) }, config.secret, auth.isSecureRequest(event))] },
     body: "",
   };
 };

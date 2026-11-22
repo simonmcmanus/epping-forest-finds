@@ -3,113 +3,142 @@ const { skipOnboarding } = require("./helpers");
 
 const TRACKS = { locations: [], clicks: [], meta: { storeName: "tracking-test", context: "test", windowDays: 30 } };
 
-const SESSION_TOKEN = "test-session-token";
-
-// The sign-in exchanges the typed password for a session token (POST /api/admin/session). Answer it like the
-// server does: the token for any password but "nope", which is refused.
-async function mockAdminSession(page) {
-  await page.route(/\/api\/admin\/session/, (route) => {
-    const auth = route.request().headers()["authorization"] || "";
-    if (auth === "Bearer nope") return route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "Unauthorized" }) });
-    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ token: SESSION_TOKEN, expiresAt: Date.now() + 8 * 3600000 }) });
+// The dashboard asks GET /api/admin/me who is signed in (the HttpOnly ff_admin cookie rides along). Answer it like the
+// server does: signed in by default, or 401 when a test says the visitor has not signed in.
+async function mockAdminMe(page, signedIn = true) {
+  await page.route(/\/api\/admin\/me/, (route) => {
+    if (route.request().headers()["x-requested-with"] !== "admin" || !signedIn) return route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "Unauthorized" }) });
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Test Admin" }) });
   });
 }
+const SIGN_IN_LINK = (page) => page.getByRole("link", { name: "Sign in with Auth0" });
 
 test.describe("Admin login", () => {
-  test.beforeEach(async ({ page }) => { await mockAdminSession(page); });
+  test.beforeEach(async ({ page }) => { await mockAdminMe(page); });
 
   // Desktop only: this file is outside the mobile project's testMatch, and the dashboard is a desk tool.
   test("snapshot: admin sign-in screen", async ({ page }) => {
+    await page.unroute(/\/api\/admin\/me/);
+    await mockAdminMe(page, false);
     await page.goto("/admin");
-    await expect(page.getByLabel("Admin password")).toBeVisible();
+    await expect(SIGN_IN_LINK(page)).toBeVisible();
     await expect(page).toHaveScreenshot("admin-login.png", { fullPage: false });
   });
 
-  test("the dashboard is not on screen, or reachable by keyboard, behind the sign-in screen", async ({ page }) => {
+  async function signedOut(page) {
+    await page.unroute(/\/api\/admin\/me/);
+    await mockAdminMe(page, false);
+  }
+
+  test("the sign-in card offers one Auth0 link, which keyboard users can reach and which starts the admin sign-in", async ({ page }) => {
+    await signedOut(page);
     await page.goto("/admin");
-    await expect(page.getByLabel("Admin password")).toBeVisible();
+    const link = SIGN_IN_LINK(page);
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute("href", "/api/auth/login?admin=1");
+    await expect(page.getByLabel("Admin password")).toHaveCount(0);
+    await link.focus();
+    await expect(link).toBeFocused();
+    await expect(page.locator("#loginError")).toHaveAttribute("role", "alert");
+  });
+
+  test("the dashboard is not on screen, or reachable by keyboard, behind the sign-in screen", async ({ page }) => {
+    await signedOut(page);
+    await page.goto("/admin");
+    await expect(SIGN_IN_LINK(page)).toBeVisible();
     await expect(page.locator("#adminApp")).toBeHidden();
     await expect(page.locator("#refreshBtn")).toBeHidden();
     await expect(page.locator("#logoutBtn")).toBeHidden();
   });
 
-  test("Admin keeps the password out of browser storage", async ({ page }) => {
-    const password = "correct-horse-battery-staple-7731";
-    await skipOnboarding(page);
-    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
-    await page.goto("/admin");
-    await page.getByLabel("Admin password").fill(password);
-    await page.click("#loginBtn");
-    await expect(page.locator("#loginScreen")).toBeHidden();
-    await expect(page.locator("#adminStats")).toContainText("location pings");
-
-    const storage = await page.evaluate(() => JSON.stringify({
-      session: Object.entries(sessionStorage),
-      local: Object.entries(localStorage),
-    }));
-    expect(storage).not.toContain(password);
+  test("the dashboard asks the server who is signed in, with the CSRF header, and shows the data when it says yes", async ({ page }) => {
+    const meHeaders = [];
+    await page.unroute(/\/api\/admin\/me/);
+    await page.route(/\/api\/admin\/me/, (route) => {
+      meHeaders.push(route.request().headers()["x-requested-with"]);
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Test Admin" }) });
+    });
+    await signIn(page);
+    expect(meHeaders[0]).toBe("admin");
   });
 
-  async function signIn(page, password = "secret") {
+  test("a returning visitor whose Auth0 account is not on the admin list is told so, and the address is cleaned", async ({ page }) => {
+    await signedOut(page);
+    await page.goto("/admin?signin=denied");
+    await expect(page.locator("#loginError")).toContainText("isn't on the admin list");
+    await expect(SIGN_IN_LINK(page)).toBeVisible();
+    await expect(page).toHaveURL(/\/admin$/);
+    await page.reload();
+    await expect(page.locator("#loginError")).toHaveText("");
+  });
+
+  test("a sign-in that did not finish says so", async ({ page }) => {
+    await signedOut(page);
+    await page.goto("/admin?signin=failed");
+    await expect(page.locator("#loginError")).toContainText("Sign-in didn't finish");
+    await expect(page).toHaveURL(/\/admin$/);
+  });
+
+  test("every admin request carries the CSRF header and none carries a password or token", async ({ page }) => {
+    const seen = [];
+    await skipOnboarding(page);
+    await page.route(/\/api\/admin\/tracks/, (route) => {
+      const h = route.request().headers();
+      seen.push({ csrf: h["x-requested-with"], auth: h["authorization"] });
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) });
+    });
+    await page.goto("/admin");
+    await expect(page.locator("#adminStats")).toContainText("location pings");
+    expect(seen[0]).toEqual({ csrf: "admin", auth: undefined });
+  });
+
+  test("the dashboard keeps nothing about the sign-in in browser storage", async ({ page }) => {
+    await signIn(page);
+    const storage = await page.evaluate(() => JSON.stringify({ session: Object.entries(sessionStorage), local: Object.entries(localStorage) }));
+    expect(storage).not.toMatch(/admin-session|token/i);
+  });
+
+  async function signIn(page) {
     await skipOnboarding(page);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
     await page.goto("/admin");
-    await page.getByLabel("Admin password").fill(password);
-    await page.click("#loginBtn");
-    // #adminApp counts as visible even while the login screen covers it, so wait for the sign-in to have finished
-    // (login screen gone, data shown); only then has the session been kept for a reload to find.
     await expect(page.locator("#loginScreen")).toBeHidden();
     await expect(page.locator("#adminStats")).toContainText("location pings");
   }
 
-  test("a reload keeps the admin signed in without asking for the password", async ({ page }) => {
-    const tracksAuth = [];
-    await signIn(page);
-    await page.unroute(/\/api\/admin\/tracks/);
-    await page.route(/\/api\/admin\/tracks/, (route) => {
-      tracksAuth.push(route.request().headers()["authorization"]);
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) });
+  test("Log out asks the server to clear the sign-in, then shows the sign-in screen", async ({ page }) => {
+    let logoutCsrf = null;
+    await page.route(/\/api\/admin\/logout/, (route) => {
+      logoutCsrf = { method: route.request().method(), csrf: route.request().headers()["x-requested-with"] };
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
-    await page.reload();
-    await expect(page.locator("#adminApp")).toBeVisible();
-    await expect(page.locator("#loginScreen")).toBeHidden();
-    await expect(page.locator("#adminStats")).toContainText("location pings");
-    expect(tracksAuth[0]).toBe(`Bearer ${SESSION_TOKEN}`);
-  });
-
-  test("a new tab asks for the password again", async ({ page, context }) => {
-    await signIn(page);
-    const other = await context.newPage();
-    await other.goto("/admin");
-    await expect(other.getByLabel("Admin password")).toBeVisible();
-  });
-
-  test("Log out returns to the sign-in screen and a reload then asks again", async ({ page }) => {
     await signIn(page);
     await page.click("#logoutBtn");
-    await expect(page.getByLabel("Admin password")).toBeVisible();
+    await expect(SIGN_IN_LINK(page)).toBeVisible();
+    expect(logoutCsrf).toEqual({ method: "POST", csrf: "admin" });
+    await page.unroute(/\/api\/admin\/me/);
+    await mockAdminMe(page, false);
     await page.reload();
-    await expect(page.getByLabel("Admin password")).toBeVisible();
+    await expect(SIGN_IN_LINK(page)).toBeVisible();
   });
 
-  test("an expired stored session shows the sign-in screen", async ({ page }) => {
+  test("an admin who is no longer accepted by the server sees the sign-in screen on load", async ({ page }) => {
     await signIn(page);
-    await page.evaluate(() => {
-      for (const key of Object.keys(sessionStorage)) sessionStorage.setItem(key, JSON.stringify({ token: "old", expiresAt: Date.now() - 1000 }));
-    });
+    await signedOut(page);
     await page.reload();
-    await expect(page.getByLabel("Admin password")).toBeVisible();
+    await expect(SIGN_IN_LINK(page)).toBeVisible();
   });
 
-  test("a stored session the server no longer accepts shows the sign-in screen", async ({ page }) => {
+  test("a data refusal while restoring the sign-in shows the sign-in screen", async ({ page }) => {
     await signIn(page);
     await page.unroute(/\/api\/admin\/tracks/);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 401, contentType: "application/json", body: "{}" }));
     await page.reload();
-    await expect(page.getByLabel("Admin password")).toBeVisible();
+    await expect(SIGN_IN_LINK(page)).toBeVisible();
+    await expect(page.locator("#loginError")).toHaveText("Admin session expired. Sign in again.");
   });
 
-  test("a server error while restoring the session keeps it, so the next reload signs in without the password", async ({ page }) => {
+  test("a server error while restoring the sign-in is shown, and the next reload recovers", async ({ page }) => {
     await signIn(page);
     await page.unroute(/\/api\/admin\/tracks/);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 502, contentType: "text/plain", body: "Bad Gateway" }));
@@ -122,20 +151,13 @@ test.describe("Admin login", () => {
     await expect(page.locator("#adminStats")).toContainText("location pings");
   });
 
-  test("the typed password is in no browser storage after signing in", async ({ page }) => {
-    const password = "another-long-password-4410";
-    await signIn(page, password);
-    const all = await page.evaluate(() => JSON.stringify({ s: Object.entries(sessionStorage), l: Object.entries(localStorage) }));
-    expect(all).not.toContain(password);
-  });
-
   test("Admin clears a password that an earlier version left in session storage", async ({ page }) => {
     await skipOnboarding(page);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
     await page.goto("/admin");
     await page.evaluate(() => sessionStorage.setItem("ff-admin-session-password", "left-by-old-version"));
     await page.reload();
-    await expect(page.getByLabel("Admin password")).toBeVisible();
+    await expect(page.locator("#adminStats")).toContainText("location pings");
     const leftover = await page.evaluate(() => sessionStorage.getItem("ff-admin-session-password"));
     expect(leftover).toBeNull();
   });
@@ -150,8 +172,6 @@ test.describe("Admin login", () => {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...TRACKS, meta: { ...TRACKS.meta, windowDays: Number(url.searchParams.get("days")) } }) });
     });
     await page.goto("/admin");
-    await page.fill("#loginPassword", "secret");
-    await page.click("#loginBtn");
     await expect(page.locator("#adminStats")).toContainText("last 7 days");
     expect(asked).toEqual([null, "7"]);
   });
@@ -160,20 +180,9 @@ test.describe("Admin login", () => {
     await skipOnboarding(page);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 502, contentType: "text/plain", body: "<html><body><h1>internal-proxy-detail</h1></body></html>" }));
     await page.goto("/admin");
-    await page.fill("#loginPassword", "secret");
-    await page.click("#loginBtn");
     // The status code and its plain name, never the raw body (which may be a page of HTML).
     await expect(page.locator("#loginError")).toHaveText("Server error 502: Bad Gateway");
     await expect(page.locator("body")).not.toContainText("internal-proxy-detail");
-  });
-
-  test("a wrong password is still reported as one", async ({ page }) => {
-    await skipOnboarding(page);
-    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
-    await page.goto("/admin");
-    await page.fill("#loginPassword", "nope");
-    await page.click("#loginBtn");
-    await expect(page.locator("#loginError")).toContainText("Incorrect password");
   });
 
   test("shows the people in a packed tracking response and says how far back a partial one reaches", async ({ page }) => {
@@ -189,8 +198,6 @@ test.describe("Admin login", () => {
     };
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
     await page.goto("/admin");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
 
     await expect(page.getByRole("button", { name: /pts/ })).toHaveCount(2);
     await expect(page.locator("#adminStats")).toContainText("2 location pings");
@@ -217,8 +224,6 @@ test.describe("Admin login", () => {
     };
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
     await page.goto("/admin");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
 
     const stats = page.locator("#adminStats");
     await expect(stats).toContainText("Navigation:");
@@ -258,8 +263,6 @@ test.describe("Admin login", () => {
     };
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
     await page.goto("/admin");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
 
     await page.getByRole("button", { name: "Navigation", exact: true }).click();
     const view = page.locator("#adminNavigation");
@@ -310,8 +313,6 @@ test.describe("Admin login", () => {
     };
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
     await page.goto("/admin");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
     await page.getByRole("button", { name: "Navigation", exact: true }).click();
     const view = page.locator("#adminNavigation");
     await expect(view).toBeVisible();
@@ -356,8 +357,6 @@ test.describe("Admin login", () => {
     };
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
     await page.goto("/admin");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
     await page.getByRole("button", { name: "Navigation", exact: true }).click();
     const view = page.locator("#adminNavigation");
     await expect(view).toBeVisible();
@@ -447,8 +446,6 @@ test.describe("Admin login", () => {
     await skipOnboarding(page);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
     await page.goto("/admin");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
     await expect(page.locator("#adminStats")).toContainText("location pings");
     const m = await page.evaluate(() => {
       const el = document.getElementById("adminStats");
@@ -514,8 +511,6 @@ test.describe("Admin login", () => {
       body: JSON.stringify({ generatedAt, reports: 42, devices: 9, activeDevices1d: 3, activeDevices7d: 7, byStatus: {}, perDay: {}, questioned: 0, verified: 0, newTreesUnconfirmed: 0, newTreesConfirmed: 0, conflicts: 0, totalPoints: 0 }),
     }));
     await page.goto("/admin");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
     await page.getByRole("button", { name: "Community" }).click();
     const panel = page.locator("#adminCommunity");
     await expect(panel).toContainText("As of the last snapshot");
@@ -535,8 +530,6 @@ test.describe("Admin login", () => {
     };
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(tracks) }));
     await page.goto("/admin");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
 
     const rows = page.getByRole("button", { name: /pts/ });
     await expect(rows).toHaveCount(2);
@@ -568,8 +561,6 @@ test.describe("Admin login", () => {
     }));
     await page.route(/\/api\/features\?admin=1/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] }) }));
     await page.goto("/admin");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
     await expect(page.locator("#adminApp")).toBeVisible();
   }
 
@@ -724,8 +715,7 @@ test.describe("Admin login", () => {
     await page.click("#logoutBtn");
     await expect(page.locator("#loginScreen")).toBeVisible();
     expect(new URL(page.url()).hash).toBe("");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
+    await logIn(page);
     await expect(page.locator("#adminNavigation")).toBeHidden();
     await expect(page.locator("#tracksBtn")).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".admin-map-controls")).toBeVisible();
@@ -774,8 +764,6 @@ test.describe("Admin login", () => {
 
   test("Navigation summary cards and labels do not clip horizontally at 320 and 390 wide", async ({ page }) => {
     for (const width of [320, 390]) {
-      // Each width signs in afresh: forget the session the previous round kept in this tab.
-      if (width !== 320) await page.evaluate(() => sessionStorage.clear());
       await page.setViewportSize({ width, height: 800 });
       const view = await openNavigationWithNineDays(page);
       const clipped = await view.evaluate((v) => [...v.querySelectorAll(".nav-card, .nav-card-label")].filter((e) => e.scrollWidth > e.clientWidth + 1).length);
@@ -810,11 +798,8 @@ test.describe("Admin login", () => {
 
   test("signing in with #heatmap in the address lands on the Heatmap view", async ({ page }) => {
     await signInOnPhone(page);
-    await page.evaluate(() => sessionStorage.clear()); // sign in again rather than restore this tab's session
     await page.goto("about:blank");
     await page.goto("/admin#heatmap");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
     await expect(page.locator("#heatmapBtn")).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".admin-map-controls")).toBeVisible();
   });
@@ -960,8 +945,6 @@ test.describe("Admin login", () => {
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(withClick) }));
     await page.route(/\/api\/community\/overlay\?admin=1/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ reports: 1, devices: 1 }) }));
     await page.goto("/admin");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
     await expect(page.locator("#adminApp")).toBeVisible();
 
     await tapFirstMarker(page);
@@ -986,8 +969,6 @@ test.describe("Admin login", () => {
     const withClick = { ...PHONE_TRACKS, clicks: [{ uid: "user-aaaa-1111", ts: "2026-10-20T10:01:00Z", itemType: "pub", itemId: "the-owl", itemName: "The Owl", targetLat: 51.655, targetLng: 0.045 }] };
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(withClick) }));
     await page.goto("/admin");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
     await expect(page.locator("#adminApp")).toBeVisible();
     await tapFirstMarker(page);
     await expect(page.locator("#adminClickDetailsClose")).toBeFocused();
@@ -1054,10 +1035,10 @@ test.describe("Admin login", () => {
     locations: Array.from({ length: 8 }, (_, i) => ({ uid: `user-${String.fromCharCode(97 + i).repeat(4)}-${i}${i}${i}${i}`, ts: `2026-10-${20 + i}T10:00:00Z`, lat: 51.65 + i * 0.001, lon: 0.04 })),
   };
 
-  async function logIn(page, password = "secret") {
-    await page.getByLabel("Admin password").fill(password);
-    await page.click("#loginBtn");
-    await expect(page.locator("#adminApp")).toBeVisible();
+  // Signing in again after a log out: Auth0 would send the browser back to /admin, where the server now accepts it.
+  async function logIn(page) {
+    await page.goto("/admin");
+    await expect(page.locator("#loginScreen")).toBeHidden();
   }
 
   test("an empty Community status line takes no space but stays rendered for screen readers, and so does the empty result line", async ({ page }) => {
@@ -1333,26 +1314,11 @@ test.describe("Admin login", () => {
     await expect.poll(() => mask(".admin-nav")).toBe("none");
   });
 
-  test("a wrong password gives a plain message, returns focus to the field and selects what was typed", async ({ page }) => {
-    await skipOnboarding(page);
-    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 401, contentType: "application/json", body: "{}" }));
-    await page.goto("/admin");
-    await page.fill("#loginPassword", "nope-nope");
-    await page.click("#loginBtn");
-    await expect(page.locator("#loginError")).toHaveText("Incorrect password. Try again.");
-    await expect(page.locator("#loginPassword")).toBeFocused();
-    const sel = await page.evaluate(() => { const i = document.getElementById("loginPassword"); return [i.selectionStart, i.selectionEnd, i.value.length]; });
-    expect(sel).toEqual([0, 9, 9]);
-  });
-
   test("a network failure at sign-in is told apart from a server error and hides the raw browser text", async ({ page }) => {
     await skipOnboarding(page);
     await page.route(/\/api\/admin\/tracks/, (route) => route.abort("failed"));
     await page.goto("/admin");
-    await page.fill("#loginPassword", "secret");
-    await page.click("#loginBtn");
     await expect(page.locator("#loginError")).toHaveText("Cannot reach the server. Check your connection and try again.");
-    await expect(page.locator("#loginPassword")).toBeFocused();
   });
 
   test("a failed refresh says so, keeps the old data on screen and clears on the next success", async ({ page }) => {
@@ -1385,7 +1351,7 @@ test.describe("Admin login", () => {
     await page.fill("#adminAccessList", "private tester note");
     await page.click("#logoutBtn");
     await expect(page.locator("#loginScreen")).toBeVisible();
-    await expect(page.locator("#loginPassword")).toBeFocused();
+    await expect(page.locator("#loginBtn")).toBeFocused();
     await logIn(page);
     await expect(page.locator("#adminAccess")).toBeHidden();
     await expect(page.locator("#adminCommunity")).toBeHidden();
@@ -1746,31 +1712,8 @@ test.describe("Admin login", () => {
     page.on("console", (msg) => { if (msg.type() === "error") consoleErrors.push(msg.text()); });
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 503, contentType: "text/html", body: "<!doctype html><title>secret-upstream-page</title>" }));
     await page.goto("/admin");
-    await page.fill("#loginPassword", "secret");
-    await page.click("#loginBtn");
     await expect(page.locator("#loginError")).toHaveText("Server error 503: Service Unavailable");
     await expect(page.locator("body")).not.toContainText("secret-upstream-page");
-  });
-
-  test("the sign-in field is described by its error and marked invalid only after a failed attempt", async ({ page }) => {
-    await skipOnboarding(page);
-    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 401, contentType: "application/json", body: "{}" }));
-    await page.goto("/admin");
-    const input = page.locator("#loginPassword");
-    await expect(input).toHaveAttribute("aria-describedby", "loginError");
-    await expect(input).not.toHaveAttribute("aria-invalid", "true");
-    await input.fill("nope");
-    await page.click("#loginBtn");
-    await expect(page.locator("#loginError")).toHaveText("Incorrect password. Try again.");
-    await expect(input).toHaveAttribute("aria-invalid", "true");
-    await input.pressSequentially("x");
-    await expect(input).not.toHaveAttribute("aria-invalid", "true");
-    await page.click("#loginBtn");
-    await expect(input).toHaveAttribute("aria-invalid", "true");
-    await input.fill("");
-    await page.click("#loginBtn");
-    await expect(page.locator("#loginError")).toHaveText("Enter the admin password.");
-    await expect(input).toHaveAttribute("aria-invalid", "true");
   });
 
   test("the close buttons' accessible names contain their visible Esc cue", async ({ page }) => {

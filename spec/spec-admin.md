@@ -12,21 +12,25 @@ A password-protected analytics dashboard at `/admin` that shows where users are 
 | `netlify dev` | `http://localhost:8888/admin` | Netlify function via redirect; falls back to local NDJSON if no linked site |
 | Deployed | `https://<site>/admin` | Netlify pretty-URL resolves `admin.html`; data via `/.netlify/functions/track` |
 
-Password is set via env var `ADMIN_PASSWORD`. If unset, all admin endpoints return 401.
+The dashboard signs in with **Auth0**, the same provider as community sign-in, restricted by an allowlist. Env `ADMIN_SUBJECTS` is a comma-separated list of Auth0 subject ids (`sub`, for example `auth0|abc123` or `google-oauth2|123`); entries are trimmed, blanks ignored, and matching is exact (no case folding or prefixes). Unset or empty means nobody can sign in with Auth0 (fail closed). The Auth0 settings (`AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`) and `AUTH_SECRET` (32+ characters) are shared with community sign-in; the callback URL is the existing `/api/auth/callback`. See "Setting up admin sign-in" in `docs/admin-sign-in.md`.
 
-Authentication: the password, or a session token (below), is passed as an `Authorization: Bearer <value>` header, and only there. A `?pw=` query parameter is refused: a password in a URL is written into browser history and server access logs. Every admin endpoint uses the same check (`lib/admin-auth.js`), which compares in constant time.
+**Flow.** The login card's link goes to `GET /api/auth/login?admin=1`. The admin intent is sealed into the signed state cookie (`admin: true`), the return path is forced to `/admin`, and `/authorize` gets `prompt=login` and `max_age=0`, so Auth0 always asks for a fresh sign-in. There is no second callback: `auth-callback.js` sees `admin` in the state, reads the userinfo `sub` and checks it against `ADMIN_SUBJECTS`. A listed subject gets a new signed `ff_admin` cookie (`{sub, name, exp}`, 8 hours, signed with `AUTH_SECRET`; `HttpOnly`, `SameSite=Strict`, `Secure` over https, `Path=/`) and is redirected to `/admin`. The community `ff_session` is neither created nor changed. An unlisted subject gets no cookie and is redirected to `/admin?signin=denied` (the subject id is never put in the URL); any other failure goes to `/admin?signin=failed`. Email is never read, logged or stored.
 
-Signing in exchanges the password for a session token (`POST /api/admin/session`). The page keeps that token in `sessionStorage` (so it belongs to one tab) and sends it as the Bearer value; the token expires after 8 hours and is an HMAC keyed by `ADMIN_PASSWORD`, so changing the password revokes every token. The password itself is never written to `sessionStorage`, `localStorage`, cookies or the URL; it is held only while the sign-in request is made. A reload or **Refresh** in the same tab therefore stays signed in. A new tab, closing the tab, **Log out**, a 401 response or an expired token shows the login screen and asks for the password again (a 401 shows "Admin session expired. Sign in again."). The password still works as a Bearer value, so scripts and the CLI need no session. On load, the page removes any password copy an earlier version left in browser storage. If browser storage is blocked, the page works but asks for the password on every load.
+**What the endpoints accept** (`lib/admin-auth.js`, one check shared by every admin endpoint):
+- `Authorization: Bearer <ADMIN_PASSWORD>` for scripts, compared in constant time. This still needs `ADMIN_PASSWORD` set and needs no extra header. A `?pw=` query parameter is refused (a password in a URL ends up in history and logs). `POST /api/community/delete` accepts only this, never the cookie.
+- A valid, unexpired `ff_admin` cookie whose `sub` is **still** in `ADMIN_SUBJECTS` at request time, so removing someone revokes them at once. This works with `ADMIN_PASSWORD` unset. Because a cookie is sent automatically, a cookie-authenticated request (every method, including GET) is accepted only when it carries `X-Requested-With: admin`; a page on another site cannot add that header without a preflight, and no CORS is granted. A missing, expired, tampered, wrongly signed or no-longer-listed cookie is a 401.
+
+The old password-for-token exchange (`POST /api/admin/session`, the session token and its `sessionStorage` copy) is gone. On load, the page still removes any password copy an earlier version left in browser storage.
 
 ## Pages / Views
 
 ### Login screen
-- Full-page password form on a white card (local app icon as a brand mark, title, subtitle), with a visually-hidden (`.sr-only`) `<label>` for the password field so it has a programmatic name beyond its placeholder text
+- Full-page card on white (local app icon as a brand mark, title "Admin Access", subtitle) with one link-button, "Sign in with Auth0" (`#loginBtn`, an `<a href="/api/auth/login?admin=1">`, keyboard focusable with the dark focus ring for light surfaces). There is no password field.
 - Until sign-in the dashboard (`#adminApp`) is not rendered at all (`.admin-app[hidden]` is `display: none`), so no dashboard control sits behind the login screen in the tab order or the accessibility tree
-- On success: gets a session token, loads tracking data for the current window (see Data API), transitions to the map view
-- On a reload or Refresh in the same tab: opens the dashboard directly with the stored session token; a new tab, or an expired or refused token, shows the login screen (see Access). If the server cannot answer while restoring, the login screen shows the error and the stored token is kept for the next reload
-- **Log out** clears the stored session token and returns to the login screen
-- On failure: shows an inline error message in `#loginError`, styled in the danger colour and marked `role="alert"` so it is announced. A wrong password reads "Incorrect password. Try again." (no development hint: it would be wrong on a deployed site). A server error reads like "Server error 502: Bad Gateway": the status and its plain name only, never the raw response body (which can be a page of HTML; it goes to the console for debugging). A network failure (the request never got an answer) reads "Cannot reach the server. Check your connection and try again." and never shows the browser's raw "Failed to fetch". After any failed attempt focus returns to the password field with its text selected, so the next try is one keystroke away. The field has `aria-describedby="loginError"` and `aria-invalid="true"` after a failed attempt (including an empty one), removed when the admin types or tries again
+- On load the page calls `GET /api/admin/me` with `X-Requested-With: admin`: 200 loads tracking data for the current window (see Data API) and shows the map view; 401 shows the card. A reload or Refresh therefore stays signed in for as long as the `ff_admin` cookie lasts (8 hours); nothing is kept in `sessionStorage` or `localStorage`.
+- A 401 from any admin request mid-session returns to the card with "Admin session expired. Sign in again."
+- **Log out** calls `POST /api/admin/logout` (clears `ff_admin`; needs the CSRF header), then shows the card and focuses the sign-in link. It does not end the Auth0 session or the community sign-in.
+- `#loginError` is styled in the danger colour and marked `role="alert"`. Coming back from Auth0 with `?signin=denied` reads "This account isn't on the admin list. Ask an existing admin to add it, or sign in with a different account."; `?signin=failed` reads "Sign-in didn't finish. Try again."; the address is then cleaned to `/admin` (`history.replaceState`), so a reload does not repeat the message. A server error reads like "Server error 502: Bad Gateway": the status and its plain name only, never the raw body (it goes to the console). A network failure reads "Cannot reach the server. Check your connection and try again." and never shows the browser's raw "Failed to fetch". If sign-in is not configured, the link lands on the plain-text 503 "Sign-in isn't set up yet." from `/api/auth/login`.
 
 ### Map view (canvas)
 
@@ -88,7 +92,7 @@ On phones (720 px wide and under) the sidebar becomes a horizontally scrolling s
 | **Community** | Open the Community panel |
 | **Access** | Open the Access panel |
 | **Refresh** | Re-fetch all data from the server |
-| **Log out** | Clear the stored session token and return to the login screen |
+| **Log out** | Clear the admin cookie on the server and return to the login screen |
 
 The bar has three groups: the view tabs (Tracks, Heatmap, Navigation) are a segmented control whose active tab is filled with the accent colour; Community and Access are panel buttons with a bordered style; Refresh and Log out are quiet, borderless utility actions on the right. A small app icon and the title "Epping Forest Finds — User Analytics" sit on the left with the environment badge next to them. The three view tabs carry `aria-pressed` (true on the active view), updated whenever the view changes. Below 1100 px wide (narrow laptops, tablets, landscape phones) the bar is two rows so no button ever overlaps another or runs off screen: the icon, title, environment badge and utility actions, then one row holding the view and panel buttons. On phones (720 px and narrower) the same two rows apply: the icon, environment badge and utility actions, then one row holding all five view and panel buttons, which fit at 390 px wide without scrolling (the row still scrolls on narrower screens, and its focus ring is drawn inside the buttons so scrolling never clips it). The title is visually hidden on phones only, because it would truncate, but is still read out. Community and Access carry `aria-expanded` (true while their panel is open) and are drawn lit (accent border and tint, plus a short bar under the label so colour is not the only cue) while it is, and hover and press still show on the lit button; this follows every open and close path (the other panel opening, Escape, the close button, log out). Top-bar buttons are at least 44 px to tap on phones (720 px and narrower) and on coarse-pointer (touch) devices up to 1099 px wide such as tablets; fine-pointer desktops keep 34 px buttons. Map controls and the user chips are 44 px on phones. On phones the nav row and user strip have `scroll-padding-inline: 28px` and (on phones only) bring a focused or selected control into view with `scrollIntoView`, because the browser alone left a tabbed-to control half cut off at 360 px and 320 px; it stops clear of the 28 px edge fade. Desktop focus scrolling is left to the browser.
 
@@ -211,15 +215,14 @@ Location pings report the **raw GPS fix** (`state.rawUserLocation`), not `state.
 
 **Limits.** The function refuses a body over 256 KB or more than 500 events (413; 500 is what an older client's whole offline queue could hold). Each event is reduced to the fields above — strings truncated, coordinates range-checked and rounded to 5 decimal places (~1 m), anything else dropped — and events dated more than a day ahead or more than 90 days old are discarded. Each client IP may send 600 requests an hour (`TRACK_LIMIT_PER_IP`); beyond that it gets 429 with `Retry-After`. The counters live in 64 small documents (`track-rate/<shard>`, chosen by a hash of the address) so no one document grows with the number of visitors. A phone on the current app sends about 12 requests an hour, so many people can share one carrier or Wi-Fi address before it applies; a refused batch stays in the phone's queue. The cost: every accepted POST also reads and rewrites one small counter document. At launch scale (about 500 phones at once) that is under two POSTs a second spread over 64 documents, so each document is touched about every 30 seconds. Updates are read-modify-write, not atomic, so two simultaneous requests can overwrite each other's increment and the limit undercounts slightly. It is a brake on a script hammering the endpoint, not an exact meter. Even with these counter writes, the store does far fewer writes per walker than the old one-request-per-event client, which batching replaced.
 
-### `POST /api/admin/session`
-Trades the admin password for a session token. Request: `Authorization: Bearer <ADMIN_PASSWORD>`, no body. Compared in constant time, like every admin check.
+### `GET /api/admin/me`
+Who is signed in to the dashboard. Needs the `ff_admin` cookie and the `X-Requested-With: admin` header. **200** `{ "signedIn": true, "name": "<display name>" }`; **401** `{ "error": "Unauthorized" }` otherwise. Other methods get 405. Never returns the subject id.
 
-**Response (200):** `{ "token": "<expiresMs>.<hex HMAC-SHA256>", "expiresAt": <ms epoch, 8 hours ahead> }`. The token is stateless: the HMAC is keyed by `ADMIN_PASSWORD` over `admin-session:<expiresMs>`, so any function instance can verify it and changing the password invalidates all tokens. Every admin endpoint accepts it, or the password, as the Bearer value. A malformed, tampered, expired or differently keyed token is refused.
-
-**Errors:** 401 `{ "error": "Unauthorized" }` for a wrong or missing password, or when `ADMIN_PASSWORD` is unset. Other methods get 405.
+### `POST /api/admin/logout`
+Clears the `ff_admin` cookie (`Max-Age=0`). Needs the `X-Requested-With: admin` header (401 without it) so another site cannot sign an admin out. 200 `{ "ok": true }`. The community `ff_session` is untouched. Other methods get 405.
 
 ### `GET /api/admin/tracks`
-Returns stored events from a recent time window. Requires the Bearer header (see Authentication above).
+Returns stored events from a recent time window. Requires admin access: the password Bearer, or the `ff_admin` cookie with the CSRF header (see Authentication above).
 
 **Query params:**
 - `days` — size of the window in days. Defaults to **30**. `days=all` reads back to the retention period (a year by default). With `TRACKING_RETENTION_DAYS=0` nothing is deleted, but `days=all` still reads back only a year, so one dashboard request stays bounded.
@@ -305,8 +308,14 @@ The local NDJSON fallback has no day layout, so it reads the whole file and filt
   force  = true
 
 [[redirects]]
-  from = "/api/admin/session"
-  to   = "/.netlify/functions/admin-session"
+  from = "/api/admin/me"
+  to   = "/.netlify/functions/admin-me"
+  status = 200
+  force  = true
+
+[[redirects]]
+  from = "/api/admin/logout"
+  to   = "/.netlify/functions/admin-logout"
   status = 200
   force  = true
 
@@ -339,10 +348,10 @@ Colours are assigned from a fixed 15-colour palette in the order users are first
 
 ## Security notes
 
-- The admin password must be set as an environment variable — there is no default
+- Admin access needs `ADMIN_SUBJECTS` (and the Auth0 env vars) or `ADMIN_PASSWORD`; there are no defaults, and an empty allowlist admits nobody
 - Raw tracking data is never exposed to end users; the admin endpoint requires authentication
 - All events contain only anonymous IDs — no PII is stored or returned
-- The admin UI never stores the password. It keeps a signed session token (8-hour expiry) in `sessionStorage`; the token is per tab, dies with the tab, and stops working when `ADMIN_PASSWORD` changes
+- The admin UI never sees a password or token. The sign-in is an HttpOnly, `SameSite=Strict` cookie that script cannot read; cookie requests need `X-Requested-With: admin` (CSRF guard); the allowlist is re-checked on every request, so removing a subject revokes it immediately; the cookie expires after 8 hours. Auth0 is asked for a fresh login each time (`prompt=login`, `max_age=0`)
 
 ## Early access (feature gate)
 The **Access** top-bar button opens a panel with one tester per line (Tester ID from the person's Settings screen, then an optional note). Save posts the list to `POST /api/features`; no deploy is needed. The panel has a monospace textarea, a primary **Save** button and a `role="status"` message beside it; the helper text is quieter than the field. An empty list means the gate is off and everyone has Community, so the list is only editable once it has loaded: while loading, and after a failed load ("Could not load the list (500). Try again." for a server error, "Could not load the list. Check your connection and try again." with no answer, never the browser's raw "Failed to fetch"; a **Retry** button appears; clicking Access again also retries), the textarea and Save are disabled and nothing can be posted, so a failed load can never save an empty list. A late load response cannot overwrite typing because the field is disabled until it arrives. Save disables the field and button and shows "Saving…" while the request runs (no double submit), then "Saved N testers." and, only when lines were dropped, "M lines were not valid tester IDs (10 characters, 0-9 and a-f) or were repeated, and were dropped." (singular "1 line was not a valid tester ID (…) or was repeated, and was dropped."). A failed save reads "Could not save (500). Try again." or "Could not save. Check your connection and try again."; the typed text stays and Save is enabled again. A 401 on a load or save returns to sign-in like Community does. **Unsaved edits are never lost silently:** Escape while the list differs from the last loaded or saved text does not close the panel but shows "Unsaved changes — Save or press Esc again to discard." in the status line; a second Escape discards and closes (typing in between cancels the warning). The warning stays armed, with no timeout, until the admin types or the panel is hidden; hiding it (the close button, Community opening, Escape) disarms it, so after coming back one Escape only warns again. The close button, opening Community, and re-clicking Access keep the typed text instead: reopening Access shows it again with "Unsaved changes kept — Save, or press Esc twice to discard." (typing clears that note). Re-clicking Access while it is open and has unsaved text (or is saving) only refocuses the field; when it is open and clean it reloads the list. Only a second Escape, a save, or logging out discards the draft. See `spec/spec-community.md` (Feature gate). `/api/features` is routed in `netlify.toml`.
@@ -374,4 +383,4 @@ A **Community** button in the admin top bar opens a panel (`#adminCommunity`) of
 Resetting Community data is done by a local script (`scripts/reset-community.js`), not an HTTP endpoint or an admin-panel button. By default it clears the local directory `data/tracking/community/<BRANCH>/`, where `BRANCH` is the environment variable and defaults to `dev`. Production is refused unless `--production` is passed, and every run requires typing `RESET ALL COMMUNITY DATA`.
 
 ## Community data deletion
-`POST /api/community/delete` (`Authorization: Bearer <ADMIN_PASSWORD>`, routed in `netlify.toml` and `server.js`) deletes one person's Community data on request; it has no button in the dashboard. See `spec-community.md` (Data deletion) and `docs/community-data-deletion.md`.
+`POST /api/community/delete` (`Authorization: Bearer <ADMIN_PASSWORD>` only; the admin cookie is not accepted, routed in `netlify.toml` and `server.js`) deletes one person's Community data on request; it has no button in the dashboard. See `spec-community.md` (Data deletion) and `docs/community-data-deletion.md`.
