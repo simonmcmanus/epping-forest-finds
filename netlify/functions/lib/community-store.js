@@ -4,6 +4,7 @@
 const fs = require("fs");
 const path = require("path");
 const { connectLambda, getStore } = require("@netlify/blobs");
+const { isProductionDeploy } = require("./deploy-context");
 
 const LOCAL_ROOT = path.join(__dirname, "..", "..", "..", "data", "tracking", "community");
 
@@ -12,14 +13,14 @@ function branchName(env = process.env) {
 }
 
 function communityStoreName(env = process.env) {
-  if (env.CONTEXT === "production") return "community";
+  if (isProductionDeploy(env)) return "community";
   return `community-${branchName(env)}`;
 }
 
 function communityLocalDir(env = process.env) {
   // Keep local development on the same branch boundary as deploy previews. In particular, do not
   // let a feature branch reuse the old shared `data/tracking/community` directory.
-  const scope = env.CONTEXT === "production" ? "production" : branchName(env);
+  const scope = isProductionDeploy(env) ? "production" : branchName(env);
   return path.join(LOCAL_ROOT, scope);
 }
 
