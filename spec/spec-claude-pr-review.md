@@ -161,7 +161,7 @@ earlier rows stale: rerun the affected specialists, then update the SHA.
 `.github/workflows/claude-specialist.yml` runs one read-only specialist on demand.
 A repository writer (OWNER, MEMBER or COLLABORATOR) comments
 `@claude review <specialist-name>` on an open, non-draft PR (unlike the final-head review, which also runs on drafts). The name must be one
-of the eight read-only reviewers in `.claude/agents/`; anything else is ignored.
+of the read-only reviewers on the workflow's allow-list (each defined in `.claude/agents/`); anything else is ignored.
 
 - The reviewer definition is read from the default branch checkout, and the
   diff is read from the PR head checkout. The job holds no write token for the

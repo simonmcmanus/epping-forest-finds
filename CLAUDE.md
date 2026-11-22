@@ -19,8 +19,8 @@ in the main session. Only skip it for read-only questions.
 - CI owns `js/app-cache-version.js`, `js/data-cache-version.js` and screenshot baselines. Never edit them.
 - Tests assert user-visible behaviour, never source text. Prove a regression test fails before the fix.
 - Every screen state a user can reach (loading, empty, error, success, signed in/out, first visit…)
-  has a `"snapshot: ..."` test on mobile and desktop. A new screen or state gets its snapshot in the
-  same change, and the lead selects `snapshot-reviewer` for it (`docs/agents/testing.md`,
+  has a `"snapshot: ..."` test on mobile and desktop (documented desktop-only exceptions aside). A new
+  screen or state gets its snapshot in the same change, and the lead selects `snapshot-reviewer` for it (`docs/agents/testing.md`,
   "Screen-state snapshot coverage").
 - Finish all in-scope work on a PR (every valid finding including minors, CI, checklist and review
   threads) without being prompted. Work not specific to the PR's request becomes a deduplicated
