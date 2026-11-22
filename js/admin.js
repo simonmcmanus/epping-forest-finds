@@ -2300,12 +2300,32 @@ async function adminBoot() {
     return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   };
 
-  function setBetaStatus(text) {
+  function betaShareButton(code) {
+    const share = document.createElement("button");
+    share.type = "button";
+    share.className = "admin-btn";
+    share.dataset.share = code;
+    share.textContent = "Share link";
+    share.setAttribute("aria-label", `Share link for ${code}`);
+    share.addEventListener("click", () => { betaDisarm(); shareBetaLink(code, share); });
+    return share;
+  }
+
+  // shareCode adds a Share link button after the text (used right after a code is created).
+  function setBetaStatus(text, shareCode = "") {
     // Clear first, then set on the next tick, so identical text is announced again.
     const seq = ++betaStatusSeq;
     betaStatus.textContent = "";
     if (!text) return;
-    setTimeout(() => { if (seq === betaStatusSeq) betaStatus.textContent = text; }, 0);
+    setTimeout(() => {
+      if (seq !== betaStatusSeq) return;
+      betaStatus.textContent = text;
+      if (shareCode) {
+        const share = betaShareButton(shareCode);
+        share.disabled = !betaLoaded || betaBusy;
+        betaStatus.append(" ", share);
+      }
+    }, 0);
   }
 
   function syncBetaCreate() {
@@ -2335,6 +2355,7 @@ async function adminBoot() {
     };
     set(betaNote, !enabled);
     for (const btn of betaList.querySelectorAll("button[data-revoke]")) set(btn, !enabled);
+    for (const btn of betaPanel.querySelectorAll("button[data-share]")) set(btn, !enabled);
     syncBetaCreate();
     if (betaCreate === document.activeElement && betaBusy) { betaCreate.setAttribute("aria-disabled", "true"); betaCreate.disabled = false; }
     else betaCreate.removeAttribute("aria-disabled");
@@ -2373,7 +2394,11 @@ async function adminBoot() {
         copy.textContent = "Copy link";
         copy.setAttribute("aria-label", `Copy link for ${item.code}`);
         copy.addEventListener("click", () => { betaDisarm(); copyBetaLink(item.code); });
+        copy.dataset.copy = item.code;
         li.append(copy);
+        const share = betaShareButton(item.code);
+        share.disabled = !enabled;
+        li.append(share);
       }
       let revoke = null;
       if (item.status === "open" || item.status === "claimed") {
@@ -2473,7 +2498,7 @@ async function adminBoot() {
     betaAction({ action: "create", note: betaNote.value.trim().slice(0, 80) }, (created) => {
       betaCodes.unshift(created);
       betaNote.value = "";
-      setBetaStatus(`New code ${created.code}: ${betaLink(created.code)}`);
+      setBetaStatus(`New code ${created.code}: ${betaLink(created.code)}`, created.code);
       return { code: created.code, what: "copy" };
     });
   });
@@ -2504,6 +2529,32 @@ async function adminBoot() {
       setBetaStatus(`Copied ${link}`);
     } catch {
       setBetaStatus(`Could not copy automatically. Copy this link: ${link}`);
+    }
+  }
+
+  // The native share sheet where there is one; otherwise (or if it fails) the copy behaviour. The note is never shared.
+  async function shareBetaLink(code, button) {
+    if (!betaLoaded || betaBusy) return;
+    const token = betaToken;
+    let done = false;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: "Epping Forest Finds beta", text: "Join the Epping Forest Finds beta", url: betaLink(code) });
+        done = true;
+      } catch (error) {
+        if (error && error.name === "AbortError") done = true;
+      }
+    }
+    if (token !== betaToken) return;
+    if (!done) {
+      await copyBetaLink(code);
+      if (token !== betaToken) return;
+    }
+    if (button.isConnected) button.focus();
+    else if (betaCodes.some((c) => c.code === code)) {
+      const copy = betaList.querySelector(`button[data-copy="${code}"]`);
+      const row = copy || [...betaList.querySelectorAll(".admin-beta-code")].find((el) => el.textContent === code);
+      if (row) row.focus();
     }
   }
 

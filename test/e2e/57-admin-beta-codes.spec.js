@@ -266,4 +266,78 @@ test.describe("Admin beta codes", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator("#adminBeta")).toBeHidden();
   });
+
+  test("Share link on a row shares the beta link without the note", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__shares = [];
+      Object.defineProperty(navigator, "share", { value: (data) => { window.__shares.push(data); return Promise.resolve(); }, configurable: true });
+    });
+    await openBeta(page, okHandler());
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    const button = panel.locator("li").nth(1).getByRole("button", { name: "Share link" });
+    await button.click();
+    const shares = await page.evaluate(() => window.__shares);
+    const origin = await page.evaluate(() => location.origin);
+    expect(shares).toHaveLength(1);
+    expect(shares[0].url).toBe(`${origin}/beta/b345f`);
+    expect(JSON.stringify(shares[0])).not.toContain("Ann");
+    expect(shares[0].text).not.toContain("Ann");
+    await expect(button).toBeFocused();
+  });
+
+  test("a cancelled share shows no error", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "share", { value: () => Promise.reject(new DOMException("cancelled", "AbortError")), configurable: true });
+    });
+    await openBeta(page, okHandler());
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    const button = panel.getByRole("button", { name: "Share link for b345f" });
+    await button.click();
+    await page.waitForTimeout(150);
+    await expect(panel.locator("#adminBetaStatus")).toHaveText("");
+    await expect(button).toBeFocused();
+  });
+
+  test("Share link falls back to copy when the share sheet is missing", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+      Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.resolve() }, configurable: true });
+    });
+    await openBeta(page, okHandler());
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    await panel.getByRole("button", { name: "Share link for b345f" }).click();
+    await expect(panel.locator("#adminBetaStatus")).toContainText(/Copied .*\/beta\/b345f/);
+  });
+
+  test("Share link names its code and revoked rows have none", async ({ page }) => {
+    await openBeta(page, okHandler());
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    await expect(panel.getByRole("button", { name: "Share link for a234e" })).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Share link for b345f" })).toBeVisible();
+    await expect(panel.locator("li").nth(2).getByRole("button", { name: /Share link/ })).toHaveCount(0);
+  });
+
+  test("after Create, the status line offers Share link for the new code", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__shares = [];
+      Object.defineProperty(navigator, "share", { value: (data) => { window.__shares.push(data); return Promise.resolve(); }, configurable: true });
+    });
+    await openBeta(page, okHandler((route, body) => {
+      if (body.action === "create") return json(route, 200, { code: "z999q", note: body.note, createdAt: "2026-11-22T10:00:00.000Z", status: "open" });
+    }));
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    await panel.getByLabel("Who is it for?").fill("Secret Zoe");
+    await panel.getByRole("button", { name: "Create code" }).click();
+    await expect(panel.locator("li")).toHaveCount(4);
+    await panel.locator("#adminBetaStatus").getByRole("button", { name: "Share link for z999q" }).click();
+    const shares = await page.evaluate(() => window.__shares);
+    expect(shares).toHaveLength(1);
+    expect(shares[0].url).toMatch(/\/beta\/z999q$/);
+    expect(JSON.stringify(shares[0])).not.toContain("Zoe");
+  });
 });
