@@ -1,5 +1,5 @@
 // GET  /api/beta/codes   the beta codes and their status (admin only)
-// POST /api/beta/codes   { action: "create", note? } or { action: "revoke", code } (admin only)
+// POST /api/beta/codes   { action: "create", note } or { action: "revoke", code } (admin only)
 const { isAdminRequest } = require("./lib/admin-auth");
 const gate = require("./lib/feature-gate");
 const beta = require("./lib/beta-access");
@@ -20,7 +20,10 @@ exports.handler = async (event) => {
   try {
     const store = gate.storeFor(event);
     if (!body) return reply(200, { codes: await beta.listCodes(store) });
-    if (body.action === "create") return reply(200, await beta.createCode(store, body.note));
+    if (body.action === "create") {
+      const made = await beta.createCode(store, body.note);
+      return made ? reply(200, made) : reply(400, { error: "Add a note saying who the code is for." });
+    }
     const result = await beta.revokeCode(store, body.code);
     return result.ok ? reply(200, { ok: true }) : reply(result.status, { error: "Unknown code" });
   } catch {

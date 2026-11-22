@@ -25,8 +25,11 @@ function generateCode() {
 
 const statusOf = (record) => (record.revokedAt ? "revoked" : record.claimedBy ? "claimed" : "open");
 
+// A note saying who the code is for is required: a blank one returns null and nothing is written.
 async function createCode(store, note) {
-  const record = { note: String(note || "").trim().slice(0, NOTE_MAX), createdAt: Date.now() };
+  const text = String(note || "").trim().slice(0, NOTE_MAX).trim();
+  if (!text) return null;
+  const record = { note: text, createdAt: Date.now() };
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const code = generateCode();
     if (await store.getStrict(`${CODE_PREFIX}${code}`)) continue;
@@ -46,6 +49,7 @@ async function listCodes(store) {
     if (!record) continue;
     const item = { code, note: record.note || "", createdAt: record.createdAt || 0, status: statusOf(record) };
     if (record.claimedAt) item.claimedAt = record.claimedAt;
+    if (record.revokedAt) item.revokedAt = record.revokedAt;
     out.push(item);
   }
   return out.sort((a, b) => b.createdAt - a.createdAt);

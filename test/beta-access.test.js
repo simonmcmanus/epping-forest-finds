@@ -46,7 +46,7 @@ const adminPost = (body) => codes.handler({ httpMethod: "POST", headers: adminHe
 const adminList = async () => JSON.parse((await codes.handler({ httpMethod: "GET", headers: adminHeaders })).body).codes;
 const redeemAs = (sub, code) => redeem.handler({ httpMethod: "POST", headers: sub ? { cookie: cookieFor(sub) } : {}, body: JSON.stringify({ code }) });
 const communityFor = async (sub) => JSON.parse((await features.handler({ httpMethod: "GET", queryStringParameters: { id: OTHER_ID }, headers: sub ? { cookie: cookieFor(sub) } : {} })).body).community;
-const create = async (note) => JSON.parse((await adminPost({ action: "create", note })).body);
+const create = async (note = "Sam") => JSON.parse((await adminPost({ action: "create", note })).body);
 const gated = () => memoryStore({ "features-allowlist": { community: [{ id: "0123456789", note: "" }] } });
 
 test("an admin creates a five-character beta code that is easy to read aloud", async () => {
@@ -189,7 +189,7 @@ test("when the beta record cannot be read, nobody is given access", async () => 
 test("an admin change that cannot reach storage is a 503", async () => {
   const fail = async () => { throw new Error("down"); };
   await withStore({ get: fail, getStrict: fail, put: fail, delete: fail, list: fail }, async () => {
-    const response = await adminPost({ action: "create" });
+    const response = await adminPost({ action: "create", note: "Sam" });
     assert.equal(response.statusCode, 503);
     assert.equal(JSON.parse(response.body).error, "Storage unavailable: nothing was saved. Try again.");
   });
@@ -246,5 +246,39 @@ test("a code revoked while it is being redeemed is 410 and leaves the account wi
     assert.equal(result.error, "That beta link has been withdrawn.");
     assert.equal(await communityFor("auth0|a"), false);
     assert.equal(await inner.get(`beta-user/${require("../netlify/functions/lib/community-account").accountKey("auth0|a")}`), null);
+  });
+});
+
+test("creating a code without a note is refused and writes nothing", async () => {
+  for (const note of [undefined, "", "   \t "]) {
+    const store = memoryStore();
+    await withStore(store, async () => {
+      const response = await adminPost({ action: "create", note });
+      assert.equal(response.statusCode, 400);
+      assert.deepEqual(JSON.parse(response.body), { error: "Add a note saying who the code is for." });
+      assert.deepEqual(await store.list("beta-code/"), [], "no beta-code record was written");
+    });
+  }
+});
+
+test("creating a code with a note still works and trims the note", async () => {
+  await withStore(memoryStore(), async () => {
+    const response = await adminPost({ action: "create", note: "  Sam from the club  " });
+    assert.equal(response.statusCode, 200);
+    assert.equal(JSON.parse(response.body).note, "Sam from the club");
+  });
+});
+
+test("the admin list gives the revoked date of a revoked code and never an account", async () => {
+  await withStore(memoryStore(), async () => {
+    const claimed = await create("claimed then revoked");
+    const open = await create("still open");
+    assert.equal((await redeemAs("auth0|a", claimed.code)).statusCode, 200);
+    assert.equal((await adminPost({ action: "revoke", code: claimed.code })).statusCode, 200);
+    const response = await codes.handler({ httpMethod: "GET", headers: adminHeaders });
+    const list = JSON.parse(response.body).codes;
+    assert.equal(typeof list.find((c) => c.code === claimed.code).revokedAt, "number");
+    assert.equal("revokedAt" in list.find((c) => c.code === open.code), false);
+    assert.ok(!/claimedBy|account/i.test(response.body), "no account value is returned");
   });
 });
