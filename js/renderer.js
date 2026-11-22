@@ -399,6 +399,7 @@ function drawOverlay() {
   drawUser(ctx, toScreen, isTilted, "label");
   drawNearbyAnchorMarker(ctx, toScreen);
   drawCommunityMarks(ctx, toScreen);
+  drawAdventureHighlight(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);
   if (drawInspectorIconMotion(selectedIconMotionFrame())) _selectedIconMotionDrawn = true;
   if (_selectedIconMotionDrawn) {
@@ -461,6 +462,44 @@ function drawCommunityMarks(ctx, toScreen) {
     ctx.stroke();
     ctx.restore();
   }
+}
+
+// While the first-location veteran tree notice is open, the tree it names is picked out on the map:
+// a gold disc with a dark-gold ring (colour and shape, so it never relies on hue alone) that
+// breathes gently. treeAdventureHighlight() (js/adventure.js) says which tree, and its phase
+// (0..1) drives the pulse; with reduced motion the phase stays at 0, a static highlight.
+function drawAdventureHighlight(ctx, toScreen) {
+  if (typeof treeAdventureHighlight !== "function") return;
+  const highlight = treeAdventureHighlight();
+  if (!highlight || !highlight.item || !highlight.item.point) return;
+  if (!toScreen) toScreen = worldToScreen;
+  const p = toScreen(highlight.item.point);
+  if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return;
+  const dpr = pixelRatio();
+  const w = state.canvasLogicalWidth;
+  const h = state.canvasLogicalHeight;
+  if (p.x < -40 * dpr || p.y < -40 * dpr || p.x > w + 40 * dpr || p.y > h + 40 * dpr) return;
+  const pulse = 0.5 - 0.5 * Math.cos(highlight.phase * Math.PI * 2);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, (17 + 4 * pulse) * dpr, 0, Math.PI * 2);
+  ctx.fillStyle = highlight.halo;
+  ctx.globalAlpha = 0.55 - 0.25 * pulse;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, (10 + 1.5 * pulse) * dpr, 0, Math.PI * 2);
+  ctx.fillStyle = highlight.fill;
+  ctx.fill();
+  ctx.lineWidth = 2.5 * dpr;
+  ctx.strokeStyle = highlight.ring;
+  ctx.stroke();
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.strokeStyle = "#fff";
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, (12.5 + 1.5 * pulse) * dpr, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
 // Marks state.nearbyAnchor (the Nearby view's browse point, set by tapping open ground -- see

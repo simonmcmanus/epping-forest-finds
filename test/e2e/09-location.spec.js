@@ -99,6 +99,46 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page).toHaveScreenshot("veteran-tree-adventure.png", { fullPage: false });
     });
 
+    test("the veteran tree adventure highlights its tree on the map until the notice closes", async ({ page }) => {
+      await page.evaluate(() => { els.consentBanner.hidden = true; });
+      const adventure = page.locator("#adventureBanner");
+      await expect(adventure).toBeVisible({ timeout: 10_000 });
+      await page.evaluate(() => {
+        window.__rafCalls = 0;
+        const raf = window.requestAnimationFrame.bind(window);
+        window.requestAnimationFrame = (cb) => { window.__rafCalls += 1; return raf(cb); };
+      });
+      // The map is visible behind the notice; sample the overlay canvas where the named tree is.
+      const sample = () => page.evaluate(() => {
+        const item = treeAdventureTargetItem || null;
+        const tree = item || state.trees.find((t) => treeHashKey(t) === window.__adventureKey);
+        if (item) window.__adventureKey = treeHashKey(item);
+        const toScreen = typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen;
+        const p = toScreen(tree.point);
+        const d = els.overlayCanvas.getContext("2d").getImageData(Math.round(p.x), Math.round(p.y), 1, 1).data;
+        return { r: d[0], g: d[1], b: d[2], a: d[3] };
+      });
+      // Gold: opaque, red and green well above blue (an ordinary tree pin is green and on the main canvas).
+      await expect.poll(async () => {
+        const c = await sample();
+        return c.a > 200 && c.r > c.b + 60 && c.g > c.b + 40;
+      }).toBe(true);
+      // It pulses, so the redraw loop is running while the notice is open...
+      const before = await page.evaluate(() => window.__rafCalls);
+      await page.waitForTimeout(400);
+      expect(await page.evaluate(() => window.__rafCalls)).toBeGreaterThan(before + 5);
+
+      await page.locator("#adventureDismiss").click();
+      await expect(adventure).toBeHidden();
+      await expect.poll(async () => (await sample()).a).toBe(0);
+      // ...and the per-frame loop is gone once it has closed. Other app work may queue the odd
+      // frame, but a running pulse queues one every frame (dozens in this window).
+      await page.waitForTimeout(500);
+      const settled = await page.evaluate(() => window.__rafCalls);
+      await page.waitForTimeout(500);
+      expect(await page.evaluate(() => window.__rafCalls) - settled).toBeLessThan(5);
+    });
+
     test("the veteran tree adventure prefers a nearby tree that is not already verified", async ({ page }) => {
       const choice = await page.evaluate(() => {
         const candidates = nearestTreesTo(state.userLocation.latitude, state.userLocation.longitude, 50)
