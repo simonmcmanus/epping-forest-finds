@@ -3,9 +3,15 @@
 // so both accept and store the same formats and sizes.
 const { randomUUID } = require("crypto");
 const { connectLambda, getStore } = require("@netlify/blobs");
+const { branchName } = require("./community-store");
 
 const REPORT_PHOTO_MAX_BYTES = 3 * 1024 * 1024;
 const REPORT_PHOTO_STORE = "report-photos";
+
+function photoStoreName(env = process.env) {
+  if (env.CONTEXT === "production") return REPORT_PHOTO_STORE;
+  return `${REPORT_PHOTO_STORE}-${branchName(env)}`;
+}
 
 function configureBlobContext(event) {
   if (!event?.blobs) return false;
@@ -45,7 +51,11 @@ function setPhotoStore(store) { storeOverride = store; }
 
 function photoStore(event) {
   if (storeOverride) return storeOverride;
-  return configureBlobContext(event) ? getStore(REPORT_PHOTO_STORE) : null;
+  return configureBlobContext(event) ? getStore(photoStoreName()) : null;
+}
+
+function photoStoreFor(event) {
+  return photoStore(event);
 }
 
 // A new id in a namespace, e.g. "tree-photos/<uuid>.jpg". The id is the storage key, so a reader can tell where a
@@ -73,5 +83,5 @@ async function deletePhoto(event, photoId) {
 
 module.exports = {
   REPORT_PHOTO_MAX_BYTES, REPORT_PHOTO_STORE, PUBLIC_PHOTOS, PRIVATE_TREE_PHOTOS,
-  configureBlobContext, parsePhoto, savePhoto, deletePhoto, photoIdFor, setPhotoStore,
+  configureBlobContext, parsePhoto, savePhoto, deletePhoto, photoIdFor, setPhotoStore, photoStoreFor, photoStoreName,
 };
