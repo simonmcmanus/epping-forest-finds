@@ -2,32 +2,64 @@ name: Update deploy preview links
 
 on:
   status:
+  # A hand edit of the PR body can mangle the preview-links block; regenerate it on every edit.
+  pull_request:
+    types: [edited]
 
 permissions:
   contents: read
   pull-requests: write
+  statuses: read
+
+# Serialise runs so two body rewrites cannot overwrite each other.
+concurrency:
+  group: preview-links
+  cancel-in-progress: false
 
 jobs:
   update-pr:
     # Netlify publishes deploy previews as the legacy `deploy/netlify` commit status, whose
     # target URL is the preview. Production and other status providers must not rewrite PRs.
+    # A pull_request edit looks the latest successful deploy/netlify status up itself.
     if: >-
+      (github.event_name == 'status' &&
       github.event.state == 'success' &&
       github.event.context == 'deploy/netlify' &&
-      github.event.target_url
+      github.event.target_url) ||
+      github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Add deploy-preview test links to the pull request
         uses: actions/github-script@v7
         with:
           script: |
-            const previewUrl = context.payload.target_url.replace(/\/$/, "");
-            const sha = context.payload.sha;
-            const { data: pullRequests } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: sha,
-            });
+            let previewUrl;
+            let sha;
+            let pullRequests;
+            if (context.payload.pull_request) {
+              sha = context.payload.pull_request.head.sha;
+              pullRequests = [context.payload.pull_request];
+              // Statuses come newest first, so the first success is the latest deploy.
+              const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: sha,
+              });
+              const deploy = statuses.find((status) => status.context === "deploy/netlify" && status.state === "success");
+              if (!deploy || !deploy.target_url) {
+                core.notice(`No successful deploy/netlify status for ${sha}; leaving the PR body as it is.`);
+                return;
+              }
+              previewUrl = deploy.target_url.replace(/\/$/, "");
+            } else {
+              previewUrl = context.payload.target_url.replace(/\/$/, "");
+              sha = context.payload.sha;
+              ({ data: pullRequests } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: sha,
+              }));
+            }
 
             const categoryGroups = [
               ["nature", "data/icons/nature.png", [["trees", "tree"], ["cows", "cow"], ["ponds-streams", "ponds"]]],
@@ -145,7 +177,7 @@ jobs:
               const body = pr.body || "";
               const replacement = `<!-- preview-links:start -->\n${links}\n<!-- preview-links:end -->`;
               let nextBody = marker.test(body)
-                ? body.replace(marker, replacement)
+                ? body.replace(marker, () => replacement)
                 : `${body.trim()}\n\n${replacement}\n`;
               nextBody = nextBody.replace(reportLine, "");
               if (reportName) {
