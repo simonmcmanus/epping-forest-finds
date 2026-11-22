@@ -252,6 +252,13 @@ Folklore topic classification detects: `blue_plaque`, `film_tv`, `ww2`, `royal`,
 
 Source: `{ events: [{ id, name, description, lat, lon, startsAt, endsAt, sourceUrl }] }`.
 
+The file is generated, not hand-edited: `scripts/generate-map-events.js` copies each dated entry of
+`data/forest-events.json` that has real coordinates, is not marked unlocated and is dated today (UK
+date) or later. `startsAt` is the entry's date and `startTime` in London time, or London midnight
+when there is no time; `endsAt` is one hour later, or the next London midnight for an all-day
+entry. Both are ISO strings in UTC, and `sourceUrl` is the entry's first source. The app's own
+normalising and 7-day window below still apply at runtime.
+
 Each item is normalized via `normalizeEventLocations(data, nowMs)` (`js/normalize.js`) to:
 
 ```
@@ -278,6 +285,26 @@ is `scripts/prune_past_events.js`, which prunes the same expired rows out of the
 `isEventTooFarAhead` additionally drops anything not yet within `EVENT_SHOW_AHEAD_MS` (7 days) of
 its `startsAt` — a display-only cap on the map, independent of the two filters above and never
 applied to the source file itself (an event already live is exempt, however long ago it started).
+
+#### Calendar feed
+
+`/calendar.ics` serves upcoming forest events as an iCalendar feed that a calendar app can subscribe
+to (for example Google Calendar, "From URL"). It is built by `netlify/functions/calendar.js` from
+`data/forest-events.json` (`entries`) using `netlify/functions/lib/calendar-feed.js`. It is separate
+from the map's events (`data/events.json`) and does not use the map's visibility rules.
+
+- **Which entries:** only those with a `date` (YYYY-MM-DD) that is today or later by the UK calendar
+  date (Europe/London). Entries with no date (such as recurring ones) and past-dated entries are left
+  out. There is no coordinate requirement and no look-ahead window.
+- **Times:** `startTime` (HH:MM) is UK local time, converted to UTC for both GMT and BST, and emitted as
+  `DTSTART`/`DTEND` with `Z`. Entries have no end time, so a timed event lasts one hour. An entry with
+  no `startTime` is all-day: `DTSTART;VALUE=DATE` that day and `DTEND;VALUE=DATE` the next day.
+- **Each `VEVENT`:** `UID` (`<id>@eppingforestfinds.uk`), `DTSTAMP` (now, UTC), `SUMMARY` (title),
+  `DESCRIPTION` (body, then each source's label and URL, one per line), `URL` (first source),
+  `LOCATION` (place) and `GEO` (`lat;lon`) only when the entry has both.
+- **Format:** CRLF line endings, TEXT escaping, lines folded at 75 octets without splitting a
+  multibyte character. The response is cached for an hour.
+- The feed is outside the alpha gate: it carries only what is in the committed data file.
 
 ### Combined Landmarks
 

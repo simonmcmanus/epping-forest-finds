@@ -139,13 +139,19 @@ class ClaudeReviewPublicationTests(unittest.TestCase):
                 self.assert_rejected(output)
                 self.assertIn("Target base changed", output["error"])
 
-    def test_closed_draft_and_foreign_repository_heads_do_not_publish(self):
-        for pr in ({"state": "closed"}, {"draft": True},
+    def test_closed_and_foreign_repository_heads_do_not_publish(self):
+        for pr in ({"state": "closed"},
                    {"head": {"sha": HEAD, "repo": {"full_name": "outsider/repo"}}}):
             with self.subTest(pr=pr):
                 output = self.run_publisher(pr=pr)
                 self.assertIsNone(output["error"])
                 self.assertEqual(output["reviews"], [])
+
+    def test_draft_pull_request_gets_its_review_without_a_manual_ready_step(self):
+        output = self.run_publisher(pr={"draft": True})
+        self.assertIsNone(output["error"])
+        self.assertEqual(len(output["reviews"]), 1)
+        self.assertEqual(output["reviews"][0]["commit_id"], HEAD)
 
     def test_missing_or_failed_model_does_not_approve(self):
         for result in ("failure", "cancelled", "skipped"):
@@ -323,9 +329,9 @@ class ClaudeReviewPreparationTests(unittest.TestCase):
         self.assertIsNone(output["error"])
         self.assertEqual(output["writes"][0]["body"]["files"][0]["path"], "sw.js")
 
-    def test_stale_closed_or_draft_context_stops_before_loading_files(self):
+    def test_stale_or_closed_context_stops_before_loading_files(self):
         for live in ({"head": {"sha": OTHER}}, {"base": {"sha": OTHER}},
-                     {"state": "closed"}, {"draft": True}):
+                     {"state": "closed"}):
             with self.subTest(live=live):
                 output = self.prepare(live=live)
                 self.assertIn("changed before inspection", output["error"])

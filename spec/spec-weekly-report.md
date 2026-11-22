@@ -296,7 +296,9 @@ this gap (the Wanstead Beer Festival); the two feeds share some of the
 same Wanstead-area events, so a run checking both de-dupes by title and
 date rather than adding each twice. Visit Epping Forest's district-wide
 calendar and Epping Town Council's events diary are each checked as a
-page, the same way Copped Hall's site is. Facebook and X/Twitter accounts
+page, the same way Copped Hall's site is. The Eventbrite organiser page for 'Epping Forest'
+(https://www.eventbrite.co.uk/o/9768889881) is among the organiser pages checked
+each run; a blocked fetch is an access limitation, not proof of no events. Facebook and X/Twitter accounts
 of forest-adjacent organisations were
 evaluated and excluded: both gate programmatic read access behind paid
 tiers or app review that a page's own website doesn't need, so the run
@@ -327,10 +329,23 @@ their own sources and a `lastVerified` date, seeded and kept current by hand
 file's `sourceNotes` records which upstream sources were evaluated and why
 (an API worth building a scraper against, a page too JS-rendered to scrape,
 a URL that has gone 404) — that evaluation is the reusable part until a
-script like `osm_business_diff.py`'s exists for this data. An entry marked
-`needsReverification` is a research gap being surfaced honestly, not a
-finding ready to print; `scripts/report/structured_findings.py` (below)
-carries that caveat into the finding's own body text rather than dropping it.
+script like `osm_business_diff.py`'s exists for this data. Each weekly run, once it has finished editing
+`data/forest-events.json` and just before the commit step, runs
+`node scripts/locate-events.js`, which gives every dated entry in
+`data/forest-events.json` that has no coordinates a real map location. It
+geocodes the entry's `place`, then venue phrases from its body (at most three
+queries), with OpenStreetMap Nominatim, and accepts a result only inside the
+forest-area bounding box (latitude 51.54 to 51.78, longitude -0.05 to 0.20).
+The accepted `lat`/`lon` are stored with a `locationSource`. Coordinates are
+never typed by hand or recalled from memory, and existing coordinates are never
+overwritten. A dated entry that no candidate resolves is marked
+`locationStatus: "unlocated"` and reported as unlocated; the run may correct
+its `place` to a venue the source names and run the script again. Only entries
+dated today (UK date) or later are located. Straight after locating, `node
+scripts/generate-map-events.js` regenerates `data/events.json` from the located,
+upcoming entries. An entry marked `needsReverification` is a research gap
+being surfaced honestly, not a finding ready to print;
+`scripts/report/structured_findings.py` (below) carries that caveat into the finding's own body text rather than dropping it.
 
 `scripts/report/structured_findings.py` reads the three files and returns
 whichever entries are still within their own recorded dates as of a given
@@ -368,10 +383,24 @@ broadly as "Road closures & access".
 of this upkeep, because it checks Transport for London's own live status
 rather than a hand-researched file: the Central line (Epping, Theydon Bois,
 Debden, Loughton) and the Weaver line, London Overground's name for the
-Chingford branch, plus bus stop disruptions around the coverage settlements.
-It folds into `"road"` the same way notices do, needs no `TFL_APP_KEY` (see
-`.env.example` — the key only raises a shared rate limit, it doesn't unlock
-different data), and most weeks prints no findings at all, which is the
+Chingford branch, and the Elizabeth line, plus bus stop disruptions around the coverage settlements.
+Findings carry `line` (an icon beside the card title: Central, Elizabeth,
+Weaver or bus) and `points` (the affected stops' numeric
+`lat`/`lon`). A finding is pinned, numbered and counted when it has `lon`/`lat`
+or a `points` entry on the map; each point draws the same numbered pin, and
+points off the map get none. No stop coordinates means no pin. A non-list
+`points` or `affectedStops` value counts as no points. Central and Weaver
+roundels sit on a white disc so they stay distinct from the coloured pin chip
+beside them; the bus icon takes `--status-critical`.
+It folds into `"road"` the same way notices do, takes an optional but recommended `TFL_APP_KEY`
+(see `.env.example` — the key doesn't unlock different data; it is
+recommended because unauthenticated calls from the shared GitHub runner IPs
+got HTTP 403 in ledger runs #54 and #56). The script sends a descriptive
+User-Agent and each section (line status, bus stop lookup, stop disruptions)
+fails soft: a failure prints a `TfL check failed: <section> (<reason>)` line
+to stderr (or, for one town or batch of stops, a line naming just that part, keeping the rest) and never counts as "no disruption". The ledger then sets the report's about note to a plain-English "rail and bus disruption information was not available, check TfL before travelling" and mentions the failure in the pull request body. Whether the key and
+User-Agent fully stop the 403s is not yet confirmed; the next ledger run will
+show. Most weeks prints no findings at all, which is the
 correct result (good service, no disrupted stops), not a gap to research
 around. The bus stop check batches its stop ids: `/StopPoint/{ids}/Disruption`
 rejects a request past 22 comma-joined ids regardless of which ones.
@@ -406,8 +435,8 @@ Business detection (see "Keeping the map's businesses current" above):
   "Road closures, events and standing notices" above)
 - `scripts/report/structured_findings.py` — turns the three files above into
   report-data.json findings that are still within their own recorded dates
-- `scripts/report/tfl_transit_status.py` — live Central line / Weaver line
-  and bus stop disruption check; no file of its own, no key required
+- `scripts/report/tfl_transit_status.py` — live Central line / Weaver line / Elizabeth line
+  and bus stop disruption check; no file of its own, `TFL_APP_KEY` optional but recommended
 - `scripts/test_*.py` for each of the above — unit tests
 
 Handy while working: `npm run audit:quality` and `npm run audit:duplicates`.
@@ -535,6 +564,13 @@ the wrong branch would be worse than no link at all, so this never guesses.
 `render_card` (`scripts/report/render_report.py`) applies this to every
 finding's title, not only business openings/closings, so a road or event
 finding that happens to name a resolvable place links too.
+
+**Subcategory icon before the title.** A business opening/closing card whose
+name resolves (same rule as the link) shows its app subcategory's icon
+(`INVENTORY_ICON_SOURCES`, inlined); event cards show the events icon. A
+finding's `subcategory` overrides this (unknown keys: no icon), and a card
+with a `line` shows the line icon instead. Notices (facility/access/works)
+and road closures have no app subcategory, so they get no icon (known gap).
 
 The listing wears the homepage's look (palette, Fraunces and Public Sans, cards)
 with its styles inlined, loading only the oak leaf and Ledger icon from

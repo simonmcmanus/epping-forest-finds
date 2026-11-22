@@ -1102,6 +1102,7 @@ function applyLocationFix(position, { preserveSelection = false } = {}) {
   state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
   state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
   state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
+  if (typeof adventureMaybeShow === "function") window.setTimeout(adventureMaybeShow, 250);
   // A cold load of /community has already opened its screen (boot); a fix must not wipe it. Nor
   // must Settings or Feedback: their own location actions answer in place, on the screen that
   // asked.
@@ -1876,10 +1877,13 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
     ? state.baseFitScale * 0.92
     : deliberateArc ? Math.min(from.scale, targetViewport.scale) * 0.8 : 0;
 
+  // Reduced motion: a deliberate (user-triggered) move lands on the target at once, as one move,
+  // with no tween to wait for.
   if (
-    Math.abs(from.scale - targetViewport.scale) < 0.000001
+    (options.deliberate && !cinematic && prefersReducedMotion())
+    || (Math.abs(from.scale - targetViewport.scale) < 0.000001
     && Math.abs(from.tx - targetViewport.tx) < 0.5
-    && Math.abs(from.ty - targetViewport.ty) < 0.5
+    && Math.abs(from.ty - targetViewport.ty) < 0.5)
   ) {
     state.viewport.scale = targetViewport.scale;
     state.viewport.tx = targetViewport.tx;
@@ -4261,7 +4265,7 @@ function ensureLocationWatch() {
       updateOverviewDirectionArrows();
       updateSelectedDetailFields();
       if (navigationAnchorActive()) {
-        const vpChanged = alignHeadingUpNavigationViewport();
+        const vpChanged = alignHeadingUpNavigationViewport({ gpsFollow: true });
         keepOverviewCenteredOnUser(previousPoint);
         updateCompassOverlay();
         updateHeadingUpCanvasRotationTransform();
@@ -4324,11 +4328,6 @@ function directionArrowAngleForWorldPoint(targetPoint, fallbackAngle, previousAn
 
   const origin = worldToScreenForOverlayTilted(state.userLocation.point);
   const target = worldToScreenForOverlayTilted(targetPoint);
-  // A clipped target is behind the camera's near plane. Its clamped coordinates are only a
-  // safety bound, not a real screen position; hold the last valid projected direction so the
-  // arrow does not jump to an artificial angle or back to a flat bearing at the clip boundary.
-  // The same hold handles a user point clipped while browsing around a distant anchor.
-  if (origin.clipped || target.clipped) return Number.isFinite(previousAngle) ? previousAngle : fallbackAngle;
   const dx = target.x - origin.x;
   const dy = target.y - origin.y;
   if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.001) return fallbackAngle;
@@ -4696,6 +4695,15 @@ function nearbyRenderOriginPoint() {
   return _nearbyRenderOriginCache;
 }
 
+// The origin as it stands against the camera right now, bypassing the per-frame freeze. A camera tick
+// moves the viewport (and the wide-shot tween's progress) before the next draw clears the freeze, so for
+// a caller that re-targets between the two the frozen value is a tick behind the viewport it would be
+// paired with.
+function nearbyRenderOriginPointNow() {
+  _nearbyRenderOriginCache = undefined;
+  return nearbyRenderOriginPoint();
+}
+
 // Frozen for the duration of a frame (cleared wherever _tiltProjectionCache is). Without
 // that, everything reading it during one draw reads a *different* interpolated point: the
 // camera is solved from the origin as it was at the top of the frame, and by the time the
@@ -4721,7 +4729,7 @@ function computeNearbyRenderOriginPoint() {
 // Starts the slide from wherever the origin is currently *drawn* -- not from the old logical
 // origin -- so relocating again mid-slide continues from what is on screen instead of
 // jumping back to where the last slide began.
-function startNearbyOriginTransition(fromPoint) {
+function startNearbyOriginTransition(fromPoint, fromPivot) {
   // The frame freeze above would otherwise hand the camera the pre-move origin for the rest
   // of this frame -- including the align refreshNearbyRadiusView runs immediately after.
   _nearbyRenderOriginCache = undefined;
@@ -4733,6 +4741,9 @@ function startNearbyOriginTransition(fromPoint) {
     // can tell entering/leaving a browsed spot (where the 3D pivot moves) from hopping
     // between two browsed spots (where it does not).
     fromBrowsing: Boolean(state.nearbyAnchor),
+    // The 3D pivot anchor fraction as last drawn, when a caller re-targets mid-move (tiltRampedAnchor
+    // then continues from it rather than from the settled value for fromBrowsing).
+    fromPivot: Number.isFinite(fromPivot) ? fromPivot : null,
     // The zoom the slide starts from. The slide moves the map under a still ring, so a move that also
     // needs a different zoom (Back from a zoomed-in place to the browse view) would otherwise get its
     // new scale in one step on the first frame. alignHeadingUpNavigationViewport eases from this to the
@@ -4752,10 +4763,11 @@ function startNearbyOriginTransition(fromPoint) {
 }
 
 // The slide's pause is judged by the slide itself while its object is alive and running, and after
-// that by any camera tween still flying: prepareCanvasForDraw drops state.nearbyOriginTransition as
-// soon as a tween runs, so a slide overlapping a tween would otherwise end its pause on about the
-// second frame, and a pure-pan tween would then swap the fresh set in mid-flight. The pause ends when
-// the last leg lands. A slide replaced or cleared by anything else (a selection) no longer holds it.
+// that by any camera tween still flying: prepareCanvasForDraw drops state.nearbyOriginTransition once a
+// tween runs, except while the wide shot's first leg is flying (wideLegSlideFlying), which keeps it so
+// the origin travels with the camera. Any other tween overlapping a slide would otherwise end its pause
+// on about the second frame, and a pure-pan tween would then swap the fresh set in mid-flight. The pause
+// ends when the last leg lands. A slide replaced or cleared by anything else (a selection) no longer holds it.
 //
 // Intentionally not cleared when a pause ends: it only identifies which slide the pause belongs to, and
 // every check is guarded by the pause source being live. A stale value is harmless and is replaced by
@@ -5837,6 +5849,8 @@ function deferAnimatedNearbyRefit(options) {
     }
     const next = pendingNearbyRefitOptions;
     pendingNearbyRefitOptions = null;
+    // A queued GPS follow holds still under a secondary screen, as a plain fix does.
+    if (next.queuedGpsFollow && (secondaryScreenActive() || state.searchScreenOpen)) return;
     alignHeadingUpNavigationViewport(next);
   };
   pendingNearbyRefitFrame = requestAnimationFrame(retry);
@@ -5916,6 +5930,9 @@ function alignHeadingUpNavigationViewport(options = {}) {
     // stopped on the earlier tween's framing until some later un-animated tick snapped it right.
     // Queue it instead and run it once the in-flight move has landed.
     if (options.animate) deferAnimatedNearbyRefit(options);
+    // A GPS fix landing mid-move must not restart or snap the move, but the framing it asks for is
+    // not dropped either: once the move has landed, one short ease carries the camera onto the fix.
+    else if (options.gpsFollow && !pendingNearbyRefitOptions) deferAnimatedNearbyRefit({ animate: true, durationMs: 300, queuedGpsFollow: true });
     return false;
   }
   if (state.clusterZoomed) return false;
@@ -5983,7 +6000,7 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // Use maxScale directly: heading-up mode always fits all targets in the
   // rotated focus rect. Math.min would leave scale too low when the map
   // was previously at a wider zoom (e.g. walking-radius level on first load).
-  let targetScale = resolveHeadingUpTargetScale(maxScale, previousScale, Boolean(options.force));
+  let targetScale = resolveHeadingUpTargetScale(maxScale, options.landSlide && maxScale > 0 ? 0 : previousScale, Boolean(options.force));
   // A browse-origin slide that started from a different zoom carries the zoom change with it, on the
   // slide's own curve, so the map zooms and pans as one move instead of snapping to the final scale and
   // then sliding. Un-animated per-frame calls only: an animated call already hands the whole move to a tween.
@@ -6039,8 +6056,7 @@ function alignHeadingUpNavigationViewport(options = {}) {
   let wideFramingMove = false;
   if (options.animate && options.stagePanThenZoom && tiltActive() && previousScale > 0) {
     const shown = tiltProjectScreenPoint(worldToScreenFlat(userPoint));
-    const pivotOutOfTiltedView = shown.clipped
-      || !Number.isFinite(shown.x) || !Number.isFinite(shown.y)
+    const pivotOutOfTiltedView = !Number.isFinite(shown.x) || !Number.isFinite(shown.y)
       || shown.x < focusRect.x || shown.x > focusRect.x + focusRect.width
       || shown.y < focusRect.y || shown.y > focusRect.y + focusRect.height;
     wideFramingMove = pivotOutOfTiltedView || !panIsAlreadyOnScreen;
@@ -6163,9 +6179,10 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
   const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) });
   const focus = navigationFocusPoint(focusRect);
   const maxScale = maxHeadingUpNavigationScale(focus, focusRect);
-  // Use maxScale directly so the viewport always zooms to fit the selected
-  // target, even when coming from a wider zoom (e.g. walking-radius overview).
-  const targetScale = maxScale;
+  // Fit the selected target even when coming from a wider zoom (e.g. walking-radius overview), at the
+  // same buffered scale every other route to this state lands on (alignHeadingUpNavigationViewport with
+  // force), so the compass follow that comes next finds nothing left to correct.
+  const targetScale = resolveHeadingUpTargetScale(maxScale, state.viewport.scale, true);
   // force: true, matching maxScale being used directly above rather than through
   // resolveHeadingUpTargetScale -- this is a fresh selection, not the compass follow, so
   // the camera's own placement should not ease from wherever a previous selection last
@@ -6205,7 +6222,10 @@ function prepareCanvasForDraw() {
     } else {
       const fading = nearbyRevealInProgress();
       if (!fading) state.nearbyOriginTransition = null;
-      alignHeadingUpNavigationViewport({ animate: false, force: true });
+      // The landing frame fits exactly: a scale already within the settle band of the fit would otherwise be
+      // kept, leaving the camera wherever the slide's last drawn frame happened to be (a slow frame stops
+      // short), so the same browse point framed a percent differently from one run to the next.
+      alignHeadingUpNavigationViewport({ animate: false, force: true, landSlide: !fading });
       if (fading) requestDraw();
     }
   }
@@ -6890,6 +6910,7 @@ function syncNativeWalkingAids() {
 }
 
 function updateCompassOverlay() {
+  if (typeof updateTreeAdventureDirection === "function") updateTreeAdventureDirection();
   syncNativeWalkingAids();
   const target = selectedCompassTarget();
   const arrow = els.compassArrow;
@@ -7722,7 +7743,7 @@ function worldToScreenForOverlayTilted(point) {
 // Projects a raw canvas-pixel point through the active tilt perspective.
 // Used to place radar/overlay elements in the same 3D space as the terrain canvas.
 function projectCanvasPoint(px, py) {
-  if (!tiltActive() || !state.userLocation) return { x: px, y: py, scale: 1, clipped: false };
+  if (!tiltActive() || !state.userLocation) return { x: px, y: py, scale: 1 };
   return tiltProjectScreenPoint({ x: px, y: py });
 }
 
@@ -7753,6 +7774,8 @@ function screenToWorld(x, y) {
       // are unboundedly far away) would unproject to an infinite or negative-distance
       // world point. Clamping to the row the far clip projects to keeps the inverse
       // finite and consistent with the forward projection's own draw distance.
+      // Ahead of the pivot the closed form above holds; behind it the forward scale is eased
+      // (see tiltDepthScale), so tiltUnprojectDy bisects on the forward map instead.
       const farClip = tiltFarClipCssPx();
       const yRelMin = Number.isFinite(farClip)
         ? -farClip * c * (perspective / (perspective + farClip * s))

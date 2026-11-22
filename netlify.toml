@@ -112,6 +112,13 @@
   to = "/app.html"
   status = 200
 
+# The beta sign-in page: a standalone page outside the app (beta.html imports no app CSS or JS),
+# deliberately not on the alpha gate's path list. It redeems the code, then sends the person to /nearby.
+[[redirects]]
+  from = "/beta/*"
+  to = "/beta.html"
+  status = 200
+
 # Public, ungated: the City of London discrepancy report (rendered by a function from the daily
 # community snapshot) and, as a static page, /contribute (contribute/index.html).
 [[redirects]]
@@ -146,6 +153,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/admin/session"
+  to = "/.netlify/functions/admin-session"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/admin/tracks"
   to = "/.netlify/functions/track"
   status = 200
@@ -158,8 +171,26 @@
   force = true
 
 [[redirects]]
+  from = "/api/beta/codes"
+  to = "/.netlify/functions/beta-codes"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/beta/redeem"
+  to = "/.netlify/functions/beta-redeem"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/subscribe"
   to = "/.netlify/functions/subscribe"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/calendar.ics"
+  to = "/.netlify/functions/calendar"
   status = 200
   force = true
 

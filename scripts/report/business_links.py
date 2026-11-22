@@ -41,12 +41,12 @@ class BusinessLinks:
         for entry in entries:
             self._by_name.setdefault(_normalize(entry.get("name")), []).append(entry)
 
-    def url_for(self, title, lat=None, lon=None):
+    def _resolve(self, title, lat=None, lon=None):
         candidates = self._by_name.get(_normalize(title))
         if not candidates:
             return None
         if len(candidates) == 1:
-            return f"/find/{candidates[0]['slug']}/"
+            return candidates[0]
         if lat is None or lon is None:
             return None
         close = [
@@ -54,7 +54,17 @@ class BusinessLinks:
             if c.get("lat") is not None and c.get("lon") is not None
             and _haversine_metres(lat, lon, c["lat"], c["lon"]) <= NEARBY_METRES
         ]
-        return f"/find/{close[0]['slug']}/" if len(close) == 1 else None
+        return close[0] if len(close) == 1 else None
+
+    def url_for(self, title, lat=None, lon=None):
+        entry = self._resolve(title, lat, lon)
+        return f"/find/{entry['slug']}/" if entry else None
+
+    def subcategory_for(self, title, lat=None, lon=None):
+        """The app subcategory key (restaurants, shops, ...) of the resolved
+        entry, by the same rule as url_for, or None."""
+        entry = self._resolve(title, lat, lon)
+        return (entry.get("key") or None) if entry else None
 
 
 def load(path=SLUGS_PATH):

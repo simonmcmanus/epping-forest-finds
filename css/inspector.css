@@ -2465,6 +2465,7 @@ details[open] > summary > .community-mine-chevron { transform: rotate(90deg); }
 /* Community top: quiet account line, prominent points, bigger medal-style badge chips, merged CTA card */
 .community-account-line { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; font-size: 0.86rem; color: var(--muted); }
 .community-account-copy { min-width: 0; }
+.account-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex: none; vertical-align: middle; margin-right: 10px; background: rgba(0, 0, 0, 0.06); }
 .community-account-line a { color: var(--tree); font-weight: 700; }
 .community-account-copy + a { margin-left: auto; white-space: nowrap; }
 .community-account { margin-top: 0; }

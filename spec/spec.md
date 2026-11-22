@@ -118,7 +118,9 @@ Cow requests use a fixed center coordinate (not user location) and refresh every
 ## Events
 
 Events (fairs, guided walks, markets — anything at a fixed location with a start/end time) are
-sourced from `data/events.json` and merged into `state.landmarks` exactly like folklore
+sourced from `data/events.json` (a generated copy of the located, upcoming dated entries in
+`data/forest-events.json`, written by `scripts/generate-map-events.js` in the weekly ledger run;
+the app's rules below are unchanged) and merged into `state.landmarks` exactly like folklore
 locations, so they get clustering, search, filtering, routing and the inspector's place-detail
 view for free rather than a parallel code path. **Events is a default-on filter category**, like
 Trees and Cows, shown as its own top-level group (not a subfilter of something else) with the
@@ -134,6 +136,11 @@ calendar icon.
   carry events further out (the weekly ledger report has its own longer-range view of upcoming
   events), they simply don't appear on the map yet. An event already under way is never held
   back by this, however long ago it started.
+- **Calendar feed.** `/calendar.ics` is a subscribable iCalendar feed of upcoming dated forest events
+  from `data/forest-events.json`, independent of the map's events: every entry dated today or later (UK
+  date) appears, with no distance or look-ahead limit; undated and past entries do not (see
+  `spec-data-fetching.md`, "Calendar feed"). Each entry has a title, start and end (all-day when it has
+  no start time; one hour long otherwise), description with source links, and place.
 - Live event pin and detail view: see "Map Layers and Markers" and "Details Content
   Requirements" below.
 - **Nearby-event alert (in-app only — no OS push).** On every GPS fix, if a *live* event (its

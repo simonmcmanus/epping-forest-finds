@@ -430,14 +430,15 @@ test.describe("3D tilt view", () => {
     expect(previous, "at max tilt the edge should be strongly foreshortened").toBeLessThan(0.45);
   });
 
-  test("pitching the phone up and down moves the map and the \"You\" marker together", async ({ page }) => {
+  for (const noticeOpen of [false, true]) {
+  test(`pitching the phone up and down moves the map and the "You" marker together${noticeOpen ? " with the adventure notice open" : ""}`, async ({ page }) => {
     // Reported from the field as the "You" marker feeling detached from the map: lifting and
     // lowering the phone slid it up and down the screen while the map under it stood still.
     // Only the heading and the viewport used to trigger a main-canvas redraw, so a pure pitch
     // change repainted the overlay alone -- pins, radar and the "You" dot re-projected at the
     // new tilt on top of terrain still drawn at the old one. Anything far from the pivot sits
     // near the horizon, where a fraction of a degree moves it tens of pixels.
-    const result = await page.evaluate(async () => {
+    const result = await page.evaluate(async (noticeOpen) => {
       state.compassHeading = 0;
       state.compassHeadingTarget = 0;
       state.renderedNavigationHeading = 0;
@@ -454,6 +455,12 @@ test.describe("3D tilt view", () => {
         projectLonLat(anchorLongitude, anchorLatitude)
       );
       await new Promise((resolve) => setTimeout(resolve, 900)); // let the browse slide land
+      if (noticeOpen) {
+        // The notice repaints the overlay on its own pulse timer while it is open.
+        const target = treeAdventureTarget();
+        if (target) treeAdventureShow(target.tree, target.metres);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
       draw();
       await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
 
@@ -487,9 +494,10 @@ test.describe("3D tilt view", () => {
       }
 
       drawOverlay = originalDrawOverlay;
-      return { overlayPaints, mismatchedPaints, worstGapDeg, userMarkerTravelPx };
-    });
+      return { overlayPaints, mismatchedPaints, worstGapDeg, userMarkerTravelPx, noticeShown: treeAdventureHighlightOn };
+    }, noticeOpen);
 
+    if (noticeOpen) expect(result.noticeShown, "sanity: the adventure notice should be open").toBe(true);
     expect(result.overlayPaints, "the overlay should have been repainted while the phone pitched").toBeGreaterThan(0);
     // The marker really does travel a long way up and down the screen as the camera pitches --
     // that is the perspective doing its job. What must never happen is it travelling while the
@@ -498,6 +506,7 @@ test.describe("3D tilt view", () => {
     expect(result.mismatchedPaints, "no overlay frame may be painted over a map drawn at a different tilt").toBe(0);
     expect(result.worstGapDeg).toBeLessThanOrEqual(0.05);
   });
+  }
 
   test("tapping a spot in 3D slides the map there smoothly", async ({ page }) => {
     // The browse-origin slide holds the walking-radius circle still and moves the map behind it.

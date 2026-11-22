@@ -22,14 +22,15 @@
   <!-- Login screen -->
   <div id="loginScreen" class="login-screen">
     <div class="login-card">
+      <img class="login-logo" src="data/icons/icon-192.png" alt="" width="64" height="64">
       <h1 class="login-title">Admin Access</h1>
       <p class="login-sub">Epping Forest Finds — usage analytics</p>
       <form id="loginForm">
         <label for="loginPassword" class="sr-only">Admin password</label>
-        <input id="loginPassword" class="login-input" type="password" placeholder="Admin password" autocomplete="current-password">
+        <input id="loginPassword" class="login-input" type="password" placeholder="Admin password" autocomplete="current-password" aria-describedby="loginError">
         <button id="loginBtn" class="login-btn" type="submit">Sign in</button>
       </form>
-      <p id="loginError" class="login-error"></p>
+      <p id="loginError" class="login-error" role="alert"></p>
     </div>
   </div>
 
@@ -37,16 +38,31 @@
   <div id="adminApp" class="admin-app" hidden>
 
     <header class="admin-topbar">
-      <span class="admin-topbar-title">Epping Forest Finds — User Analytics</span>
-      <span id="adminEnvBadge" class="admin-env-badge" hidden></span>
-      <button id="tracksBtn" class="admin-btn active" type="button">Tracks</button>
-      <button id="heatmapBtn" class="admin-btn" type="button">Heatmap</button>
-      <button id="navigationBtn" class="admin-btn" type="button">Navigation</button>
-      <button id="communityBtn" class="admin-btn" type="button">Community</button>
-      <button id="accessBtn" class="admin-btn" type="button">Access</button>
-      <button id="refreshBtn" class="admin-btn" type="button">Refresh</button>
-      <button id="logoutBtn" class="admin-btn" type="button">Log out</button>
+      <div class="admin-brand">
+        <img class="admin-brand-mark" src="data/icons/favicon.png" alt="" width="28" height="28">
+        <span class="admin-topbar-title">Epping Forest Finds — User Analytics</span>
+        <span id="adminEnvBadge" class="admin-env-badge" hidden></span>
+      </div>
+      <div class="admin-nav">
+        <div class="admin-tabs" role="group" aria-label="View">
+          <button id="tracksBtn" class="admin-btn active" type="button" aria-pressed="true">Tracks</button>
+          <button id="heatmapBtn" class="admin-btn" type="button" aria-pressed="false">Heatmap</button>
+          <button id="navigationBtn" class="admin-btn" type="button" aria-pressed="false">Navigation</button>
+        </div>
+        <div class="admin-panel-btns" role="group" aria-label="Panels">
+          <button id="communityBtn" class="admin-btn" type="button" aria-expanded="false">Community</button>
+          <button id="accessBtn" class="admin-btn" type="button" aria-expanded="false">Access</button>
+          <button id="betaBtn" class="admin-btn" type="button" aria-expanded="false">Beta codes</button>
+        </div>
+      </div>
+      <div class="admin-actions">
+        <button id="refreshBtn" class="admin-btn" type="button">Refresh</button>
+        <button id="logoutBtn" class="admin-btn" type="button">Log out</button>
+      </div>
     </header>
+
+    <!-- Non-blocking notice when a refresh fails; collapsed (but still rendered) while empty so the first message is announced. -->
+    <div id="adminRefreshStatus" class="admin-refresh-status" role="status"></div>
 
     <div class="admin-body">
       <aside class="admin-sidebar">
@@ -55,7 +71,7 @@
       </aside>
 
       <div class="admin-map-area">
-        <canvas id="adminCanvas"></canvas>
+        <canvas id="adminCanvas" tabindex="-1"></canvas>
 
         <div class="admin-map-controls" aria-label="Map controls">
           <button id="zoomInBtn" class="admin-map-control" type="button" aria-label="Zoom in">+</button>
@@ -70,23 +86,41 @@
         </div>
 
         <div id="adminStats" class="admin-stats"></div>
-        <section id="adminNavigation" class="admin-nav-view" aria-label="Navigation trends" hidden></section>
-        <section id="adminCommunity" class="admin-click-details" aria-live="polite" hidden>
-          <button id="adminCommunityClose" class="admin-click-details-close" type="button" aria-label="Close community stats">×</button>
+        <section id="adminCommunity" class="admin-click-details" role="region" aria-label="Community stats" hidden>
+          <button id="adminCommunityClose" class="admin-click-details-close" type="button" aria-label="Close Community stats (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
+          <p id="adminCommunityStatus" class="admin-community-status" role="status"></p>
+          <div><button id="adminCommunityRetry" class="admin-btn admin-retry-btn" type="button" hidden>Retry</button></div>
           <div id="adminCommunityBody"></div>
         </section>
-        <section id="adminAccess" class="admin-click-details" aria-live="polite" hidden>
-          <button id="adminAccessClose" class="admin-click-details-close" type="button" aria-label="Close access list">×</button>
-          <h3>Early access: Community</h3>
-          <p>One tester per line: the Tester ID from their Settings screen, then an optional note. While the list is empty everyone has Community; once it has anyone in it, only they do. Changes apply the next time an app starts; no deploy needed.</p>
-          <textarea id="adminAccessList" rows="10" spellcheck="false" placeholder="a1b2c3d4e5 Simon"></textarea>
-          <p><button id="adminAccessSave" class="admin-btn" type="button">Save</button> <span id="adminAccessStatus" role="status"></span></p>
+        <section id="adminAccess" class="admin-click-details" role="region" aria-labelledby="adminAccessTitle" hidden>
+          <button id="adminAccessClose" class="admin-click-details-close" type="button" aria-label="Close Access list (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
+          <h3 id="adminAccessTitle" class="admin-panel-title">Early access: Community</h3>
+          <p class="admin-panel-help">One tester per line: the Tester ID from their Settings screen, then an optional note. While the list is empty everyone has Community; once it has anyone in it, only they do. Changes apply the next time an app starts; no deploy needed.</p>
+          <textarea id="adminAccessList" rows="10" spellcheck="false" placeholder="a1b2c3d4e5 Simon" disabled></textarea>
+          <p class="admin-access-actions"><button id="adminAccessSave" class="admin-btn admin-btn-primary" type="button" disabled>Save</button> <button id="adminAccessRetry" class="admin-btn" type="button" hidden>Retry</button> <span id="adminAccessStatus" role="status"></span></p>
         </section>
-        <section id="adminClickDetails" class="admin-click-details" aria-live="polite" hidden>
-          <button id="adminClickDetailsClose" class="admin-click-details-close" type="button" aria-label="Close click details">×</button>
+        <section id="adminBeta" class="admin-click-details" role="region" aria-labelledby="adminBetaTitle" hidden>
+          <button id="adminBetaClose" class="admin-click-details-close" type="button" aria-label="Close Beta codes (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
+          <h3 id="adminBetaTitle" class="admin-panel-title">Beta codes</h3>
+          <p class="admin-panel-help">Each code is for one person. The first account to open its link claims it. Revoking a claimed code removes that person's beta access.</p>
+          <p class="admin-beta-create"><label for="adminBetaNote">Name (required)</label> <input id="adminBetaNote" type="text" maxlength="80" placeholder="e.g. Ann" aria-required="true" required autocomplete="off" disabled> <button id="adminBetaCreate" class="admin-btn admin-btn-primary" type="button" disabled>Create code</button> <button id="adminBetaRetry" class="admin-btn" type="button" hidden>Retry</button></p>
+          <p id="adminBetaStatus" class="admin-beta-status" role="status"></p>
+          <ul id="adminBetaList" class="admin-beta-list"></ul>
+        </section>
+        <section id="adminClickDetails" class="admin-click-details" role="region" aria-label="Tap details" hidden>
+          <button id="adminClickDetailsClose" class="admin-click-details-close" type="button" aria-label="Close tap details (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
           <div id="adminClickDetailsBody"></div>
         </section>
       </div>
+
+      <!-- Navigation page: a page-level view beside the map, never an overlay on it. -->
+      <section id="adminNavigation" class="admin-nav-view" aria-labelledby="adminNavigationTitle" hidden>
+        <header class="admin-page-head">
+          <h2 id="adminNavigationTitle" class="admin-page-title" tabindex="-1">Navigation</h2>
+          <p id="adminNavigationSub" class="admin-page-sub"></p>
+        </header>
+        <div id="adminNavigationBody" class="admin-nav-body"></div>
+      </section>
     </div>
 
   </div>

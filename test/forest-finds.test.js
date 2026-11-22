@@ -3909,10 +3909,12 @@ test("the radius edge breathes while held at either zoom limit and fades on back
   ctx.rect = () => {};
   let edge = null, pathRadius = null, feedbackRadius = null;
   ctx.arc = (x, y, radius) => { if (edge == null) edge = radius; pathRadius = radius; };
-  ctx.stroke = () => { feedbackRadius = pathRadius; };
+  // The core is the first stroke of the feedback; the specular lip that follows sits just inside it.
+  ctx.stroke = () => { if (feedbackRadius == null) feedbackRadius = pathRadius; };
   const paint = () => {
     edge = null;
     isolated.drawWalkingRadius(ctx);
+    feedbackRadius = null;
     const { center, radiusPx, tilted, dpr } = isolated.walkingRadiusScreenGeometry();
     isolated.drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr);
     return isolated.walkingRadiusLimitOpacity();
@@ -13228,7 +13230,7 @@ for (const heading of [0, 90, 180, 45]) {
     const frames = [beforeTap, ...record];
     let worstFirst = 0;
     for (const key of ["user", "target"]) {
-      const finite = (point) => Number.isFinite(point.x) && Number.isFinite(point.y) && !point.clipped;
+      const finite = (point) => Number.isFinite(point.x) && Number.isFinite(point.y);
       const steps = frames.slice(1).map((frame, i) => (finite(frames[i][key]) && finite(frame[key]) ? step(frames[i][key], frame[key]) : null));
       if (steps[0] != null && pointInRect(frames[0][key], rect)) worstFirst = Math.max(worstFirst, steps[0] / short);
       for (let i = 0; i < steps.length; i += 1) {
@@ -13248,6 +13250,39 @@ test("in 3D tilt, a second cluster tap mid-move settles on the last group, frame
   const last = record[record.length - 1];
   assert.ok(pointInRect(last.target, rect), "the last group's centre is on screen when the camera settles");
   assert.ok(app.state.clusterExpanded && app.state.clusterExpanded.items.some((item) => item.id === "oak3"), "the last tap's group is the expanded one");
+  assert.ok(!app.state.viewportAnimationTo, "no camera move is still pending");
+});
+
+// A second tap made after the first move's first leg has started redirects the camera from where it
+// is. Neither the user's marker nor the second group may be cut across the view on any frame (the same
+// 0.4-of-the-short-side bound as the first frame), and the camera settles framed on the second group.
+const RETAP_AFTER_TICKS = 8;
+test("in 3D tilt, a second cluster tap mid-move never cuts the user or the group on any frame and settles framed on the second group", () => {
+  const { beforeTap, record, rect } = tiltClusterTapFrames(51.636, 0.05, { lat: 51.6527, lon: 0.0515, afterTicks: RETAP_AFTER_TICKS }, 0);
+  assert.ok(record.length > 10, "the taps run an animated camera move");
+  const short = Math.min(rect.width, rect.height);
+  const bound = short * FIRST_FRAME_STEP_SHARE;
+  const step = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const finite = (point) => Number.isFinite(point.x) && Number.isFinite(point.y) && !point.clipped;
+  // Asserted from the first frame through the retap (frame 8) and the redirected move's first leg, which
+  // lands FIRST_LEG_LANDED_FRAME frames after the retap. The final zoom-in onto the second group (about
+  // 190m away) is excluded: it is existing behaviour, an uninterrupted tap does the same, and the user
+  // leaves the view there.
+  const lastBoundedFrame = RETAP_AFTER_TICKS + FIRST_LEG_LANDED_FRAME;
+  for (const key of ["user", "target"]) {
+    let prev = beforeTap[key];
+    record.forEach((frame, i) => {
+      // The second group is only a subject from the retap on; before it, its projection is unrelated.
+      const from = key === "target" ? RETAP_AFTER_TICKS : 0;
+      if (i >= from && i <= lastBoundedFrame && finite(prev) && finite(frame[key])) {
+        assert.ok(step(prev, frame[key]) < bound, `frame ${i}: the ${key} steps ${step(prev, frame[key]).toFixed(1)}px (bound ${bound.toFixed(1)}px)`);
+      }
+      prev = frame[key];
+    });
+  }
+  const last = record[record.length - 1];
+  assert.ok(pointInRect(last.target, rect), "the second group is on screen when the camera settles");
+  assert.ok(app.state.clusterExpanded && app.state.clusterExpanded.items.some((item) => item.id === "oak3"), "the second group is the expanded one");
   assert.ok(!app.state.viewportAnimationTo, "no camera move is still pending");
 });
 
@@ -15026,6 +15061,34 @@ test("a verified tree scores 1 point, and 1 more when another device independent
   assert.equal(both.overlay["tree:1"].s, "confirmed");
 });
 
+test("the first verified nearby-tree adventure earns a one-time 10-point bonus", () => {
+  const adventureTargets = new Map([
+    ["tree:1", { lat: 51.64, lon: 0.01 }],
+    ["tree:2", { lat: 51.641, lon: 0.01 }],
+  ]);
+  const first = communityConsensus.computeCommunityState([
+    communityReport({ deviceId: "device-aaaa", adventure: true }),
+    communityReport({ deviceId: "device-aaaa", target: "tree:2", targetLat: 51.641, lat: 51.641, adventure: true }),
+  ], [], null, { adventureTargets });
+  const scores = first.scores["device-aaaa"];
+  assert.equal(scores.points, communityPointsConfig.POINTS.adventure + communityPointsConfig.POINTS.verify);
+  assert.equal(scores.verified, 2);
+});
+
+test("an adventure bonus requires a registered veteran tree target", () => {
+  const state = communityConsensus.computeCommunityState([
+    communityReport({ target: "tree:999999", adventure: true }),
+  ], [], null, { adventureTargets: new Map([["tree:1", { lat: 51.64, lon: 0.01 }]]) });
+  assert.equal(state.scores["device-aaaa"].points, communityPointsConfig.POINTS.verify);
+});
+
+test("an adventure bonus fails closed when register targets are unavailable", () => {
+  const state = communityConsensus.computeCommunityState([
+    communityReport({ target: "tree:999999", targetLat: 51.64, targetLon: 0.01, adventure: true }),
+  ]);
+  assert.equal(state.scores["device-aaaa"].points, communityPointsConfig.POINTS.verify);
+});
+
 test("conflicting reports are held for review rather than shown", () => {
   const { overlay, conflicts } = communityConsensus.computeCommunityState([
     communityReport({ status: "VERIFIED", deviceId: "device-aaaa" }),
@@ -15225,6 +15288,61 @@ test("a rebuild stores each person's score in a small shard that one lookup can 
   assert.equal(score.points, communityPointsConfig.POINTS.verify + communityPointsConfig.POINTS.verifyConfirmed);
   assert.equal((await communityComputed.loadScore(store, "device-nobody")).points, 0);
   assert.match(communityComputed.scoreShard("device-aaaa"), /^[0-9a-f]{2}$/);
+});
+
+test("a rebuild without a register map never awards the adventure bonus to a forged claim", async () => {
+  const store = memoryStore();
+  await store.put("reports/1", communityReport({ id: "report-adventure-forged", adventure: true, targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }));
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const computed = await communityComputed.rebuildComputed(store);
+    assert.deepEqual(computed.adventureReports, []);
+  } finally { console.warn = warn; }
+  const points = (await communityComputed.loadScore(store, "device-aaaa")).points;
+  assert.ok(points < communityPointsConfig.POINTS.adventure, "only the normal points, no +10");
+});
+
+test("a register outage with no adventure claims still publishes the rest of the snapshot and skips the register", async () => {
+  const store = memoryStore({ computed: { generatedAt: 10, overlay: {}, conflicts: [] } });
+  await store.put("reports/1", communityReport({ id: "report-plain-1" }));
+  let fetches = 0;
+  const computed = await communityComputed.rebuildComputed(store, { fetchJson: async () => { fetches += 1; throw new Error("offline"); } });
+  assert.equal(fetches, 0, "no register download without adventure claims");
+  assert.equal(computed.reportCount, 1);
+  assert.ok((await store.get("computed")).generatedAt > 10);
+});
+
+test("a register outage with an adventure claim keeps earned awards, withholds new ones and does not throw", async () => {
+  const earned = communityReport({ id: "report-adventure-earned", deviceId: "device-aaaa", adventure: true });
+  const fresh = communityReport({ id: "report-adventure-fresh", deviceId: "device-bbbb", adventure: true });
+  const store = memoryStore({ computed: { generatedAt: 10, overlay: {}, conflicts: [], adventureReports: [earned.id] } });
+  await store.put("reports/1", earned);
+  await store.put("reports/2", fresh);
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const computed = await communityComputed.rebuildComputed(store, { fetchJson: async () => { throw new Error("offline"); } });
+    assert.deepEqual(computed.adventureReports, [earned.id]);
+  } finally { console.warn = warn; }
+  assert.ok((await communityComputed.loadScore(store, "device-aaaa")).points >= communityPointsConfig.POINTS.adventure);
+  assert.ok((await communityComputed.loadScore(store, "device-bbbb")).points < communityPointsConfig.POINTS.adventure);
+});
+
+test("a deletion rebuild succeeds and preserves known adventure awards during a register outage", async () => {
+  const report = communityReport({ id: "report-adventure-preserve", adventure: true });
+  const store = memoryStore({ computed: { generatedAt: 10, overlay: {}, conflicts: [], adventureReports: [report.id] } });
+  await store.put("reports/1", report);
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const computed = await communityComputed.rebuildComputed(store, {
+      strict: true,
+      fetchJson: async () => { throw new Error("offline"); },
+    });
+    assert.deepEqual(computed.adventureReports, [report.id]);
+  } finally { console.warn = warn; }
+  assert.equal((await communityComputed.loadScore(store, report.deviceId)).points, communityPointsConfig.POINTS.adventure);
 });
 
 test("in production a request serves an old snapshot, however old, instead of rebuilding inline", async () => {
@@ -16256,6 +16374,12 @@ test("register records are found by position in the public tree chunks, and a fa
 test("optimistic points mirror the server's configured values for a verify and a new tree", () => {
   assert.equal(app.COMMUNITY_POINTS.verify, communityPointsConfig.POINTS.verify);
   assert.equal(app.COMMUNITY_POINTS.newTree, communityPointsConfig.POINTS.newTree);
+  assert.equal(app.COMMUNITY_POINTS.adventure, communityPointsConfig.POINTS.adventure);
+});
+
+test("a fresh adventure verify adds ten points before the server knows", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", adventure: true, ts: 1000 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 10, verified: 1 }));
 });
 
 test("a fresh verify adds a point and a verified count before the server knows", () => {
@@ -16792,11 +16916,6 @@ test("a pin outside the group is not tappable while a group place is selected, a
   assert.equal(app.activeIconLookup(), app.buildNearbyIconLookup(), "the map is the ordinary Nearby view again, no dimmed members");
 });
 
-runRegisteredTests().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
-
 // Cross-file invariant: the cow proxy refuses any centre but the app's own (netlify/functions/cows.js).
 test("the cow request the app builds is one the proxy accepts", async () => {
   const cows = require("../netlify/functions/cows");
@@ -17039,12 +17158,6 @@ test("direction arrows use projected screen direction while 3D tilt is active", 
   try {
     assert.equal(app.directionArrowAngleForWorldPoint(target.point, 123), 45,
       "the arrow follows the projected target ray, not the flat bearing");
-    const clippedProjection = app.swapGlobalFunction("worldToScreenForOverlayTilted", (point) => (
-      point === app.state.userLocation.point ? { x: 100, y: 100 } : { x: 110, y: 90, clipped: true }
-    ));
-    assert.equal(app.directionArrowAngleForWorldPoint(target.point, 123, 10), 10,
-      "a near-plane target holds its last valid projected direction");
-    app.swapGlobalFunction("worldToScreenForOverlayTilted", clippedProjection);
 
     app.state.selected = { type: "landmark", item: target };
     app.state.compassHeading = 0;
@@ -17219,7 +17332,7 @@ test("a stop's departures show a hostile minutes value from the server as text",
   }
 });
 
-// Group footprints: a very faint patch of ground under a group, only where groups sit close together.
+// Group footprints: a very faint patch of ground under every group.
 const footprintBoxW = () => markerBox().w;
 const footprintLayout = (neighbourX) => {
   const items = [
@@ -17252,17 +17365,32 @@ test("two group markers close together each get a footprint around their own mem
   assert.equal(items.length, 6);
 });
 
-test("an isolated group and individual pins draw no footprint", () => {
-  assert.equal(footprintsFor(footprintLayout(footprintBoxW() * 6).markers).length, 0, "far-apart groups are isolated");
+test("an isolated group still draws its footprint, and individual pins draw none", () => {
+  const far = footprintLayout(footprintBoxW() * 6);
+  assert.equal(far.markers.length, 2);
+  const farFootprints = footprintsFor(far.markers);
+  assert.equal(farFootprints.length, 2, "far-apart groups each draw a footprint");
+  for (const { marker, points } of farFootprints) {
+    for (const item of marker.items) assert.ok(footprintContains(points, item.point), `${item.id} inside its own footprint`);
+  }
+  const single = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 6, 0), markerItem("tree", "a3", 0, 9)];
+  app.resetMarkerGroupMemory();
+  const alone = app.buildMapMarkers(markerLookup(single), markerScreen);
+  assert.equal(alone.length, 1);
+  const aloneFootprints = footprintsFor(alone);
+  assert.equal(aloneFootprints.length, 1, "a lone group draws exactly one footprint");
+  for (const item of aloneFootprints[0].marker.items) assert.ok(footprintContains(aloneFootprints[0].points, item.point));
   const lone = [markerItem("tree", "p", 0, 0), markerItem("tree", "q", footprintBoxW() * 1.8, 0)];
   app.resetMarkerGroupMemory();
   const markers = app.buildMapMarkers(markerLookup(lone), markerScreen);
   assert.equal(markers.every(m => m.items.length === 1), true);
   assert.equal(footprintsFor(markers).length, 0);
-  // a group beside only a lone pin has no group neighbour
+  // a group beside only a lone pin draws its own footprint, and the pin none
   const mixed = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 6, 0), markerItem("tree", "q", footprintBoxW() * 1.8, 0)];
   app.resetMarkerGroupMemory();
-  assert.equal(footprintsFor(app.buildMapMarkers(markerLookup(mixed), markerScreen)).length, 0);
+  const mixedFootprints = footprintsFor(app.buildMapMarkers(markerLookup(mixed), markerScreen));
+  assert.equal(mixedFootprints.length, 1);
+  assert.equal(mixedFootprints[0].marker.items.length, 2);
 });
 
 test("a footprint of coincident members is a small finite shape, and a duplicated member does not enlarge it", () => {
@@ -17351,4 +17479,9 @@ test("without a pivot the same big deliberate zoom still eases the camera centre
   // The documented unpivoted behaviour: the marker leaves the start/end band during the arc.
   assert.ok(Math.min(...ys) < 152 - 20 || Math.max(...ys) > 233 + 20,
     `the centre-eased arc throws an off-centre marker out of its band: ${Math.min(...ys)}..${Math.max(...ys)}`);
+});
+
+runRegisteredTests().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
 });

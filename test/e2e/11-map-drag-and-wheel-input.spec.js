@@ -60,7 +60,7 @@ test.describe("Map drag input while camera auto-repositions", () => {
   test("dragging while auto-repositioning to a selected target keeps the selection", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
-    await gotoAndWaitForMap(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await gotoAndWaitForMap(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`, { suppressAdventure: true });
     await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     // Desktop viewport (see playwright.config.js) keeps the inspector expanded after a
@@ -90,7 +90,7 @@ test.describe("Map drag input while camera auto-repositions", () => {
   test("dragging in nearby heading-up mode does not register as a stationary tap", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
-    await gotoAndWaitForMap(page);
+    await gotoAndWaitForMap(page, "/nearby", { suppressAdventure: true });
     await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     await page.evaluate(() => {
       state.compassHeading = 90;
@@ -130,7 +130,7 @@ test.describe("Wheel and trackpad input on the Nearby screen", () => {
   async function openNearbyHeadingUp(page) {
     await skipOnboarding(page);
     await mockCowApi(page);
-    await gotoAndWaitForMap(page);
+    await gotoAndWaitForMap(page, "/nearby", { suppressAdventure: true });
     await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     await page.evaluate(() => {
       state.compassHeading = 90;
@@ -202,7 +202,7 @@ test.describe("Wheel and trackpad input on the Nearby screen", () => {
   test("with a location selected the wheel still zooms the map itself", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
-    await gotoAndWaitForMap(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await gotoAndWaitForMap(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`, { suppressAdventure: true });
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
 
     // The hash deep-link forces the inspector open and animates the camera to fit user + target
@@ -236,7 +236,7 @@ test.describe("Dragging an anchored map", () => {
   async function openNearby(page, { headingUp }) {
     await skipOnboarding(page);
     await mockCowApi(page);
-    await gotoAndWaitForMap(page);
+    await gotoAndWaitForMap(page, "/nearby", { suppressAdventure: true });
     await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     if (headingUp) {
       await page.evaluate(() => {
@@ -354,7 +354,7 @@ test.describe("Anchored drag edge cases", () => {
   async function openAnchoredNearby(page) {
     await skipOnboarding(page);
     await mockCowApi(page);
-    await gotoAndWaitForMap(page);
+    await gotoAndWaitForMap(page, "/nearby", { suppressAdventure: true });
     await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     await expect.poll(() => page.evaluate(() => state.viewportAnimationFrame == null)).toBe(true);
     await waitForFrames(page, 4);
@@ -489,7 +489,7 @@ test.describe("Wheel zoom on the Nearby screen glides", () => {
   test("a single wheel notch zooms in over several frames and reaches its target", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
-    await gotoAndWaitForMap(page);
+    await gotoAndWaitForMap(page, "/nearby", { suppressAdventure: true });
     await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     await expect.poll(() => page.evaluate(() => state.viewportAnimationFrame == null)).toBe(true);
     await waitForFrames(page, 4);

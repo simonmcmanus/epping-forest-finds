@@ -61,8 +61,8 @@ test("a silently accepted honeypot submission is visible in privacy-safe functio
 });
 
 test("the consent wording is recorded so it survives later copy changes", () => {
-  assert.match(subscribe.CONSENT_WORDING, /launch news, opportunities to take part as an early tester/i);
-  assert.match(subscribe.CONSENT_WORDING, /weekly Epping Forest Ledger updates when they launch/);
+  assert.match(subscribe.CONSENT_WORDING, /access to the community features and weekly Epping Forest Ledger updates\./);
+  assert.doesNotMatch(subscribe.CONSENT_WORDING, /launch news|early tester|when they launch/i);
   const html = require("node:fs").readFileSync(require("node:path").join(__dirname, "../index.html"), "utf8");
   assert.ok(html.includes(`<p class="signup-intro" id="signupConsent">${subscribe.CONSENT_WORDING}</p>`));
 });

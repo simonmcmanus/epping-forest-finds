@@ -3,6 +3,7 @@
 // each line in plain language; test/forest-finds.test.js checks js/community.js ranks still match).
 const POINTS = {
   verify: 1,              // verify a tree you are standing next to
+  adventure: 10,          // complete the first nearby-tree adventure
   verifyConfirmed: 1,     // extra, when a different person independently confirms the same tree
   newTree: 1,             // add a missing tree (tag number + accurate GPS)
   newTreeSecondFinder: 3, // extra, when a second person finds the same new tree

@@ -9,9 +9,7 @@ metadata:
     url: "https://github.com/humanlayer/skills/blob/main/plugins/show-me/skills/show-me/SKILL.md"
 ---
 
-Use this template for writing the PR body. Leave the `<!-- preview-links:start -->` and `<!-- preview-links:end -->` markers in place and never write or copy the block's contents by hand; `update-preview-links.yml` regenerates the block on every PR body edit and after each Netlify deploy. Keep the `Specialist review` table.
-
-Template:
+Use this template for writing the PR body. It adds to `.github/pull_request_template.md`, never replaces it: any PR body you write or rewrite must keep the template's `## Specialist review` table (update status, reviewed SHA and verdict; keep every specialist row). Leave the `<!-- preview-links:start -->` ... `<!-- preview-links:end -->` markers in place and never write or copy the block's contents by hand; `update-preview-links.yml` regenerates the block on every PR body edit and after each Netlify deploy.
 
 ```markdown
 ## Summary
@@ -32,6 +30,21 @@ Template:
 **Blast Radius:** <one-word description>
 
 <optional: potential ramifications of merge>
+
+## Follow-ups
+
+<GitHub issue links for out-of-scope work (team skill section 5a), or "none">
+
+## Specialist review
+
+| Specialist | Status | Reviewed SHA | Verdict / link |
+| --- | --- | --- | --- |
+| <copy every row from `.github/pull_request_template.md`, updated> | | | |
+
+## Deploy preview
+
+<!-- preview-links:start -->
+<!-- preview-links:end -->
 ```
 
 ## Sections

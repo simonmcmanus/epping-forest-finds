@@ -1138,7 +1138,10 @@ function setupResizeHandler() {
     resizeCanvas();
     if (state.bounds) {
       if (typeof headingUpActive === "function" && headingUpActive()) {
-        alignHeadingUpNavigationViewport();
+        // A resize changes the room the fit solves against, so it refits outright: the compass
+        // follow's hold band would keep the old scale, and the fit is never animated.
+        // A secondary screen holds the camera, so there it keeps the plain (guarded) call.
+        alignHeadingUpNavigationViewport(secondaryScreenActive() ? {} : { force: true, animate: false });
       } else if (state.userLocation && selectedCompassTarget()) {
         ensureUserAndSelectionVisible({ animate: true, durationMs: 360 });
       } else if (state.userLocation && (isOverviewScreenActive() || secondaryScreenActive())) {
@@ -1931,6 +1934,11 @@ function focusNearbyOnClusterGroup(cluster) {
   const { centerPoint, center, targetMinutes } = clusterFocusTarget(items);
 
   setInspectorMinimized(false);
+  // Read before the tween is stopped: a wide-shot first leg paces the origin slide, so once its
+  // tween is cleared the old slide reads as finished and the origin and the 3D pivot would snap to
+  // the old group's final state instead of continuing from what is on screen.
+  const drawnOrigin = nearbyRenderOriginPointNow();
+  const drawnPivot = tiltRampedAnchor(false);
   stopViewportAnimation();
   state.clusterZoomed = false;
   // Stashed only on the way *into* the exact-membership view, not on every nested drill-down
@@ -1958,7 +1966,7 @@ function focusNearbyOnClusterGroup(cluster) {
   // lands mid an earlier slide, rather than cutting straight to the new centre. The tapped group
   // grows into the ring, and like every programmatic move the old set fades out once and the fresh
   // set reveals once after the last leg lands (markerGroupingPaused).
-  startNearbyOriginTransition(nearbyRenderOriginPoint());
+  startNearbyOriginTransition(drawnOrigin, drawnPivot);
   state.nearbyAnchor = { latitude: center.latitude, longitude: center.longitude, point: centerPoint };
   state.walkingDistanceMinutes = targetMinutes;
   state.outOfRadiusRevealFilters = [];
@@ -3081,12 +3089,13 @@ function setInspectorMinimized(minimized) {
           durationMs: DEFAULT_VIEWPORT_ANIMATION_MS,
           force: true,
           assumeInspectorOpen: true,
+          deliberate: true,
         });
       }
     } else {
       centerViewportOnPointsKeepScale(
         [state.userLocation.point, selectedCompassTarget().point],
-        { animate: true, durationMs: DEFAULT_VIEWPORT_ANIMATION_MS, focusVisibleArea: true, assumeInspectorOpen: true }
+        { animate: true, durationMs: DEFAULT_VIEWPORT_ANIMATION_MS, focusVisibleArea: true, assumeInspectorOpen: true, deliberate: true }
       );
     }
   } else if (!wasMinimized && minimized) {

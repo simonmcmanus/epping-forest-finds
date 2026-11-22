@@ -36,7 +36,7 @@ test.describe("Radius zoom limit feedback", () => {
             const alpha = (x) => ctx.getImageData(x, 80, 1, 1).data[3];
             let brightest = 0;
             for (let x = 120; x < 159; x++) if (alpha(x) > alpha(brightest)) brightest = x;
-            return { red, brightest, edgeAlpha: Math.max(alpha(139), alpha(140)), nearAlpha: alpha(145), farAlpha: alpha(155), outsideAlpha: alpha(159), innerAlpha: alpha(130), outerAlpha: alpha(149), centreAlpha: alpha(80), image: canvas.toDataURL() };
+            return { red, brightest, edgeAlpha: Math.max(alpha(139), alpha(140)), nearAlpha: alpha(145), farAlpha: alpha(155), outsideAlpha: alpha(159), innerAlpha: alpha(130), outerAlpha: alpha(149), centreAlpha: alpha(80), core: Array.from(ctx.getImageData(140, 80, 1, 1).data), image: canvas.toDataURL() };
           };
         }, limit);
         const before = await page.evaluate(() => window.__sampleRim());
@@ -94,6 +94,10 @@ test.describe("Radius zoom limit feedback", () => {
         expect(peak.outerAlpha).toBeGreaterThan(peak.innerAlpha);
         expect(peak.farAlpha).toBeGreaterThanOrEqual(peak.outsideAlpha);
         expect(peak.centreAlpha).toBe(0);
+        const [coreR, coreG, coreB] = peak.core;
+        expect(coreR, "the limit core is a strong red").toBeGreaterThan(150);
+        expect(coreB, "crimson-leaning garnet, not the orange-leaning error red").toBeGreaterThan(coreG);
+        expect(coreG, "a deep garnet at the translucent peak, not the paler rose of the earlier look").toBeLessThan(70);
         await advance(1000);
         const trough = await page.evaluate(() => window.__sampleRim());
         expect(trough.red).toBeGreaterThan(before.red);
@@ -218,7 +222,7 @@ test.describe("Radius zoom limit feedback", () => {
       await page.clock.fastForward(380);
       const lit = await sample();
       expect(lit.red).toBeGreaterThan(before.red + 500);
-      if (tilted) expect(lit.redOverBlue, "the radar wash must not turn the rose edge purple").toBeGreaterThan(20);
+      if (tilted) expect(lit.redOverBlue, "the radar wash must not turn the limit edge purple").toBeGreaterThan(20);
       await page.evaluate(() => els.canvas.dispatchEvent(new Event("gestureend", { bubbles: true, cancelable: true })));
       await page.clock.fastForward(280);
       expect((await sample()).red).toBeLessThan(before.red + 100);
