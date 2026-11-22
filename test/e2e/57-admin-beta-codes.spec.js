@@ -66,7 +66,7 @@ test.describe("Admin beta codes", () => {
     }));
     const panel = page.locator("#adminBeta");
     await expect(panel.locator("li")).toHaveCount(3);
-    await panel.getByLabel("Who is it for?").fill("For Bob");
+    await panel.getByLabel("Name").fill("For Bob");
     await panel.getByRole("button", { name: "Create code" }).click();
     await expect(panel.locator("li")).toHaveCount(4);
     await expect(panel.locator("li").first()).toContainText("z999q");
@@ -153,7 +153,7 @@ test.describe("Admin beta codes", () => {
     }));
     const panel = page.locator("#adminBeta");
     await expect(panel.locator("li")).toHaveCount(3);
-    await panel.getByLabel("Who is it for?").fill("Zoe");
+    await panel.getByLabel("Name").fill("Zoe");
     await panel.getByRole("button", { name: "Create code" }).click();
     await expect(panel.locator("li")).toHaveCount(4);
     await expect(panel.getByRole("button", { name: "Copy link for z999q" })).toBeFocused();
@@ -170,11 +170,11 @@ test.describe("Admin beta codes", () => {
     expect(await page.evaluate(() => !!document.activeElement.closest("#adminBeta"))).toBe(true);
   });
 
-  test("the note label says it is required", async ({ page }) => {
+  test("the name label says it is required", async ({ page }) => {
     await openBeta(page, okHandler());
     const panel = page.locator("#adminBeta");
     await expect(panel.locator("li")).toHaveCount(3);
-    await expect(panel.locator("label[for=adminBetaNote]")).toContainText("(required)");
+    await expect(panel.locator("label[for=adminBetaNote]")).toHaveText("Name (required)");
   });
 
   test("while a revoke is pending, the focused Revoke button stays in the page and focused", async ({ page }) => {
@@ -216,11 +216,11 @@ test.describe("Admin beta codes", () => {
     const panel = page.locator("#adminBeta");
     await expect(panel.locator("li")).toHaveCount(3);
     const create = panel.getByRole("button", { name: "Create code" });
-    await expect(panel.getByLabel("Who is it for?")).toHaveAttribute("aria-required", "true");
+    await expect(panel.getByLabel("Name")).toHaveAttribute("aria-required", "true");
     await expect(create).toBeDisabled();
-    await panel.getByLabel("Who is it for?").fill("   ");
+    await panel.getByLabel("Name").fill("   ");
     await expect(create).toBeDisabled();
-    await panel.getByLabel("Who is it for?").fill("Ann, Tuesday walk group");
+    await panel.getByLabel("Name").fill("Ann, Tuesday walk group");
     await expect(create).toBeEnabled();
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
   });
@@ -231,7 +231,7 @@ test.describe("Admin beta codes", () => {
     }));
     const panel = page.locator("#adminBeta");
     await expect(panel.locator("li")).toHaveCount(3);
-    await panel.getByLabel("Who is it for?").fill("Zoe");
+    await panel.getByLabel("Name").fill("Zoe");
     await panel.getByRole("button", { name: "Create code" }).click();
     await expect(panel.locator("#adminBetaStatus")).toHaveText("Could not create a code. Try again.");
   });
@@ -255,8 +255,8 @@ test.describe("Admin beta codes", () => {
     fail = false;
     await panel.getByRole("button", { name: "Retry" }).click();
     await expect(panel.locator("li")).toHaveCount(3);
-    await expect(panel.getByLabel("Who is it for?")).toBeEnabled();
-    await panel.getByLabel("Who is it for?").fill("Ann");
+    await expect(panel.getByLabel("Name")).toBeEnabled();
+    await panel.getByLabel("Name").fill("Ann");
     await expect(panel.getByRole("button", { name: "Create code" })).toBeEnabled();
   });
 
@@ -333,7 +333,7 @@ test.describe("Admin beta codes", () => {
     }));
     const panel = page.locator("#adminBeta");
     await expect(panel.locator("li")).toHaveCount(3);
-    await panel.getByLabel("Who is it for?").fill("Secret Zoe");
+    await panel.getByLabel("Name").fill("Secret Zoe");
     await panel.getByRole("button", { name: "Create code" }).click();
     await expect(panel.locator("li")).toHaveCount(4);
     await panel.locator("#adminBetaStatus").getByRole("button", { name: "Share link for z999q" }).click();

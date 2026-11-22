@@ -22,7 +22,7 @@ exports.handler = async (event) => {
     if (!body) return reply(200, { codes: await beta.listCodes(store) });
     if (body.action === "create") {
       const made = await beta.createCode(store, body.note);
-      return made ? reply(200, made) : reply(400, { error: "Add a note saying who the code is for." });
+      return made ? reply(200, made) : reply(400, { error: "Add a name for the person this code is for." });
     }
     const result = await beta.revokeCode(store, body.code);
     return result.ok ? reply(200, { ok: true }) : reply(result.status, { error: "Unknown code" });

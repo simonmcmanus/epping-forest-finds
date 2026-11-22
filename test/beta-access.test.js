@@ -255,7 +255,7 @@ test("creating a code without a note is refused and writes nothing", async () =>
     await withStore(store, async () => {
       const response = await adminPost({ action: "create", note });
       assert.equal(response.statusCode, 400);
-      assert.deepEqual(JSON.parse(response.body), { error: "Add a note saying who the code is for." });
+      assert.deepEqual(JSON.parse(response.body), { error: "Add a name for the person this code is for." });
       assert.deepEqual(await store.list("beta-code/"), [], "no beta-code record was written");
     });
   }
