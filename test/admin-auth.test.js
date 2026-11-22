@@ -37,7 +37,7 @@ async function withEnv(env, run, fetchImpl) {
 }
 const ADMINS = { ...AUTH_ENV, ADMIN_SUBJECTS: "auth0|admin1, google-oauth2|777 ,," };
 
-const cookieHeader = (sub, { key = KEY, exp = Date.now() + 3600000, name = "Ann" } = {}) => `ff_admin=${encodeURIComponent(auth.sign({ sub, name, exp }, key))}`;
+const cookieHeader = (sub, { key = KEY, exp = Date.now() + 3600000, name = "Ann", typ = "admin" } = {}) => `ff_admin=${encodeURIComponent(auth.sign({ ...(typ ? { typ } : {}), sub, name, exp }, adminAuth.adminKey(key)))}`;
 const req = (cookie, csrf = "admin", extra = {}) => ({ httpMethod: "GET", headers: { ...HOST, cookie, ...(csrf ? { "X-Requested-With": csrf } : {}), ...extra } });
 const bearer = (value) => ({ headers: { authorization: `Bearer ${value}` } });
 
@@ -194,8 +194,9 @@ test("callback: an allow-listed subject gets a signed admin cookie and goes to /
     const cookie = cookieNamed(result, "ff_admin");
     const attrs = cookie.split(";").map((p) => p.trim());
     for (const a of ["HttpOnly", "Secure", "SameSite=Strict", "Path=/", `Max-Age=${adminAuth.ADMIN_SESSION_MS / 1000}`]) assert.ok(attrs.includes(a), a);
-    const payload = auth.verify(cookieValue(cookie), KEY);
-    assert.deepEqual(Object.keys(payload).sort(), ["exp", "name", "sub"], "no email is kept");
+    const payload = auth.verify(cookieValue(cookie), adminAuth.adminKey(KEY));
+    assert.equal(auth.verify(cookieValue(cookie), KEY), null, "not signed with the community key");
+    assert.deepEqual(Object.keys(payload).sort(), ["exp", "name", "sub", "typ"], "no email is kept");
     assert.equal(payload.sub, "auth0|admin1");
     assert.equal(payload.name, "Ann Admin");
     assert.ok(payload.exp > Date.now() + 7.9 * 3600000 && payload.exp <= Date.now() + 8 * 3600000 + 1000);
@@ -237,5 +238,36 @@ test("POST /api/community/delete still takes only the password Bearer, not the a
     assert.equal(withCookie.statusCode, 401);
     const withPassword = await communityDelete.handler({ httpMethod: "POST", headers: { authorization: "Bearer pw-1" }, body: "{}" });
     assert.notEqual(withPassword.statusCode, 401);
+  });
+});
+
+// ---- Other signed cookies can never stand in for ff_admin ----
+
+test("a community session cookie copied into ff_admin is refused, even for a listed admin", async () => {
+  await withEnv(ADMINS, async () => {
+    const session = auth.sign({ sub: "auth0|admin1", name: "Ann", exp: Date.now() + 30 * 86400000 }, KEY);
+    assert.equal(isAdminRequest(req(`ff_admin=${encodeURIComponent(session)}`), ""), false);
+    assert.equal((await me.handler(req(`ff_admin=${encodeURIComponent(session)}`))).statusCode, 401);
+    const state = auth.sign({ state: "s", ret: "/admin", admin: true, sub: "auth0|admin1", exp: Date.now() + 600000 }, KEY);
+    assert.equal(isAdminRequest(req(`ff_admin=${encodeURIComponent(state)}`), ""), false);
+  });
+});
+
+test("an admin-keyed cookie without typ admin, or with another typ, is refused", async () => {
+  await withEnv(ADMINS, async () => {
+    assert.equal(isAdminRequest(req(cookieHeader("auth0|admin1", { typ: "" })), ""), false, "no typ");
+    assert.equal(isAdminRequest(req(cookieHeader("auth0|admin1", { typ: "session" })), ""), false, "other typ");
+    assert.equal(isAdminRequest(req(cookieHeader("auth0|admin1")), ""), true);
+  });
+});
+
+// ---- Admin sign-in when Auth0 is not configured ----
+
+test("admin login on a deploy without Auth0 redirects to /admin?signin=unavailable, while community login keeps its 503", async () => {
+  await withEnv({}, async () => {
+    const admin = await login.handler({ queryStringParameters: { admin: "1" }, headers: HOST });
+    assert.equal(admin.statusCode, 302);
+    assert.equal(admin.headers.Location, "/admin?signin=unavailable");
+    assert.equal((await login.handler({ queryStringParameters: {}, headers: HOST })).statusCode, 503);
   });
 });

@@ -98,6 +98,49 @@ test.describe("Admin login", () => {
     expect(storage).not.toMatch(/admin-session|token/i);
   });
 
+  test("when admin sign-in is not set up, the card says so", async ({ page }) => {
+    await signedOut(page);
+    await page.goto("/admin?signin=unavailable");
+    await expect(page.locator("#loginError")).toContainText("Admin sign-in isn't set up on this site yet");
+    await expect(SIGN_IN_LINK(page)).toHaveAttribute("aria-describedby", "loginError");
+  });
+
+  test("a server error while checking the sign-in gives a plain message and a Try again button that re-checks", async ({ page }) => {
+    let up = false;
+    await skipOnboarding(page);
+    await page.unroute(/\/api\/admin\/me/);
+    await page.route(/\/api\/admin\/me/, (route) => (up
+      ? route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "T" }) })
+      : route.fulfill({ status: 503, contentType: "text/plain", body: "<html>upstream-detail</html>" })));
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
+    await page.goto("/admin");
+    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Try again.");
+    await expect(page.locator("body")).not.toContainText("upstream-detail");
+    await expect(SIGN_IN_LINK(page)).toBeVisible();
+    up = true;
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(page.locator("#loginScreen")).toBeHidden();
+    await expect(page.locator("#adminStats")).toContainText("location pings");
+  });
+
+  test("a failed log out keeps the dashboard and says so, rather than pretending to be signed out", async ({ page }) => {
+    await page.route(/\/api\/admin\/logout/, (route) => route.abort("failed"));
+    await signIn(page);
+    await page.click("#logoutBtn");
+    await expect(page.locator("#adminRefreshStatus")).toHaveText("Couldn't log out. Check your connection and try again.");
+    await expect(page.locator("#loginScreen")).toBeHidden();
+    await expect(page.locator("#adminStats")).toContainText("location pings");
+  });
+
+  test("a 401 from a non-tracks endpoint mid-session returns to the sign-in card with the expired message", async ({ page }) => {
+    await page.route(/\/api\/features\?admin=1/, (route) => route.fulfill({ status: 401, contentType: "application/json", body: "{}" }));
+    await signIn(page);
+    await page.click("#accessBtn");
+    await expect(SIGN_IN_LINK(page)).toBeVisible();
+    await expect(page.locator("#loginError")).toHaveText("Admin session expired. Sign in again.");
+    await expect(page.locator("#adminApp")).toBeHidden();
+  });
+
   async function signIn(page) {
     await skipOnboarding(page);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));

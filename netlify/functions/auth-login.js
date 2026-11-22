@@ -11,6 +11,8 @@ exports.setStore = (store) => { storeOverride = store; };
 
 exports.handler = async (event) => {
   const config = auth.authConfig();
+  // The dashboard's sign-in answers an unconfigured deploy with a page that explains it, not bare text.
+  if (!config && event.queryStringParameters?.admin === "1") return { statusCode: 302, headers: { Location: "/admin?signin=unavailable", "Cache-Control": "no-store" }, body: "" };
   if (!config) return { statusCode: 503, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: "Sign-in isn't set up yet." };
   const state = crypto.randomBytes(16).toString("base64url");
   // ?admin=1 is the dashboard's sign-in: the return path is forced to /admin, the provider is told to ask for a

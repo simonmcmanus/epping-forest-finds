@@ -2,7 +2,7 @@
 
 ## Overview
 
-A password-protected analytics dashboard at `/admin` that shows where users are walking, what they are tapping, and how busy different parts of the forest are. Data is collected only from users who have given consent via the in-app privacy modal.
+An analytics dashboard at `/admin`, behind Auth0 sign-in and an allowlist, that shows where users are walking, what they are tapping, and how busy different parts of the forest are. Data is collected only from users who have given consent via the in-app privacy modal.
 
 ## Access
 
@@ -20,16 +20,21 @@ The dashboard signs in with **Auth0**, the same provider as community sign-in, r
 - `Authorization: Bearer <ADMIN_PASSWORD>` for scripts, compared in constant time. This still needs `ADMIN_PASSWORD` set and needs no extra header. A `?pw=` query parameter is refused (a password in a URL ends up in history and logs). `POST /api/community/delete` accepts only this, never the cookie.
 - A valid, unexpired `ff_admin` cookie whose `sub` is **still** in `ADMIN_SUBJECTS` at request time, so removing someone revokes them at once. This works with `ADMIN_PASSWORD` unset. Because a cookie is sent automatically, a cookie-authenticated request (every method, including GET) is accepted only when it carries `X-Requested-With: admin`; a page on another site cannot add that header without a preflight, and no CORS is granted. A missing, expired, tampered, wrongly signed or no-longer-listed cookie is a 401.
 
+**Cookie hardening.** `ff_admin` is signed with a key derived from `AUTH_SECRET` (HMAC of `ff-admin-cookie`) and carries `typ: "admin"`, checked on every request, so a community `ff_session` or sign-in state cookie (signed with `AUTH_SECRET` itself, no `typ`) copied into `ff_admin` is refused even for a listed admin.
+
+**Unconfigured deploy.** If Auth0 is not configured, `/api/auth/login?admin=1` redirects (302) to `/admin?signin=unavailable`, and the card reads "Admin sign-in isn't set up on this site yet. The site owner needs to configure Auth0 and ADMIN_SUBJECTS." (Community login keeps its plain-text 503.)
+
 The old password-for-token exchange (`POST /api/admin/session`, the session token and its `sessionStorage` copy) is gone. On load, the page still removes any password copy an earlier version left in browser storage.
 
 ## Pages / Views
 
 ### Login screen
-- Full-page card on white (local app icon as a brand mark, title "Admin Access", subtitle) with one link-button, "Sign in with Auth0" (`#loginBtn`, an `<a href="/api/auth/login?admin=1">`, keyboard focusable with the dark focus ring for light surfaces). There is no password field.
+- Full-page card on white (local app icon as a brand mark, title "Admin Access", subtitle) with one link-button, "Sign in with Auth0" (`#loginBtn`, an `<a href="/api/auth/login?admin=1" aria-describedby="loginError">`, keyboard focusable with the dark focus ring for light surfaces). There is no password field.
 - Until sign-in the dashboard (`#adminApp`) is not rendered at all (`.admin-app[hidden]` is `display: none`), so no dashboard control sits behind the login screen in the tab order or the accessibility tree
 - On load the page calls `GET /api/admin/me` with `X-Requested-With: admin`: 200 loads tracking data for the current window (see Data API) and shows the map view; 401 shows the card. A reload or Refresh therefore stays signed in for as long as the `ff_admin` cookie lasts (8 hours); nothing is kept in `sessionStorage` or `localStorage`.
+- If the `/api/admin/me` check or the first data load fails for a reason other than 401 (a 5xx or no connection), the card reads "Couldn't check your sign-in. Try again." with a **Try again** button (`#loginRetry`) that re-runs the check; the Auth0 link stays available. Raw server text is never shown.
 - A 401 from any admin request mid-session returns to the card with "Admin session expired. Sign in again."
-- **Log out** calls `POST /api/admin/logout` (clears `ff_admin`; needs the CSRF header), then shows the card and focuses the sign-in link. It does not end the Auth0 session or the community sign-in.
+- **Log out** calls `POST /api/admin/logout` (clears `ff_admin`; needs the CSRF header), then shows the card and focuses the sign-in link. If the call fails (network or server error) the admin is still signed in, so the dashboard stays and `#adminRefreshStatus` says "Couldn't log out. Check your connection and try again." It does not end the Auth0 session or the community sign-in.
 - `#loginError` is styled in the danger colour and marked `role="alert"`. Coming back from Auth0 with `?signin=denied` reads "This account isn't on the admin list. Ask an existing admin to add it, or sign in with a different account."; `?signin=failed` reads "Sign-in didn't finish. Try again."; the address is then cleaned to `/admin` (`history.replaceState`), so a reload does not repeat the message. A server error reads like "Server error 502: Bad Gateway": the status and its plain name only, never the raw body (it goes to the console). A network failure reads "Cannot reach the server. Check your connection and try again." and never shows the browser's raw "Failed to fetch". If sign-in is not configured, the link lands on the plain-text 503 "Sign-in isn't set up yet." from `/api/auth/login`.
 
 ### Map view (canvas)
@@ -168,7 +173,7 @@ Admin suppresses duplicate derived navigation-click events when a matching expli
 
 **Heading.** The page has a heading `<h2 id="adminNavigationTitle" tabindex="-1">Navigation</h2>` and a subtitle (`#adminNavigationSub`) saying what it reflects: "Navigation journeys over the last 30 days (or all loaded history), for all users (or user xxxxxxxx). Choose a user in the Users list to filter these figures." The heading and subtitle are outside the re-rendered body, so a refresh does not move focus. Choosing the Navigation tab (or arriving by Back/Forward) moves focus to the heading. The subtitle names a selected user with the same short ID as the sidebar chip, and shows the "Choose a user in the Users list…" hint only while no user is selected. Leaving the page (Back/Forward, or a panel opener) hands focus to the matching view button (Tracks or Heatmap) instead of dropping it to the page body. Clicking the already-active tab, or Tracks with no hash, adds no history entry. The user sidebar or strip stays on screen as the user filter. An empty window shows "No navigation journeys in this window" (adding "for the selected user" when filtered) in a dashed empty-state card.
 
-**Routing.** The view is held in the URL hash: `#tracks`, `#heatmap`, `#navigation`; none or an unknown value means Tracks. The tabs set the hash (so Back and Forward step through views, restoring the view and its `aria-pressed` state), and a `hashchange` applies it. The dashboard still asks for the password after a reload, so the hash is read when the dashboard appears: signing in on `/admin#navigation` lands on the Navigation page. Logging out or an expired session resets to Tracks and clears the hash, so the next sign-in starts on the map. Escape behaves as before (it closes overlay panels only).
+**Routing.** The view is held in the URL hash: `#tracks`, `#heatmap`, `#navigation`; none or an unknown value means Tracks. The tabs set the hash (so Back and Forward step through views, restoring the view and its `aria-pressed` state), and a `hashchange` applies it. The hash is read when the dashboard appears (after the sign-in check on load): opening `/admin#navigation` while signed in lands on the Navigation page. Logging out or an expired session resets to Tracks and clears the hash, so the next sign-in starts on the map. Escape behaves as before (it closes overlay panels only).
 
 **Polish in this sweep.** Page padding is 24 px (12 px on phones); the page title and subtitle give the page a clear hierarchy; on phones the seven summary cards no longer leave an orphan card beside an empty cell (the last card spans both columns). Card labels wrap rather than clip (no horizontal clipping at 320 or 390 px). **Refresh** keeps keyboard focus: the button is disabled while it runs, so focus is handed back to it when the refresh finishes.
 

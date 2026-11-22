@@ -25,8 +25,9 @@
       <img class="login-logo" src="data/icons/icon-192.png" alt="" width="64" height="64">
       <h1 class="login-title">Admin Access</h1>
       <p class="login-sub">Epping Forest Finds — usage analytics</p>
-      <a id="loginBtn" class="login-btn" href="/api/auth/login?admin=1">Sign in with Auth0</a>
+      <a id="loginBtn" class="login-btn" href="/api/auth/login?admin=1" aria-describedby="loginError">Sign in with Auth0</a>
       <p id="loginError" class="login-error" role="alert"></p>
+      <button id="loginRetry" class="login-btn" type="button" hidden>Try again</button>
     </div>
   </div>
 

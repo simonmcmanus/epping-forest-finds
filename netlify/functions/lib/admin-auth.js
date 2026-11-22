@@ -16,6 +16,9 @@ const digest = (text) => crypto.createHash("sha256").update(String(text)).digest
 
 const ADMIN_COOKIE = "ff_admin";
 const ADMIN_SESSION_MS = 8 * 60 * 60 * 1000;
+// ff_admin is signed with a key derived from AUTH_SECRET and carries typ "admin", so a community ff_session or
+// sign-in state cookie (signed with AUTH_SECRET itself, no typ) can never be replayed as an admin cookie.
+const adminKey = (secret) => crypto.createHmac("sha256", secret).update("ff-admin-cookie").digest("hex");
 const CSRF_HEADER = "x-requested-with";
 const CSRF_VALUE = "admin";
 
@@ -48,8 +51,8 @@ function hasCsrfHeader(event) {
 function adminFromCookie(event, now = Date.now()) {
   const config = auth.authConfig();
   if (!config) return null;
-  const payload = auth.verify(auth.parseCookies(auth.header(event || {}, "cookie"))[ADMIN_COOKIE], config.secret, now);
-  if (!payload || typeof payload.sub !== "string" || !isAllowedSubject(payload.sub)) return null;
+  const payload = auth.verify(auth.parseCookies(auth.header(event || {}, "cookie"))[ADMIN_COOKIE], adminKey(config.secret), now);
+  if (!payload || payload.typ !== "admin" || typeof payload.sub !== "string" || !isAllowedSubject(payload.sub)) return null;
   return { sub: payload.sub, name: typeof payload.name === "string" ? payload.name : "Admin" };
 }
 
@@ -68,7 +71,7 @@ function cookieAttrs(secure, maxAgeSeconds) {
 }
 
 const adminCookie = (admin, secure = true, now = Date.now()) =>
-  `${ADMIN_COOKIE}=${auth.sign({ sub: admin.sub, name: admin.name, exp: now + ADMIN_SESSION_MS }, auth.authConfig().secret)}; ${cookieAttrs(secure, ADMIN_SESSION_MS / 1000)}`;
+  `${ADMIN_COOKIE}=${auth.sign({ typ: "admin", sub: admin.sub, name: admin.name, exp: now + ADMIN_SESSION_MS }, adminKey(auth.authConfig().secret))}; ${cookieAttrs(secure, ADMIN_SESSION_MS / 1000)}`;
 const clearAdminCookie = (secure = true) => `${ADMIN_COOKIE}=; ${cookieAttrs(secure, 0)}`;
 
 module.exports = {
@@ -82,5 +85,6 @@ module.exports = {
   adminCookie,
   clearAdminCookie,
   ADMIN_COOKIE,
+  adminKey,
   ADMIN_SESSION_MS,
 };

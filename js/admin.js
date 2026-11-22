@@ -20,6 +20,7 @@ const adminFetch = (url, options = {}) => fetch(url, { ...options, headers: { ..
 const SIGNIN_MESSAGES = {
   denied: "This account isn't on the admin list. Ask an existing admin to add it, or sign in with a different account.",
   failed: "Sign-in didn't finish. Try again.",
+  unavailable: "Admin sign-in isn't set up on this site yet. The site owner needs to configure Auth0 and ADMIN_SUBJECTS.",
 };
 const ADMIN_VIEWPORT_KEY = "ff-admin-map-viewport";
 const BASE_MAP_OPACITY = 0.42;
@@ -1724,6 +1725,7 @@ async function adminBoot() {
   const adminApp = document.getElementById("adminApp");
   const loginBtn = document.getElementById("loginBtn");
   const loginError = document.getElementById("loginError");
+  const loginRetry = document.getElementById("loginRetry");
   const heatmapBtn = document.getElementById("heatmapBtn");
   const tracksBtn = document.getElementById("tracksBtn");
   const refreshBtn = document.getElementById("refreshBtn");
@@ -1808,6 +1810,7 @@ async function adminBoot() {
     adminApp.hidden = true;
     loginScreen.hidden = false;
     loginError.textContent = message;
+    loginRetry.hidden = true;
   }
 
   function forgetSession(message = "") {
@@ -1851,9 +1854,13 @@ async function adminBoot() {
     } catch (err) {
       console.error("[admin] could not restore the sign-in:", err, err.detail || "");
       if (err.message === "unauthorised") showLogin(signinMessage || "Admin session expired. Sign in again.");
-      else showLogin(err.network || err instanceof TypeError ? "Cannot reach the server. Check your connection and try again." : err.message);
+      else {
+        showLogin("Couldn't check your sign-in. Try again.");
+        loginRetry.hidden = false;
+      }
     }
   }
+  loginRetry.addEventListener("click", () => { loginRetry.hidden = true; loginError.textContent = ""; restoreSession(); });
   restoreSession();
 
   const navigationBtn = document.getElementById("navigationBtn");
@@ -2529,8 +2536,10 @@ async function adminBoot() {
 
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
-      // Clear the cookie on the server first; the dashboard is closed either way.
-      try { await adminFetch("/api/admin/logout", { method: "POST" }); } catch {}
+      // Clear the cookie on the server first. If that fails the admin is still signed in, so say so and keep the dashboard.
+      let ok = false;
+      try { const resp = await adminFetch("/api/admin/logout", { method: "POST" }); ok = resp.ok || resp.status === 401; } catch {}
+      if (!ok) { setRefreshNote("Couldn't log out. Check your connection and try again.", true); return; }
       forgetSession("");
     });
   }
