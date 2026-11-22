@@ -1855,7 +1855,7 @@ async function adminBoot() {
       console.error("[admin] could not restore the sign-in:", err, err.detail || "");
       if (err.message === "unauthorised") showLogin(signinMessage || "Admin session expired. Sign in again.");
       else {
-        showLogin("Couldn't check your sign-in. Try again.");
+        showLogin(err.network || err instanceof TypeError ? "Cannot reach the server. Check your connection and try again." : "Couldn't check your sign-in. Try again.");
         loginRetry.hidden = false;
       }
     }
