@@ -2354,6 +2354,7 @@ async function adminBoot() {
       else { el.removeAttribute("aria-disabled"); el.disabled = off; }
     };
     set(betaNote, !enabled);
+    betaNote.readOnly = betaBusy; // text typed while a request is pending would be lost when it finishes
     for (const btn of betaList.querySelectorAll("button[data-revoke]")) set(btn, !enabled);
     for (const btn of betaPanel.querySelectorAll("button[data-share]")) set(btn, !enabled);
     syncBetaCreate();
@@ -2368,6 +2369,7 @@ async function adminBoot() {
     betaCreate.removeAttribute("aria-disabled");
     const enabled = betaLoaded && !betaBusy;
     betaNote.disabled = !enabled;
+    betaNote.readOnly = betaBusy;
     syncBetaCreate();
     let target = null;
     for (const item of betaCodes) {

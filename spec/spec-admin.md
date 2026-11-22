@@ -356,6 +356,8 @@ Each row shows the code, its note, its status word ("open", "claimed <date>", or
 
 The server requires the name (stored and sent as `note`): a create with a name that is empty after trimming is `400` "Add a name for the person this code is for." and nothing is written. Revoking writes its own record (`beta-revoked/<code>`) that a claim can never overwrite; the list shows a code as revoked when that record exists (or an older code record carries `revokedAt`) and carries `revokedAt` from it (the "revoked <date>" in the row), never an account. Release step: the Auth0 application's Allowed Logout URLs must include `https://<site>/beta/*`, because the beta page's "Use a different account" logs out with a return path that includes the code.
 
+While a beta request is pending the note field is read-only (so text typed meanwhile is not lost), a focused busy control keeps focus with `aria-disabled="true"` and is dimmed like a disabled one, and a second activation of any control is ignored until the request ends.
+
 The routes are `GET`/`POST /api/beta/codes` (admin) and `POST /api/beta/redeem`. See `spec/spec-community.md` (Beta access).
 
 ## Planned future features

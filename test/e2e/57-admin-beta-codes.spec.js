@@ -201,6 +201,55 @@ test.describe("Admin beta codes", () => {
     expect(await page.evaluate(() => !!document.activeElement.closest("#adminBeta"))).toBe(true);
   });
 
+  test("while a revoke is pending, the focused Confirm button is dimmed and a second press sends nothing", async ({ page }) => {
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    let seen;
+    const requestSeen = new Promise((resolve) => { seen = resolve; });
+    let revokes = 0;
+    await openBeta(page, async (route, body) => {
+      if (route.request().method() === "GET") return json(route, 200, { codes: CODES });
+      if (body.action === "revoke") { revokes++; seen(); await held; }
+      return json(route, 200, { ok: true });
+    });
+    const panel = page.locator("#adminBeta");
+    await expect(panel.locator("li")).toHaveCount(3);
+    await panel.getByRole("button", { name: "Revoke code b345f" }).click();
+    const confirm = panel.getByRole("button", { name: "Confirm revoke code b345f" });
+    await confirm.click();
+    await requestSeen;
+    await expect(confirm).toHaveAttribute("aria-disabled", "true");
+    await expect(confirm).toHaveCSS("opacity", "0.55");
+    await confirm.click({ force: true });
+    await page.waitForTimeout(150);
+    expect(revokes).toBe(1);
+    release();
+    await expect(panel.locator("li").nth(1)).toContainText(/revoked/);
+    expect(revokes).toBe(1);
+  });
+
+  test("while a create is pending, the note field is read-only and keeps what was typed", async ({ page }) => {
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    let seen;
+    const requestSeen = new Promise((resolve) => { seen = resolve; });
+    await openBeta(page, async (route, body) => {
+      if (route.request().method() === "GET") return json(route, 200, { codes: CODES });
+      if (body.action === "create") { seen(); await held; return json(route, 200, { code: "z999z", note: "Pat", createdAt: "2026-11-03T10:00:00.000Z", status: "open" }); }
+      return json(route, 200, { ok: true });
+    });
+    const panel = page.locator("#adminBeta");
+    const note = panel.locator("#adminBetaNote");
+    await expect(panel.locator("li")).toHaveCount(3);
+    await note.fill("Pat");
+    await panel.locator("#adminBetaCreate").click();
+    await requestSeen;
+    await expect(note).toHaveJSProperty("readOnly", true);
+    release();
+    await expect(panel.locator("li")).toHaveCount(4);
+    await expect(note).toHaveJSProperty("readOnly", false);
+  });
+
   test("pressing another row disarms a pending revoke", async ({ page }) => {
     await openBeta(page, okHandler());
     const panel = page.locator("#adminBeta");
