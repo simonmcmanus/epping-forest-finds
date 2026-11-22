@@ -29,8 +29,12 @@ exports.handler = async (event) => {
       return reply(200, await gate.readList(event));
     }
     const session = auth.sessionFrom(event);
-    const ids = await gate.vouchedIds(gate.storeFor(event), query.id, session);
-    return reply(200, gate.enabledFor(await gate.readList(event), ids));
+    const store = gate.storeFor(event);
+    const ids = await gate.vouchedIds(store, query.id, session);
+    const result = gate.enabledFor(await gate.readList(event), ids);
+    // Beta access is additive: it grants every feature to that account and never edits the tester list.
+    if (await require("./lib/beta-access").betaMember(store, session)) for (const f of gate.FEATURES) result[f] = true;
+    return reply(200, result);
   } catch (error) {
     // A broken store must never switch a feature on: a reader gets every feature off. An admin's change that
     // could not be saved or read is reported as a failure, never as a success.
