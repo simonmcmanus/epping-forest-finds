@@ -78,7 +78,9 @@ INVENTORY_ICON_SOURCES = {
     "literature": Path("data") / "icons" / "literature.png",
     "film_tv": Path("data") / "icons" / "film.png",
     "art": Path("data") / "icons" / "art.png",
+    "events": Path("data") / "icons" / "event.png",
 }
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 INVENTORY_ICON_SIZE_PX = 64
 DEFAULT_ABOUT_NOTE = (
     "A snapshot of the forest and its neighbouring towns at the date above. "
@@ -321,10 +323,82 @@ def render_sources_line(sources):
     return f'<p class="src">{label}: {links}</p>'
 
 
+def is_pinned(finding, projection=None):
+    """One rule for chip, count, side list and drawn pins: the finding has a
+    spot on the map `projection` (the default map when None)."""
+    return bool(svg_map.located_points(finding, projection))
+
+
+# Small decorative marks beside a transport card's title; the title itself
+# names the line. Central and Weaver are roundels (ring and bar) on a white
+# disc so the ring never blends into the coloured pin chip beside it, the
+# Elizabeth line is a solid purple tile with a white stripe, buses a red bus.
+# The rail roundel colours are TfL brand colours and are intentionally not
+# report tokens; the bus takes --status-critical via currentColor (.line-bus).
+LINE_ICONS = {
+    "central": (
+        '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
+        '<circle cx="12" cy="12" r="11.4" fill="#fff" stroke="currentColor" stroke-opacity=".35" stroke-width="1"/>'
+        '<circle cx="12" cy="12" r="8.2" fill="none" stroke="#E32017" stroke-width="3.2"/>'
+        '<rect x="2" y="9.6" width="20" height="4.8" fill="#0019A8"/></svg>'
+    ),
+    "elizabeth": (
+        '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
+        '<rect x="2" y="2" width="20" height="20" rx="5" fill="#6950A1"/>'
+        '<rect x="5.5" y="10" width="13" height="4" rx="1" fill="#fff"/></svg>'
+    ),
+    "weaver": (
+        '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
+        '<circle cx="12" cy="12" r="11.4" fill="#fff" stroke="currentColor" stroke-opacity=".35" stroke-width="1"/>'
+        '<circle cx="12" cy="12" r="8.2" fill="none" stroke="#EE7C0E" stroke-width="3.2"/>'
+        '<rect x="2" y="9.6" width="20" height="4.8" fill="#0019A8"/></svg>'
+    ),
+    "bus": (
+        '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
+        '<rect x="3.5" y="3" width="17" height="15" rx="3" fill="currentColor"/>'
+        '<rect x="6" y="6" width="12" height="5" rx="1" fill="#fff"/>'
+        '<circle cx="8" cy="15" r="1.4" fill="#fff"/><circle cx="16" cy="15" r="1.4" fill="#fff"/>'
+        '<rect x="5.5" y="18" width="3" height="3" fill="currentColor"/><rect x="15.5" y="18" width="3" height="3" fill="currentColor"/></svg>'
+    ),
+}
+
+
+def line_icon_html(line):
+    icon = LINE_ICONS.get(line) if isinstance(line, str) else None
+    if not icon:
+        return ""
+    return f'<span class="line-icon line-{line}" aria-hidden="true">{icon}</span>'
+
+
+def subcategory_key(finding):
+    """The app subcategory a card's icon comes from, or None. An explicit
+    "subcategory" wins (only keys with a known icon count); otherwise events
+    default to "events" and openings/closings resolve their business by the
+    same rule as the link. Notices and road closures have none."""
+    explicit = finding.get("subcategory")
+    if explicit is not None:
+        return explicit if isinstance(explicit, str) and explicit in INVENTORY_ICON_SOURCES else None
+    category = finding.get("category")
+    if category == "event":
+        return "events"
+    if category in BUSINESS_CATEGORIES:
+        key = _BUSINESS_LINKS.subcategory_for(finding.get("title"), finding.get("lat"), finding.get("lon"))
+        return key if key in INVENTORY_ICON_SOURCES else None
+    return None
+
+
+def subcategory_icon_html(finding):
+    if finding.get("line"):
+        return ""
+    key = subcategory_key(finding)
+    uri = inventory_icon_uri(REPO_ROOT, key) if key else ""
+    return f'<img class="card-subicon" src="{uri}" alt="">' if uri else ""
+
+
 def render_card(finding):
     style = style_for(finding.get("category"))
     css_class = style["css_class"]
-    if finding.get("lon") is None:
+    if not is_pinned(finding):
         chip = ""
     elif finding.get("category") == "grazing":
         chip = cow_marker_html("pin-chip")
@@ -342,7 +416,7 @@ def render_card(finding):
     title_html = f'<a href="{escape(link_url)}">{title}</a>' if link_url else title
     return (
         f'<div class="card {css_class}">'
-        f'<div class="card-head">{chip}<h3>{title_html}</h3>{status_html}</div>'
+        f'<div class="card-head">{chip}{line_icon_html(finding.get("line"))}{subcategory_icon_html(finding)}<h3>{title_html}</h3>{status_html}</div>'
         f'{place_html}{body_html}{sources_html}'
         f'</div>'
     )
@@ -470,10 +544,10 @@ def render_map_legend():
     return f'<div class="legend">{"".join(items)}</div>'
 
 
-def render_map_side_list(findings):
+def render_map_side_list(findings, projection=None):
     items = []
     for f in findings:
-        if f.get("lon") is None:
+        if not is_pinned(f, projection):
             continue
         style = style_for(f.get("category"))
         css_class = style["css_class"]
@@ -491,11 +565,11 @@ def render_map_side_list(findings):
     return "".join(items)
 
 
-def render_map_section(forest_geojson, findings, cow_icon):
-    pinned = [f for f in findings if f.get("lon") is not None]
-    svg = svg_map.render_map_svg(forest_geojson, pinned, cow_icon_url=cow_icon)
+def render_map_section(forest_geojson, findings, cow_icon, projection=None):
+    pinned = [f for f in findings if is_pinned(f, projection)]
+    svg = svg_map.render_map_svg(forest_geojson, pinned, projection=projection, cow_icon_url=cow_icon)
     legend = render_map_legend()
-    side_list = render_map_side_list(findings)
+    side_list = render_map_side_list(findings, projection)
     count_line = (
         f"{len(pinned)} thing{'s' if len(pinned) != 1 else ''} to know about this week. "
         "Full detail is below the map."

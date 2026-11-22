@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Live check of Transport for London's own published status for the two rail
-lines serving the forest's coverage settlements -- the Central line (Epping,
-Theydon Bois, Debden, Loughton) and the Weaver line, London Overground's name
-for the Chingford branch -- plus bus stop disruptions around those same
+Live check of Transport for London's own published status for the rail
+lines monitored -- the Central line (Epping, Theydon Bois, Debden, Loughton),
+the Weaver line, London Overground's name for the Chingford branch, and the
+Elizabeth line -- plus bus stop disruptions around those same
 settlements. Turns whatever is currently disrupted into report-data.json
 "findings", the same shape scripts/report/structured_findings.py produces.
 
@@ -36,6 +36,7 @@ structured_findings.py.
 """
 import http.client
 import json
+import math
 import os
 import sys
 import urllib.error
@@ -53,13 +54,14 @@ BASE_URL = "https://api.tfl.gov.uk"
 REQUEST_TIMEOUT_S = 20
 USER_AGENT = "epping-forest-finds-ledger/1.0 (+https://github.com/simonmcmanus/epping-forest-finds)"
 
-# The two lines that actually serve the forest's own stations. Chingford is
+# The monitored lines: Central and Weaver serve the forest's own stations. Chingford is
 # served by London Overground's "Weaver" line, not Greater Anglia -- an
 # earlier data/road-closures.json sourceNotes entry guessed Greater Anglia;
 # a live stop lookup on 2026-10-11 showed that was wrong.
 LINES = (
     {"id": "central", "label": "Central line"},
     {"id": "weaver", "label": "Weaver line (London Overground)"},
+    {"id": "elizabeth", "label": "Elizabeth line"},
 )
 
 # Mirrors scripts/report/places.py's coverage towns -- there is no single
@@ -153,6 +155,28 @@ def fetch_stop_disruptions(stop_ids, batch_size=STOP_IDS_PER_REQUEST, failures=N
 # ---- pure transforms: no network, covered by scripts/test_tfl_transit_status.py ----
 
 
+# Line ids the report draws an icon for (see render_report.LINE_ICONS).
+ICON_LINE_IDS = ("central", "elizabeth", "weaver")
+
+
+def _stop_points(stops):
+    """`{"lon", "lat"}` for each affected stop with numeric, finite, distinct
+    coordinates. A stop without them is skipped: no coordinates means no pin,
+    which is correct, not an error."""
+    points = []
+    for stop in _stops_list(stops):
+        if not isinstance(stop, dict):
+            continue
+        lat, lon = stop.get("lat"), stop.get("lon")
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+                   for v in (lat, lon)):
+            continue
+        point = {"lon": lon, "lat": lat}
+        if point not in points:
+            points.append(point)
+    return points
+
+
 def line_status_findings(lines_json, lines=LINES):
     """`lines_json` is the /Line/{ids}/Status response. A line with nothing
     but "Good Service" statuses produces no finding -- most weeks that is
@@ -172,15 +196,27 @@ def line_status_findings(lines_json, lines=LINES):
                 or status.get("reason")
                 or f"{label}: {severity_label.lower()}."
             )
-            findings.append({
+            finding = {
                 "category": "road",
                 "title": f"{label}: {severity_label}",
                 "place": label,
                 "status_label": severity_label,
                 "body": body,
                 "sources": [STATUS_SOURCE],
-            })
+            }
+            if line.get("id") in ICON_LINE_IDS:
+                finding["line"] = line["id"]
+            # TfL lists the stops a disruption affects on the disruption itself.
+            points = _stop_points(_stops_list(disruption.get("affectedStops")) + _stops_list(status.get("affectedStops")))
+            if points:
+                finding["points"] = points
+            findings.append(finding)
     return findings
+
+
+def _stops_list(value):
+    """affectedStops as a list; anything else the API sends means no stops."""
+    return list(value) if isinstance(value, list) else []
 
 
 def stop_disruption_findings(disruptions_json):
@@ -190,8 +226,8 @@ def stop_disruption_findings(disruptions_json):
     for disruption in disruptions_json or []:
         stop_names = sorted({
             stop.get("commonName")
-            for stop in (disruption.get("affectedStops") or [])
-            if stop.get("commonName")
+            for stop in _stops_list(disruption.get("affectedStops"))
+            if isinstance(stop, dict) and stop.get("commonName")
         })
         place = ", ".join(stop_names) if stop_names else "Epping Forest area"
         status_label = disruption.get("closureText") or disruption.get("categoryDescription") or "Disrupted"
@@ -201,14 +237,19 @@ def stop_disruption_findings(disruptions_json):
             or disruption.get("summary")
             or f"{place}: bus stop disruption."
         )
-        findings.append({
+        finding = {
             "category": "road",
             "title": f"Bus stop disruption: {place}",
             "place": place,
             "status_label": status_label,
             "body": body,
+            "line": "bus",
             "sources": [STOP_SOURCE],
-        })
+        }
+        points = _stop_points(disruption.get("affectedStops"))
+        if points:
+            finding["points"] = points
+        findings.append(finding)
     return findings
 
 

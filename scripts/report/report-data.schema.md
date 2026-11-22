@@ -60,6 +60,19 @@ are added by the renderer itself -- never write either by hand.
       "status_label": "Already trading",   // short badge text
       "body": "One or two plain-English sentences. No jargon.",
       "lon": 0.0573766, "lat": 51.6521913,  // optional -- omit for "no pin"
+      // optional -- several pins for one card, all carrying the card's number.
+      // Points off the map get no pin. Works alongside lon/lat.
+      "points": [{"lon": 0.1139, "lat": 51.6937}],
+      // optional -- "central" | "elizabeth" | "weaver" | "bus": small icon by the
+      // card title. Anything else (or absent) shows no icon.
+      "line": "central",
+      // optional -- an app subcategory key (e.g. "restaurants", "shops", "pubs",
+      // "events"; any key with an icon in INVENTORY_ICON_SOURCES) for the icon by
+      // the card title. Absent: opening/closing cards resolve their business in
+      // data/business-slugs.json like the link does, event cards show "events",
+      // others none. Wins over resolution; unknown keys show no icon; a card
+      // with "line" shows the line icon instead.
+      "subcategory": "restaurants",
       "sources": [{"label": "Tripadvisor", "url": "https://..."}],
       // "event" findings only, optional: "week" (happening within the next
       // 7 days) or "month" (further out, or recurring with no next date
@@ -106,7 +119,7 @@ python3 scripts/report/structured_findings.py --as-of 2026-10-10
 ```
 
 `scripts/report/tfl_transit_status.py` prints findings in the same shape from
-a live check instead of a hand-researched file: the Central line, the Weaver
+a live check instead of a hand-researched file: the Central line, the Elizabeth line, the Weaver
 line (London Overground's Chingford branch), and bus stop disruptions around
 the coverage settlements. No arguments. `TFL_APP_KEY` is optional but
 recommended (unauthenticated calls from shared GitHub runner IPs got HTTP 403

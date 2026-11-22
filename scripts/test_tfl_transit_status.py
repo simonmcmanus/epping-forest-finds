@@ -90,6 +90,17 @@ class LineStatusFindingsTests(unittest.TestCase):
         findings = line_status_findings(lines_json, TEST_LINES)
         self.assertEqual(len(findings), 2)
 
+    def test_elizabeth_line_disruption_is_monitored_and_labelled(self):
+        lines_json = [disrupted_line("elizabeth", "Elizabeth", 6, "Severe Delays", description="Signal failure.")]
+        findings = line_status_findings(lines_json, tfl_transit_status.LINES)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["line"], "elizabeth")
+        self.assertEqual(findings[0]["place"], "Elizabeth line")
+
+    def test_elizabeth_line_good_service_produces_no_finding(self):
+        lines_json = [good_service_line("elizabeth", "Elizabeth line")]
+        self.assertEqual(line_status_findings(lines_json, tfl_transit_status.LINES), [])
+
 
 class StopDisruptionFindingsTests(unittest.TestCase):
     def test_no_disruptions_produces_no_findings(self):
@@ -125,6 +136,55 @@ class StopDisruptionFindingsTests(unittest.TestCase):
     def test_disruption_with_no_named_stop_falls_back_to_the_area(self):
         findings = stop_disruption_findings([{"description": "A stop is suspended nearby."}])
         self.assertEqual(findings[0]["place"], "Epping Forest area")
+
+
+class FindingCoordinatesTests(unittest.TestCase):
+    STOPS = [
+        {"commonName": "Epping", "lat": 51.6937, "lon": 0.1139},
+        {"commonName": "Theydon Bois", "lat": 51.6717, "lon": 0.1033},
+    ]
+
+    def test_stop_disruption_pins_at_its_affected_stops(self):
+        finding = stop_disruption_findings([{"description": "Closed.", "affectedStops": self.STOPS}])[0]
+        self.assertEqual(finding["line"], "bus")
+        self.assertEqual(finding["points"], [{"lon": 0.1139, "lat": 51.6937}, {"lon": 0.1033, "lat": 51.6717}])
+
+    def test_duplicate_and_unusable_coordinates_are_dropped(self):
+        stops = self.STOPS + [
+            {"commonName": "Epping again", "lat": 51.6937, "lon": 0.1139},
+            {"commonName": "No coords"},
+            {"commonName": "Text", "lat": "51.6", "lon": "0.1"},
+            {"commonName": "NaN", "lat": float("nan"), "lon": 0.1},
+            {"commonName": "Inf", "lat": 51.6, "lon": float("inf")},
+            {"commonName": "Bool", "lat": True, "lon": False},
+        ]
+        finding = stop_disruption_findings([{"description": "x", "affectedStops": stops}])[0]
+        self.assertEqual(len(finding["points"]), 2)
+
+    def test_no_coordinates_means_no_points(self):
+        finding = stop_disruption_findings([{"description": "x", "affectedStops": [{"commonName": "A"}]}])[0]
+        self.assertNotIn("points", finding)
+
+    def test_line_disruption_pins_at_its_affected_stops_and_names_its_line(self):
+        payload = [disrupted_line("central", "Central", 6, "Severe Delays",
+                                  description="Signal failure.", affectedStops=self.STOPS)]
+        finding = line_status_findings(payload, TEST_LINES)[0]
+        self.assertEqual(finding["line"], "central")
+        self.assertEqual(len(finding["points"]), 2)
+
+    def test_line_disruption_without_stop_coordinates_has_no_points(self):
+        payload = [disrupted_line("weaver", "Weaver", 6, "Severe Delays", description="x")]
+        finding = line_status_findings(payload, TEST_LINES)[0]
+        self.assertEqual(finding["line"], "weaver")
+        self.assertNotIn("points", finding)
+
+    def test_a_numeric_affected_stops_value_gives_a_finding_with_no_points(self):
+        stop = stop_disruption_findings([{"description": "x", "affectedStops": 7}])[0]
+        self.assertNotIn("points", stop)
+        payload = [disrupted_line("weaver", "Weaver", 6, "Severe Delays", description="x", affectedStops=7)]
+        line = line_status_findings(payload, TEST_LINES)[0]
+        self.assertEqual(line["line"], "weaver")
+        self.assertNotIn("points", line)
 
 
 class FakeResponse:

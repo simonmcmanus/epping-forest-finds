@@ -7,6 +7,8 @@ template, so the CSS in template.py doesn't need to change to match.
 
 Public entry point: render_map_svg(forest_geojson, findings, projection=None)
 """
+import math
+
 from .categories import style_for
 from .geo import MapProjection, simplify_points
 from .places import TOWNS
@@ -129,6 +131,33 @@ def build_cow_pin_markup(x, y, icon_url, title):
     )
 
 
+def _is_coordinate(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def located_points(finding, projection=None):
+    """The (lon, lat) spots a finding is pinned at: its top-level lon/lat (as
+    always, kept even if odd) plus any `points` entries that are numeric and
+    fall on the map canvas. Duplicates are dropped."""
+    projection = projection or MapProjection()
+    spots = []
+    lon, lat = finding.get("lon"), finding.get("lat")
+    if lon is not None and lat is not None:
+        spots.append((lon, lat))
+    points = finding.get("points")
+    for point in points if isinstance(points, list) else []:
+        if not isinstance(point, dict):
+            continue
+        plon, plat = point.get("lon"), point.get("lat")
+        if not (_is_coordinate(plon) and _is_coordinate(plat)):
+            continue
+        if not projection.contains(plon, plat):
+            continue
+        if (plon, plat) not in spots:
+            spots.append((plon, plat))
+    return spots
+
+
 def build_pins_markup(findings, projection, cow_icon_url=None):
     """findings: list of {number, lon, lat, category, title, place}.
 
@@ -137,10 +166,9 @@ def build_pins_markup(findings, projection, cow_icon_url=None):
     same way. Everything else keeps its numbered dot, which is what the cards
     below the map refer back to."""
     parts = []
-    for finding in findings:
-        lon, lat = finding.get("lon"), finding.get("lat")
-        if lon is None or lat is None:
-            continue
+    for finding, (lon, lat) in (
+        (f, spot) for f in findings for spot in located_points(f, projection)
+    ):
         x, y = projection.project(lon, lat)
         style = style_for(finding.get("category"))
         title = escape_text(finding.get("title", ""))

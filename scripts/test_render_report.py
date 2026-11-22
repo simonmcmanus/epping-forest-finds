@@ -471,5 +471,203 @@ class RenderReportEndToEndTests(unittest.TestCase):
             self.assertEqual(path.name, "epping-forest-ledger-2026-09-03.html")
 
 
+def render_findings(findings):
+    with tempfile.TemporaryDirectory() as tmp:
+        root = make_repo_root(Path(tmp), ["Pub"])
+        return rr.render_report({"date": "2026-11-22", "findings": findings}, root)
+
+
+def transit(line=None, **extra):
+    finding = {"category": "road", "title": "Transit thing", "place": "Epping",
+               "status_label": "Delays", "body": "Delays.", "sources": []}
+    if line:
+        finding["line"] = line
+    finding.update(extra)
+    return finding
+
+
+def map_pin_count(html):
+    return html.count('class="pin-num"')
+
+
+def icon_of(html):
+    """The decorative line icon the reader sees beside a card title, or None."""
+    import re
+    match = re.search(r'<span class="line-icon[^"]*" aria-hidden="true">(.*?)</span>', html, re.S)
+    return match.group(1) if match else None
+
+
+class LineIconTests(unittest.TestCase):
+    def test_each_line_has_its_own_distinct_icon(self):
+        icons = {line: icon_of(rr.render_card(dict(transit(line), number=1)))
+                 for line in ("central", "elizabeth", "weaver", "bus")}
+        for line, icon in icons.items():
+            self.assertTrue(icon, line)
+        self.assertEqual(len(set(icons.values())), 4)
+
+    def test_icons_use_the_tfl_colours(self):
+        card = lambda line: rr.render_card(dict(transit(line), number=1)).upper()
+        self.assertIn("#E32017", card("central"))
+        self.assertIn("#6950A1", card("elizabeth"))
+        self.assertIn("#EE7C0E", card("weaver"))
+
+    def test_unknown_or_missing_line_shows_no_icon(self):
+        self.assertIsNone(icon_of(rr.render_card(dict(transit(), number=1))))
+        self.assertIsNone(icon_of(rr.render_card(dict(transit("dlr"), number=1))))
+
+
+class SubcategoryIconTests(unittest.TestCase):
+    """Cards for places matching an app subcategory wear that subcategory's icon."""
+    STUB = [
+        {"slug": "fiana", "name": "Fiana", "key": "restaurants", "groupKey": "food"},
+        {"slug": "express", "name": "The Avenue Express", "key": "shops", "groupKey": "locations"},
+    ]
+
+    def setUp(self):
+        self._saved = rr._BUSINESS_LINKS
+        rr._BUSINESS_LINKS = rr.business_links.BusinessLinks(self.STUB)
+
+    def tearDown(self):
+        rr._BUSINESS_LINKS = self._saved
+
+    def subicon(self, finding):
+        import re
+        html = rr.render_card(dict(finding, number=1))
+        match = re.search(r'<img class="card-subicon" src="([^"]*)" alt="">', html)
+        return match.group(1) if match else None
+
+    def business(self, title, **extra):
+        return dict({"category": "opening", "title": title, "place": "Epping",
+                     "status_label": "Open", "body": "Now open.", "sources": []}, **extra)
+
+    def uri(self, key):
+        return rr.inventory_icon_uri(rr.REPO_ROOT, key)
+
+    def test_restaurant_card_shows_the_restaurant_icon(self):
+        icon = self.subicon(self.business("Fiana"))
+        self.assertTrue(icon)
+        self.assertEqual(icon, self.uri("restaurants"))
+
+    def test_shop_card_shows_the_shop_icon_and_differs_from_restaurant(self):
+        icon = self.subicon(self.business("The Avenue Express"))
+        self.assertEqual(icon, self.uri("shops"))
+        self.assertNotEqual(icon, self.uri("restaurants"))
+
+    def test_unresolved_name_shows_no_subcategory_icon(self):
+        self.assertIsNone(self.subicon(self.business("Nowhere Cafe")))
+
+    def test_event_card_shows_the_events_icon(self):
+        event = {"category": "event", "title": "Fun day", "place": "Epping",
+                 "status_label": "Sat", "body": "x", "sources": []}
+        self.assertEqual(self.subicon(event), self.uri("events"))
+        self.assertTrue(self.uri("events"))
+
+    def test_explicit_subcategory_wins_over_resolution(self):
+        self.assertEqual(self.subicon(self.business("Fiana", subcategory="pubs")), self.uri("pubs"))
+
+    def test_explicit_subcategory_overrides_the_event_default(self):
+        event = {"category": "event", "title": "Quiz", "place": "Epping",
+                 "status_label": "Sat", "body": "x", "sources": [], "subcategory": "pubs"}
+        self.assertEqual(self.subicon(event), self.uri("pubs"))
+
+    def test_unknown_explicit_subcategory_shows_no_icon(self):
+        self.assertIsNone(self.subicon(self.business("Fiana", subcategory="spaceships")))
+
+    def test_line_icon_wins_over_subcategory_icon(self):
+        html = rr.render_card(dict(self.business("Fiana", line="central"), number=1))
+        self.assertIn('class="line-icon', html)
+        self.assertNotIn("card-subicon", html)
+
+    def test_notices_and_road_closures_get_no_subcategory_icon(self):
+        self.assertIsNone(self.subicon(transit(title="Fiana")))
+
+    def test_chain_resolves_by_nearest_branch(self):
+        rr._BUSINESS_LINKS = rr.business_links.BusinessLinks([
+            {"slug": "a", "name": "Chain", "key": "cafes", "lat": 51.6, "lon": 0.1},
+            {"slug": "b", "name": "Chain", "key": "shops", "lat": 51.7, "lon": 0.2},
+        ])
+        icon = self.subicon(self.business("Chain", lat=51.7, lon=0.2))
+        self.assertEqual(icon, self.uri("shops"))
+        self.assertIsNone(self.subicon(self.business("Chain")))
+
+
+class PointsPinTests(unittest.TestCase):
+    INSIDE_A = {"lon": 0.05, "lat": 51.62}
+    INSIDE_B = {"lon": 0.03, "lat": 51.66}
+    OUTSIDE = {"lon": -1.5, "lat": 52.9}
+
+    def test_finding_with_several_points_pins_each_with_its_number(self):
+        html = render_findings([transit("central", points=[self.INSIDE_A, self.INSIDE_B])])
+        self.assertEqual(map_pin_count(html), 2)
+        self.assertIn('<span class="pin-chip', html)
+        self.assertIn("1 thing to know about this week", html)
+
+    def test_points_outside_the_map_get_no_pin_and_no_chip(self):
+        html = render_findings([transit("central", points=[self.OUTSIDE])])
+        self.assertEqual(map_pin_count(html), 0)
+        self.assertNotIn('<span class="pin-chip', html)
+        self.assertIn("Transit thing", html)
+        self.assertIn("Nothing needed a pin on the map this week", html)
+
+    def test_only_the_points_inside_the_map_are_drawn(self):
+        html = render_findings([transit(points=[self.OUTSIDE, self.INSIDE_A])])
+        self.assertEqual(map_pin_count(html), 1)
+
+    def test_findings_without_points_or_position_are_not_pinned(self):
+        html = render_findings([transit("weaver", points=[])])
+        self.assertEqual(map_pin_count(html), 0)
+        self.assertNotIn('<span class="pin-chip', html)
+
+    def test_junk_points_are_ignored(self):
+        html = render_findings([transit(points=[{"lon": "x", "lat": None}, "nope", {"lon": float("nan"), "lat": 51.6}])])
+        self.assertEqual(map_pin_count(html), 0)
+
+    def test_top_level_position_still_pins_and_counts_once(self):
+        html = render_findings([transit(lon=0.05, lat=51.62), transit(points=[self.INSIDE_A, self.INSIDE_B])])
+        self.assertEqual(map_pin_count(html), 3)
+        self.assertIn("2 things to know about this week", html)
+
+    def test_the_side_list_lists_a_multi_point_finding_once(self):
+        html = rr.render_map_side_list([dict(transit(points=[self.INSIDE_A, self.INSIDE_B]), number=1)])
+        self.assertEqual(html.count('class="find-mini"'), 1)
+
+
+class RobustPointsTests(unittest.TestCase):
+    def test_numeric_points_value_is_treated_as_no_points(self):
+        html = render_findings([transit("central", points=5)])
+        self.assertIn("Transit thing", html)
+        self.assertEqual(map_pin_count(html), 0)
+        self.assertNotIn('<span class="pin-chip', html)
+
+    def test_bool_and_non_finite_points_are_not_drawn(self):
+        html = render_findings([transit(points=[{"lon": True, "lat": False}, {"lon": float("inf"), "lat": 51.6}])])
+        self.assertEqual(map_pin_count(html), 0)
+
+    def test_a_repeated_point_is_drawn_once(self):
+        spot = {"lon": 0.05, "lat": 51.62}
+        html = render_findings([transit(points=[spot, dict(spot)])])
+        self.assertEqual(map_pin_count(html), 1)
+
+    def test_off_canvas_finding_is_left_out_of_the_side_list(self):
+        inside = dict(transit(title="Inside thing", points=[{"lon": 0.05, "lat": 51.62}]), number=1)
+        outside = dict(transit(title="Outside thing", points=[{"lon": -1.5, "lat": 52.9}]), number=2)
+        html = rr.render_map_side_list([inside, outside])
+        self.assertIn("Inside thing", html)
+        self.assertNotIn("Outside thing", html)
+
+
+class MapProjectionConsistencyTests(unittest.TestCase):
+    def test_count_side_list_and_pins_agree_for_a_custom_projection(self):
+        from scripts.report.geo import MapProjection
+        # A small map around Epping only: the default-map spot at Loughton is off this canvas.
+        small = MapProjection(bbox={"south": 51.68, "north": 51.70, "west": 0.10, "east": 0.13})
+        finding = dict(transit(title="Loughton thing", points=[{"lon": 0.05, "lat": 51.64}]), number=1)
+        geojson = {"type": "FeatureCollection", "features": []}
+        html = rr.render_map_section(geojson, [finding], None, projection=small)
+        self.assertEqual(map_pin_count(html), 0)
+        self.assertIn("Nothing needed a pin on the map this week", html)
+        self.assertNotIn("Loughton thing", html)
+
+
 if __name__ == "__main__":
     unittest.main()
