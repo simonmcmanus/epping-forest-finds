@@ -276,6 +276,27 @@ test("a code revoked while it is being redeemed is 410 and leaves the account wi
   });
 });
 
+test("a claimant whose grant failed to write retries the same link and is let in, once", async () => {
+  const inner = gated();
+  await withStore(inner, async () => {
+    const { code } = await create();
+    let failed = false;
+    const flaky = { ...inner, async put(key, value) {
+      if (key.startsWith("beta-user/") && !failed) { failed = true; throw new Error("transient"); }
+      return inner.put(key, value);
+    } };
+    await assert.rejects(beta.redeem(flaky, { sub: "auth0|a" }, code));
+    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal((await redeemAs("auth0|b", code)).statusCode, 409);
+    assert.equal(await communityFor("auth0|b"), false);
+    assert.equal((await redeemAs("auth0|a", code)).statusCode, 200);
+    assert.equal(await communityFor("auth0|a"), true);
+    const again = await redeemAs("auth0|a", code);
+    assert.equal(again.statusCode, 409);
+    assert.equal(JSON.parse(again.body).member, true);
+  });
+});
+
 test("creating a code without a note is refused and writes nothing", async () => {
   for (const note of [undefined, "", "   \t "]) {
     const store = memoryStore();

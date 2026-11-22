@@ -99,12 +99,21 @@ async function redeem(store, session, value) {
   const used = { ok: false, status: 409, error: "That beta link has already been used." };
   // A used code is used for everyone, including the account that claimed it; its access is left as it is.
   // Only the holder, who still has a valid grant, is told so (member: true), so the page can send them on. Grants nothing.
-  if (record.claimedBy) return record.claimedBy === account && (await betaMember(store, session)) ? { ...used, member: true } : used;
+  if (record.claimedBy && (record.claimedBy !== account || (await betaMember(store, session)))) {
+    return record.claimedBy === account ? { ...used, member: true } : used;
+  }
+  // The claimant whose grant never finished writing (a store error after the claim) retries the same link and is granted.
+  if (record.claimedBy) return grant(store, account, code, used);
   await store.put(`${CODE_PREFIX}${code}`, { ...record, claimedBy: account, claimedAt: Date.now() });
   const held = await store.getStrict(`${CODE_PREFIX}${code}`);
   if (await revokedAtOf(store, code, held)) return WITHDRAWN;
   if (!held || held.claimedBy !== account) return used;
   if (await revokedAtOf(store, code, record)) return WITHDRAWN;
+  return grant(store, account, code, used);
+}
+
+// Writes the grant, then re-reads the code: a revoke or a rival claim that landed meanwhile takes the access back.
+async function grant(store, account, code, used) {
   await store.put(`${USER_PREFIX}${account}`, { code, at: Date.now() });
   // A revoke may have landed since: take the access straight back.
   const after = await store.getStrict(`${CODE_PREFIX}${code}`);
