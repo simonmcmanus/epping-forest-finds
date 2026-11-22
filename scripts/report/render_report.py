@@ -78,7 +78,9 @@ INVENTORY_ICON_SOURCES = {
     "literature": Path("data") / "icons" / "literature.png",
     "film_tv": Path("data") / "icons" / "film.png",
     "art": Path("data") / "icons" / "art.png",
+    "events": Path("data") / "icons" / "event.png",
 }
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 INVENTORY_ICON_SIZE_PX = 64
 DEFAULT_ABOUT_NOTE = (
     "A snapshot of the forest and its neighbouring towns at the date above. "
@@ -368,6 +370,31 @@ def line_icon_html(line):
     return f'<span class="line-icon line-{line}" aria-hidden="true">{icon}</span>'
 
 
+def subcategory_key(finding):
+    """The app subcategory a card's icon comes from, or None. An explicit
+    "subcategory" wins (only keys with a known icon count); otherwise events
+    default to "events" and openings/closings resolve their business by the
+    same rule as the link. Notices and road closures have none."""
+    explicit = finding.get("subcategory")
+    if explicit is not None:
+        return explicit if isinstance(explicit, str) and explicit in INVENTORY_ICON_SOURCES else None
+    category = finding.get("category")
+    if category == "event":
+        return "events"
+    if category in BUSINESS_CATEGORIES:
+        key = _BUSINESS_LINKS.subcategory_for(finding.get("title"), finding.get("lat"), finding.get("lon"))
+        return key if key in INVENTORY_ICON_SOURCES else None
+    return None
+
+
+def subcategory_icon_html(finding):
+    if finding.get("line"):
+        return ""
+    key = subcategory_key(finding)
+    uri = inventory_icon_uri(REPO_ROOT, key) if key else ""
+    return f'<img class="card-subicon" src="{uri}" alt="">' if uri else ""
+
+
 def render_card(finding):
     style = style_for(finding.get("category"))
     css_class = style["css_class"]
@@ -389,7 +416,7 @@ def render_card(finding):
     title_html = f'<a href="{escape(link_url)}">{title}</a>' if link_url else title
     return (
         f'<div class="card {css_class}">'
-        f'<div class="card-head">{chip}{line_icon_html(finding.get("line"))}<h3>{title_html}</h3>{status_html}</div>'
+        f'<div class="card-head">{chip}{line_icon_html(finding.get("line"))}{subcategory_icon_html(finding)}<h3>{title_html}</h3>{status_html}</div>'
         f'{place_html}{body_html}{sources_html}'
         f'</div>'
     )

@@ -516,6 +516,81 @@ class LineIconTests(unittest.TestCase):
         self.assertIsNone(icon_of(rr.render_card(dict(transit("dlr"), number=1))))
 
 
+class SubcategoryIconTests(unittest.TestCase):
+    """Cards for places matching an app subcategory wear that subcategory's icon."""
+    STUB = [
+        {"slug": "fiana", "name": "Fiana", "key": "restaurants", "groupKey": "food"},
+        {"slug": "express", "name": "The Avenue Express", "key": "shops", "groupKey": "locations"},
+    ]
+
+    def setUp(self):
+        self._saved = rr._BUSINESS_LINKS
+        rr._BUSINESS_LINKS = rr.business_links.BusinessLinks(self.STUB)
+
+    def tearDown(self):
+        rr._BUSINESS_LINKS = self._saved
+
+    def subicon(self, finding):
+        import re
+        html = rr.render_card(dict(finding, number=1))
+        match = re.search(r'<img class="card-subicon" src="([^"]*)" alt="">', html)
+        return match.group(1) if match else None
+
+    def business(self, title, **extra):
+        return dict({"category": "opening", "title": title, "place": "Epping",
+                     "status_label": "Open", "body": "Now open.", "sources": []}, **extra)
+
+    def uri(self, key):
+        return rr.inventory_icon_uri(rr.REPO_ROOT, key)
+
+    def test_restaurant_card_shows_the_restaurant_icon(self):
+        icon = self.subicon(self.business("Fiana"))
+        self.assertTrue(icon)
+        self.assertEqual(icon, self.uri("restaurants"))
+
+    def test_shop_card_shows_the_shop_icon_and_differs_from_restaurant(self):
+        icon = self.subicon(self.business("The Avenue Express"))
+        self.assertEqual(icon, self.uri("shops"))
+        self.assertNotEqual(icon, self.uri("restaurants"))
+
+    def test_unresolved_name_shows_no_subcategory_icon(self):
+        self.assertIsNone(self.subicon(self.business("Nowhere Cafe")))
+
+    def test_event_card_shows_the_events_icon(self):
+        event = {"category": "event", "title": "Fun day", "place": "Epping",
+                 "status_label": "Sat", "body": "x", "sources": []}
+        self.assertEqual(self.subicon(event), self.uri("events"))
+        self.assertTrue(self.uri("events"))
+
+    def test_explicit_subcategory_wins_over_resolution(self):
+        self.assertEqual(self.subicon(self.business("Fiana", subcategory="pubs")), self.uri("pubs"))
+
+    def test_explicit_subcategory_overrides_the_event_default(self):
+        event = {"category": "event", "title": "Quiz", "place": "Epping",
+                 "status_label": "Sat", "body": "x", "sources": [], "subcategory": "pubs"}
+        self.assertEqual(self.subicon(event), self.uri("pubs"))
+
+    def test_unknown_explicit_subcategory_shows_no_icon(self):
+        self.assertIsNone(self.subicon(self.business("Fiana", subcategory="spaceships")))
+
+    def test_line_icon_wins_over_subcategory_icon(self):
+        html = rr.render_card(dict(self.business("Fiana", line="central"), number=1))
+        self.assertIn('class="line-icon', html)
+        self.assertNotIn("card-subicon", html)
+
+    def test_notices_and_road_closures_get_no_subcategory_icon(self):
+        self.assertIsNone(self.subicon(transit(title="Fiana")))
+
+    def test_chain_resolves_by_nearest_branch(self):
+        rr._BUSINESS_LINKS = rr.business_links.BusinessLinks([
+            {"slug": "a", "name": "Chain", "key": "cafes", "lat": 51.6, "lon": 0.1},
+            {"slug": "b", "name": "Chain", "key": "shops", "lat": 51.7, "lon": 0.2},
+        ])
+        icon = self.subicon(self.business("Chain", lat=51.7, lon=0.2))
+        self.assertEqual(icon, self.uri("shops"))
+        self.assertIsNone(self.subicon(self.business("Chain")))
+
+
 class PointsPinTests(unittest.TestCase):
     INSIDE_A = {"lon": 0.05, "lat": 51.62}
     INSIDE_B = {"lon": 0.03, "lat": 51.66}

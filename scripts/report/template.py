@@ -249,6 +249,7 @@ REPORT_CSS = """
     flex:none;
   }
   .line-icon{display:inline-flex;flex:none;line-height:0;}
+  .card-subicon{width:22px;height:22px;object-fit:contain;flex:none;}
   .line-bus{color:var(--status-critical);}
   .line-central,.line-weaver{color:var(--ink);}
   .pin-chip.good{background:var(--status-good);}

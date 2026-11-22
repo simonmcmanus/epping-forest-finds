@@ -66,6 +66,13 @@ are added by the renderer itself -- never write either by hand.
       // optional -- "central" | "elizabeth" | "weaver" | "bus": small icon by the
       // card title. Anything else (or absent) shows no icon.
       "line": "central",
+      // optional -- an app subcategory key (e.g. "restaurants", "shops", "pubs",
+      // "events"; any key with an icon in INVENTORY_ICON_SOURCES) for the icon by
+      // the card title. Absent: opening/closing cards resolve their business in
+      // data/business-slugs.json like the link does, event cards show "events",
+      // others none. Wins over resolution; unknown keys show no icon; a card
+      // with "line" shows the line icon instead.
+      "subcategory": "restaurants",
       "sources": [{"label": "Tripadvisor", "url": "https://..."}],
       // "event" findings only, optional: "week" (happening within the next
       // 7 days) or "month" (further out, or recurring with no next date

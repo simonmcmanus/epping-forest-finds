@@ -565,6 +565,13 @@ the wrong branch would be worse than no link at all, so this never guesses.
 finding's title, not only business openings/closings, so a road or event
 finding that happens to name a resolvable place links too.
 
+**Subcategory icon before the title.** A business opening/closing card whose
+name resolves (same rule as the link) shows its app subcategory's icon
+(`INVENTORY_ICON_SOURCES`, inlined); event cards show the events icon. A
+finding's `subcategory` overrides this (unknown keys: no icon), and a card
+with a `line` shows the line icon instead. Notices (facility/access/works)
+and road closures have no app subcategory, so they get no icon (known gap).
+
 The listing wears the homepage's look (palette, Fraunces and Public Sans, cards)
 with its styles inlined, loading only the oak leaf and Ledger icon from
 `assets/home/` (including the shaded `ledger.png`) and nothing from the app. It has the homepage's brand header
