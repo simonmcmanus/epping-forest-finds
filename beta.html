@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Join the beta</title>
+<meta name="theme-color" content="#24382f">
+<link rel="icon" href="/assets/home/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="/assets/home/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -18,9 +21,10 @@
   --border: #ded9c6;
   --accent: #1d4a2f;
   --accent-text: #ffffff;
+  --accent-hover: #2e6b44;
   --focus: #1d4a2f;
   --error: #9b2c2c;
-  --gold: #b69439;
+  --celebrate: #b69439;
   --ring: #2e6b44;
   --shadow: 0 1px 2px rgba(24, 28, 17, .06), 0 16px 36px -20px rgba(24, 28, 17, .35);
 }
@@ -34,9 +38,10 @@
     --border: #36402d;
     --accent: #f3d36b;
     --accent-text: #181c11;
+    --accent-hover: #ffe58f;
     --focus: #f3d36b;
     --error: #f0a3a3;
-    --gold: #f3d36b;
+    --celebrate: #f3d36b;
     --ring: #8fcf9d;
     --shadow: none;
   }
@@ -50,9 +55,10 @@
   --border: #36402d;
   --accent: #f3d36b;
   --accent-text: #181c11;
+  --accent-hover: #ffe58f;
   --focus: #f3d36b;
   --error: #f0a3a3;
-  --gold: #f3d36b;
+  --celebrate: #f3d36b;
   --ring: #8fcf9d;
   --shadow: none;
 }
@@ -74,7 +80,7 @@ main {
 .mark-wrap { position: relative; width: 112px; height: 112px; margin: 0 auto 16px; }
 .rings { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--ring); }
 .brand-mark { position: absolute; top: 24px; left: 24px; width: 64px; height: 64px; }
-.joined .rings { color: var(--gold); }
+.joined .rings { color: var(--celebrate); }
 .eyebrow { margin: 0 0 4px; color: var(--muted); font-family: "Fraunces", Georgia, serif; font-size: 1rem; font-style: italic; }
 h1 {
   margin: 0;
@@ -116,8 +122,14 @@ h1 {
   text-decoration: none;
   cursor: pointer;
 }
+.btn:hover { background: var(--accent-hover); }
+.btn:active { background: var(--accent-hover); }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+/* The ring stays a solid colour: the homepage's softer rgba(46,107,68,.45) is only about 2:1 on white, below the 3:1 floor. */
 .btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 @media (prefers-reduced-motion: no-preference) {
+  .btn { transition: background-color .2s ease, transform .25s ease; }
+  .btn:active:not(:disabled) { transform: scale(.98); }
   .brand-mark { animation: rise .9s ease-out backwards; }
   .rings circle { animation: ring 1.4s ease-out backwards; }
   .rings circle:nth-child(2) { animation-delay: .15s; }
@@ -139,7 +151,7 @@ h1 {
       </svg>
       <img class="brand-mark" src="/assets/home/map-icons/oak.png" alt="" width="64" height="64">
     </div>
-    <p class="eyebrow">You're invited</p>
+    <p class="eyebrow">You’re invited</p>
     <h1>Epping Forest Finds beta</h1>
   </header>
   <div class="card">

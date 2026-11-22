@@ -143,4 +143,23 @@ test.describe("Beta sign-in page", () => {
     await expect(mark).toBeVisible();
     expect(await mark.evaluate((el) => getComputedStyle(el).opacity)).toBe("1");
   });
+
+  test("the page has a favicon from the homepage assets", async ({ page }) => {
+    await mockMe(page, false);
+    await page.goto("/beta/a234e");
+    const href = await page.locator('link[rel="icon"]').getAttribute("href");
+    expect(href).toMatch(/^\/assets\/home\//);
+  });
+
+  test("the primary button looks different when hovered", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await mockMe(page, false);
+    await page.goto("/beta/a234e");
+    const btn = page.getByRole("link", { name: "Sign in to join the beta" });
+    await expect(btn).toBeVisible();
+    const bg = () => btn.evaluate((el) => getComputedStyle(el).backgroundColor);
+    const before = await bg();
+    await btn.hover();
+    await expect.poll(bg).not.toBe(before);
+  });
 });
