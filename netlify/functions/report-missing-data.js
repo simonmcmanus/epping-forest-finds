@@ -2,8 +2,7 @@ const DEFAULT_REPO = "simonmcmanus/epping-forest-finds";
 const { randomUUID, createHmac } = require("crypto");
 const { openStore, MINE_LOG_MAX } = require("./lib/community-store");
 const { checkRateLimit, clientIp } = require("./lib/report-rate-limit");
-const { connectLambda, getStore } = require("@netlify/blobs");
-const { REPORT_PHOTO_MAX_BYTES, REPORT_PHOTO_STORE, configureBlobContext, parsePhoto } = require("./lib/report-photo");
+const { REPORT_PHOTO_MAX_BYTES, parsePhoto, photoStoreFor } = require("./lib/report-photo");
 
 function reportPhotoUrl(photoId, pageUrl) {
   // `URL` is the production site even during a deploy preview, while Blobs are scoped to
@@ -18,9 +17,10 @@ function reportPhotoUrl(photoId, pageUrl) {
 
 async function sendPhoto(event, photoId) {
   if (!/^[a-f0-9-]+\.(jpg|png|webp)$/.test(photoId)) return response(404, { error: "Photo not found" });
-  if (!configureBlobContext(event)) return response(404, { error: "Photo not found" });
+  const store = photoStoreFor(event);
+  if (!store) return response(404, { error: "Photo not found" });
   try {
-    const bytes = await getStore(REPORT_PHOTO_STORE).get(`photos/${photoId}`, { type: "arrayBuffer" });
+    const bytes = await store.get(`photos/${photoId}`, { type: "arrayBuffer" });
     if (!bytes) return response(404, { error: "Photo not found" });
     const contentType = photoId.endsWith(".png") ? "image/png" : photoId.endsWith(".webp") ? "image/webp" : "image/jpeg";
     return {
@@ -348,13 +348,14 @@ exports.handler = async (event) => {
     }
 
     if (photo) {
-      if (!configureBlobContext(event)) {
+      const photoStore = photoStoreFor(event);
+      if (!photoStore) {
         await releaseClaim();
         return response(503, { error: "Photo storage is unavailable. Please try again without the photo." });
       }
       const photoId = `${randomUUID()}.${photo.extension}`;
       try {
-        await getStore(REPORT_PHOTO_STORE).set(`photos/${photoId}`, photo.bytes, { metadata: { contentType: photo.contentType } });
+        await photoStore.set(`photos/${photoId}`, photo.bytes, { metadata: { contentType: photo.contentType } });
       } catch {
         await releaseClaim();
         return response(503, { error: "Could not save the photo. Please try again." });
