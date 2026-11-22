@@ -90,16 +90,12 @@ class LineStatusFindingsTests(unittest.TestCase):
         findings = line_status_findings(lines_json, TEST_LINES)
         self.assertEqual(len(findings), 2)
 
-    def test_elizabeth_line_disruption_is_monitored_and_labelled(self):
-        lines_json = [disrupted_line("elizabeth", "Elizabeth", 6, "Severe Delays", description="Signal failure.")]
-        findings = line_status_findings(lines_json, tfl_transit_status.LINES)
-        self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0]["line"], "elizabeth")
-        self.assertEqual(findings[0]["place"], "Elizabeth line")
-
-    def test_elizabeth_line_good_service_produces_no_finding(self):
-        lines_json = [good_service_line("elizabeth", "Elizabeth line")]
-        self.assertEqual(line_status_findings(lines_json, tfl_transit_status.LINES), [])
+    def test_line_status_request_asks_only_for_central_and_weaver(self):
+        with mock.patch.object(tfl_transit_status, "_get_json", return_value=[]) as get_json:
+            tfl_transit_status.fetch_line_statuses()
+        url = get_json.call_args[0][0]
+        self.assertIn("/Line/central,weaver/Status", url)
+        self.assertNotIn("elizabeth", url)
 
 
 class StopDisruptionFindingsTests(unittest.TestCase):
