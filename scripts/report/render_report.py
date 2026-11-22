@@ -336,7 +336,7 @@ def is_pinned(finding, projection=None):
 LINE_ICONS = {
     "central": (
         '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
-        '<circle cx="12" cy="12" r="11.4" fill="#fff" stroke="#1a1a1a" stroke-opacity=".35" stroke-width="1"/>'
+        '<circle cx="12" cy="12" r="11.4" fill="#fff" stroke="currentColor" stroke-opacity=".35" stroke-width="1"/>'
         '<circle cx="12" cy="12" r="8.2" fill="none" stroke="#E32017" stroke-width="3.2"/>'
         '<rect x="2" y="9.6" width="20" height="4.8" fill="#0019A8"/></svg>'
     ),
@@ -347,7 +347,7 @@ LINE_ICONS = {
     ),
     "weaver": (
         '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
-        '<circle cx="12" cy="12" r="11.4" fill="#fff" stroke="#1a1a1a" stroke-opacity=".35" stroke-width="1"/>'
+        '<circle cx="12" cy="12" r="11.4" fill="#fff" stroke="currentColor" stroke-opacity=".35" stroke-width="1"/>'
         '<circle cx="12" cy="12" r="8.2" fill="none" stroke="#EE7C0E" stroke-width="3.2"/>'
         '<rect x="2" y="9.6" width="20" height="4.8" fill="#0019A8"/></svg>'
     ),

@@ -250,6 +250,7 @@ REPORT_CSS = """
   }
   .line-icon{display:inline-flex;flex:none;line-height:0;}
   .line-bus{color:var(--status-critical);}
+  .line-central,.line-weaver{color:var(--ink);}
   .pin-chip.good{background:var(--status-good);}
   .pin-chip.critical{background:var(--status-critical);}
   .pin-chip.warning{background:var(--status-warning); color:var(--status-warning-ink);}
