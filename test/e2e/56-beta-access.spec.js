@@ -6,9 +6,9 @@ async function mockMe(page, signedIn) {
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(signedIn ? { signedIn: true, name: "Sam" } : { signedIn: false }) })
   );
 }
-async function mockNearby(page) {
-  await page.route("**/nearby", (route) =>
-    route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>Nearby stub</title><p>Nearby</p>" })
+async function mockCommunity(page) {
+  await page.route("**/community", (route) =>
+    route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>Community stub</title><p>Community</p>" })
   );
 }
 function trackRedeem(page, status, body) {
@@ -29,12 +29,12 @@ test.describe("Beta sign-in page", () => {
     await expect(signIn).toHaveAttribute("href", "/api/auth/login?return=/beta/a234e");
   });
 
-  test("signed in with a valid code, the code is redeemed and the person lands on Nearby", async ({ page }) => {
+  test("signed in with a valid code, the code is redeemed and the person lands on Community", async ({ page }) => {
     await mockMe(page, true);
-    await mockNearby(page);
+    await mockCommunity(page);
     const calls = trackRedeem(page, 200, { ok: true });
     await page.goto("/beta/A234E");
-    await page.waitForURL("**/nearby");
+    await page.waitForURL("**/community");
     expect(calls).toEqual([{ code: "a234e" }]);
   });
 
@@ -53,15 +53,15 @@ test.describe("Beta sign-in page", () => {
     await expect(status).toContainText("Ask whoever sent you the link for a new one, or sign in with the account you used first.");
     await expect(page.getByRole("link", { name: "Use a different account" })).toHaveAttribute("href", "/api/auth/logout?return=/beta/a234e");
     await expect(status).toContainText("If you already joined with this account, you're in.");
-    await expect(page.getByRole("link", { name: "Open Nearby" })).toHaveAttribute("href", "/nearby");
+    await expect(page.getByRole("link", { name: "Open Community" })).toHaveAttribute("href", "/community");
   });
 
-  test("a code already used by this very account goes straight to Nearby without the already-used text", async ({ page }) => {
+  test("a code already used by this very account goes straight to Community without the already-used text", async ({ page }) => {
     await mockMe(page, true);
-    await mockNearby(page);
+    await mockCommunity(page);
     trackRedeem(page, 409, { error: "That beta link has already been used.", member: true });
     await page.goto("/beta/a234e");
-    await page.waitForURL("**/nearby");
+    await page.waitForURL("**/community");
     await expect(page.getByText("already been used")).toHaveCount(0);
   });
 
@@ -81,7 +81,7 @@ test.describe("Beta sign-in page", () => {
 
   test("an unexpected server failure offers Retry, which tries again and moves focus to the message", async ({ page }) => {
     await mockMe(page, true);
-    await mockNearby(page);
+    await mockCommunity(page);
     let n = 0;
     await page.route("**/api/beta/redeem", (route) => {
       n++;
@@ -105,7 +105,7 @@ test.describe("Beta sign-in page", () => {
 
   test("a code already used shows the server's message and stays on the page", async ({ page }) => {
     await mockMe(page, true);
-    await mockNearby(page);
+    await mockCommunity(page);
     trackRedeem(page, 409, { error: "That beta link has already been used." });
     await page.goto("/beta/a234e");
     await expect(page.getByRole("status")).toContainText("That beta link has already been used.");
@@ -172,6 +172,14 @@ test.describe("Beta sign-in page", () => {
     const names = await page.locator(".rings circle").evaluateAll((els) => els.map((el) => getComputedStyle(el).animationName));
     expect(names.length).toBeGreaterThan(0);
     for (const n of names) expect(n).toBe("none");
+  });
+
+  test("a signed-in visit to another page is not redirected or redeemed by the beta page", async ({ page }) => {
+    await mockMe(page, true);
+    const calls = trackRedeem(page, 200, { ok: true });
+    await page.goto("/community");
+    await expect(page).toHaveURL(/\/community$/);
+    expect(calls).toEqual([]);
   });
 
   test("the page has a favicon from the homepage assets", async ({ page }) => {

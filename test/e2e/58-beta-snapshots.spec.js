@@ -50,13 +50,13 @@ test.describe("Beta sign-in page snapshots", () => {
     await capture(page, "beta-joining.png");
   });
 
-  test("snapshot: beta page, success opening Nearby", async ({ page }) => {
+  test("snapshot: beta page, success opening Community", async ({ page }) => {
     await mockMe(page, true);
     await mockRedeem(page, 200, { ok: true });
     // The redirect target answers 204 No Content, which leaves the page where it is on the success message.
-    await page.route("**/nearby", (route) => route.fulfill({ status: 204 }));
+    await page.route("**/community", (route) => route.fulfill({ status: 204 }));
     await page.goto("/beta/a234e", { waitUntil: "commit" });
-    await expect(page.locator("#message")).toHaveText("Opening Nearby…");
+    await expect(page.locator("#message")).toHaveText("Opening Community…");
     await capture(page, "beta-success.png");
   });
 
@@ -65,7 +65,7 @@ test.describe("Beta sign-in page snapshots", () => {
     await mockRedeem(page, 409, { error: "That beta link has already been used." });
     await page.goto("/beta/a234e");
     await expect(page.getByRole("link", { name: "Use a different account" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Open Nearby" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open Community" })).toBeVisible();
     await capture(page, "beta-already-used.png");
   });
 
