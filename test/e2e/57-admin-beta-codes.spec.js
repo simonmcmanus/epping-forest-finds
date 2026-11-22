@@ -2,7 +2,6 @@ const { test, expect } = require("@playwright/test");
 const { skipOnboarding } = require("./helpers");
 
 const TRACKS = { locations: [], clicks: [], meta: { storeName: "tracking-test", context: "test", windowDays: 30 } };
-const SESSION_TOKEN = "test-session-token";
 
 const CODES = [
   { code: "a234e", note: "Simon", createdAt: "2026-11-01T10:00:00.000Z", status: "claimed", claimedAt: "2026-11-02T09:00:00.000Z" },
@@ -14,17 +13,15 @@ const CODES = [
 async function openBeta(page, handler) {
   const calls = [];
   await skipOnboarding(page);
-  await page.route(/\/api\/admin\/session/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ token: SESSION_TOKEN, expiresAt: Date.now() + 8 * 3600000 }) }));
+  await page.route(/\/api\/admin\/me/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Test Admin" }) }));
   await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
   await page.route(/\/api\/beta\/codes/, (route) => {
     const req = route.request();
     const body = req.method() === "POST" ? JSON.parse(req.postData() || "{}") : null;
-    calls.push({ method: req.method(), auth: req.headers()["authorization"], body });
+    calls.push({ method: req.method(), csrf: req.headers()["x-requested-with"], auth: req.headers()["authorization"], body });
     return handler(route, body);
   });
   await page.goto("/admin");
-  await page.getByLabel("Admin password").fill("secret");
-  await page.click("#loginBtn");
   await expect(page.locator("#loginScreen")).toBeHidden();
   await expect(page.locator("#adminStats")).toContainText("location pings");
   await page.getByRole("button", { name: "Beta codes" }).click();
@@ -57,7 +54,8 @@ test.describe("Admin beta codes", () => {
     await expect(rows.nth(2)).toContainText(/revoked/i);
     await expect(rows.nth(2).getByRole("button", { name: /^Revoke/ })).toHaveCount(0);
     await expect(rows.nth(2).getByRole("button", { name: /Copy link/ })).toHaveCount(0);
-    expect(calls[0].auth).toBe(`Bearer ${SESSION_TOKEN}`);
+    expect(calls[0].csrf).toBe("admin");
+    expect(calls[0].auth).toBeUndefined();
   });
 
   test("Create code sends the note and shows the new code and link at the top", async ({ page }) => {
@@ -287,7 +285,7 @@ test.describe("Admin beta codes", () => {
 
   test("a 401 on load returns to admin sign-in", async ({ page }) => {
     await openBeta(page, (route) => json(route, 401, { error: "Unauthorized" }));
-    await expect(page.getByLabel("Admin password")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in with Auth0" })).toBeVisible();
     await expect(page.locator("#adminBeta")).toBeHidden();
   });
 

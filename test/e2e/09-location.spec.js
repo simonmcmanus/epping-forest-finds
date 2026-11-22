@@ -99,6 +99,71 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page).toHaveScreenshot("veteran-tree-adventure.png", { fullPage: false });
     });
 
+    test("the veteran tree adventure highlights its tree on the map until the notice closes", async ({ page }) => {
+      await page.evaluate(() => { els.consentBanner.hidden = true; });
+      const adventure = page.locator("#adventureBanner");
+      await expect(adventure).toBeVisible({ timeout: 10_000 });
+      // The map is visible behind the notice. Find where the named tree sits once, while the notice
+      // is open, then sample the overlay canvas at fixed pixels: the tree centre and a point in the
+      // pulsing halo just outside the disc.
+      const spot = await page.evaluate(() => {
+        const toScreen = typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen;
+        const p = toScreen(treeAdventureTargetItem.point);
+        const dpr = pixelRatio();
+        return { x: Math.round(p.x), y: Math.round(p.y), halo: Math.round(15 * dpr) };
+      });
+      const sample = (dx = 0) => page.evaluate(({ x, y }) => {
+        const d = els.overlayCanvas.getContext("2d").getImageData(x, y, 1, 1).data;
+        return { r: d[0], g: d[1], b: d[2], a: d[3] };
+      }, { x: spot.x + dx, y: spot.y });
+      // Gold: opaque, red and green well above blue (an ordinary tree pin is green and on the main canvas).
+      await expect.poll(async () => {
+        const c = await sample();
+        return c.a > 200 && c.r > c.b + 60 && c.g > c.b + 40;
+      }).toBe(true);
+      // It pulses: the halo pixel changes while the notice is open...
+      const seen = new Set();
+      for (let i = 0; i < 12; i += 1) {
+        seen.add(JSON.stringify(await sample(spot.halo)));
+        await page.waitForTimeout(120);
+      }
+      expect(seen.size, "the halo should pulse while the notice is open").toBeGreaterThan(1);
+
+      await page.locator("#adventureDismiss").click();
+      await expect(adventure).toBeHidden();
+      // ...and the highlight is gone once it has closed.
+      await expect.poll(async () => (await sample()).a).toBe(0);
+      await expect.poll(async () => (await sample(spot.halo)).a).toBe(0);
+    });
+
+    test("the veteran tree adventure highlight stays still with reduced motion", async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      // The notice from the normal load may already be open: reload with reduced motion set so it
+      // opens afresh under that preference.
+      await page.evaluate(() => localStorage.removeItem("ff-tree-adventure-seen-v1"));
+      await gotoAndWaitForMap(page);
+      await page.evaluate(() => { els.consentBanner.hidden = true; });
+      const adventure = page.locator("#adventureBanner");
+      await expect(adventure).toBeVisible({ timeout: 10_000 });
+      const spot = await page.evaluate(() => {
+        const toScreen = typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen;
+        const p = toScreen(treeAdventureTargetItem.point);
+        const dpr = pixelRatio();
+        return { x: Math.round(p.x), y: Math.round(p.y), halo: Math.round(15 * dpr) };
+      });
+      const sample = (dx = 0) => page.evaluate(({ x, y }) => {
+        const d = els.overlayCanvas.getContext("2d").getImageData(x, y, 1, 1).data;
+        return JSON.stringify([d[0], d[1], d[2], d[3]]);
+      }, { x: spot.x + dx, y: spot.y });
+      await expect.poll(async () => JSON.parse(await sample())[3]).toBeGreaterThan(200);
+      const centre = await sample();
+      const halo = await sample(spot.halo);
+      expect(JSON.parse(halo)[3], "the halo is painted").toBeGreaterThan(0);
+      await page.waitForTimeout(600);
+      expect(await sample(), "the highlight stays painted").toBe(centre);
+      expect(await sample(spot.halo), "the highlight does not pulse").toBe(halo);
+    });
+
     test("the veteran tree adventure prefers a nearby tree that is not already verified", async ({ page }) => {
       const choice = await page.evaluate(() => {
         const candidates = nearestTreesTo(state.userLocation.latitude, state.userLocation.longitude, 50)
@@ -152,6 +217,26 @@ test.describe("Location and GPS — happy path", () => {
       await page.evaluate(() => { els.consentBanner.hidden = true; });
       await expect(page.locator("#adventureBanner")).toBeVisible({ timeout: 20_000 });
       await expect(page.locator("#adventureBanner")).toContainText("Find the nearest veteran tree");
+    });
+
+    test("the veteran tree adventure shows to everyone but mentions points only for Community testers", async ({ page }) => {
+      // Community is off for this visitor: the card still appears, without the points line.
+      await page.unroute("**/api/features**");
+      await page.route("**/api/features**", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ community: false }) })
+      );
+      await page.addInitScript(() => {
+        localStorage.removeItem("ff-features-v1");
+        localStorage.removeItem("ff-tree-adventure-seen-v1");
+      });
+      await page.reload();
+      await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded && state.userLocation);
+      await page.evaluate(() => { els.consentBanner.hidden = true; });
+      const adventure = page.locator("#adventureBanner");
+      await expect(adventure).toBeVisible({ timeout: 20_000 });
+      await expect(adventure).toContainText("Find the nearest veteran tree");
+      await expect(adventure.locator(".adventure-age small")).toHaveText("Estimated age");
+      await expect(adventure).not.toContainText(/points/i);
     });
 
     test("on a train, the You marker keeps moving between GPS fixes rather than holding still and then jumping", async ({ page, context }) => {

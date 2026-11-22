@@ -13,6 +13,68 @@ let treeAdventureOverlayWait = null;
 let treeAdventureFeatureAttempts = 0;
 const TREE_ADVENTURE_FEATURE_ATTEMPTS = 6;
 
+// Map highlight for the tree the open notice names. It lives exactly as long as the notice is
+// open; the pulse loop redraws only the overlay canvas (where drawAdventureHighlight paints) and
+// is cancelled the moment the notice closes, so nothing keeps running behind a hidden card.
+const TREE_ADVENTURE_PULSE_MS = 1500;
+let treeAdventureHighlightOn = false;
+let treeAdventurePulseFrame = null;
+let treeAdventurePulseStart = 0;
+let treeAdventureLastDraw = 0;
+// The pulse is slow, so redraw the overlay at about 30 fps; the rAF loop itself keeps running.
+const TREE_ADVENTURE_PULSE_FRAME_MS = 33;
+const treeAdventureHighlightStyle = { item: null, phase: 0, fill: "#e4cc85", ring: "#806100", halo: "rgba(240, 184, 58, 0.5)" };
+
+function treeAdventureCssColour(name, fallback) {
+  try {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  } catch { return fallback; }
+}
+
+function treeAdventureHighlight() {
+  if (!treeAdventureHighlightOn || !treeAdventureTargetItem) return null;
+  treeAdventureHighlightStyle.item = treeAdventureTargetItem;
+  return treeAdventureHighlightStyle;
+}
+
+function treeAdventurePulseTick(now) {
+  treeAdventurePulseFrame = null;
+  if (!treeAdventureHighlightOn) return;
+  if (now - treeAdventureLastDraw >= TREE_ADVENTURE_PULSE_FRAME_MS) {
+    treeAdventureLastDraw = now;
+    treeAdventureHighlightStyle.phase = ((now - treeAdventurePulseStart) % TREE_ADVENTURE_PULSE_MS) / TREE_ADVENTURE_PULSE_MS;
+    // While a tilt change is still catching up, the main draw repaints the overlay together with
+    // the map; painting it here would put the pins at the new tilt over a map at the old one.
+    const mapInSync = typeof tiltRotateXDeg !== "function" || Math.abs(tiltRotateXDeg() - state.renderedTiltRotateXDeg) <= 0.05;
+    if (mapInSync && typeof drawOverlay === "function") drawOverlay();
+  }
+  treeAdventurePulseFrame = requestAnimationFrame(treeAdventurePulseTick);
+}
+
+function treeAdventureHighlightStop() {
+  treeAdventureHighlightOn = false;
+  if (treeAdventurePulseFrame != null) cancelAnimationFrame(treeAdventurePulseFrame);
+  treeAdventurePulseFrame = null;
+  treeAdventureHighlightStyle.item = null;
+  if (typeof requestDraw === "function") requestDraw();
+}
+
+function treeAdventureHighlightStart() {
+  treeAdventureHighlightStyle.fill = treeAdventureCssColour("--cta", "#e4cc85");
+  treeAdventureHighlightStyle.ring = treeAdventureCssColour("--gold-ink", "#806100");
+  treeAdventureHighlightStyle.halo = treeAdventureCssColour("--gold-tint", "rgba(240, 184, 58, 0.5)");
+  treeAdventureHighlightStyle.phase = 0;
+  treeAdventureHighlightOn = true;
+  if (treeAdventurePulseFrame != null) cancelAnimationFrame(treeAdventurePulseFrame);
+  treeAdventurePulseFrame = null;
+  if (typeof requestDraw === "function") requestDraw();
+  if (typeof prefersReducedMotion === "function" && prefersReducedMotion()) return;
+  treeAdventurePulseStart = performance.now();
+  treeAdventureLastDraw = 0;
+  treeAdventurePulseFrame = requestAnimationFrame(treeAdventurePulseTick);
+}
+
 function treeAdventureRead(key) {
   try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
 }
@@ -107,8 +169,11 @@ function treeAdventureRetry(delay = 800) {
 function treeAdventureDismiss() {
   const banner = els.adventureBanner;
   if (!banner) return;
+  treeAdventureHighlightStop();
   banner.classList.add("fading-out");
   window.setTimeout(() => {
+    // A newer notice may have opened during the fade; leave its target and card alone.
+    if (treeAdventureHighlightOn) return;
     banner.hidden = true;
     banner.classList.remove("fading-out");
     treeAdventureTargetItem = null;
@@ -194,11 +259,13 @@ function treeAdventureShow(tree, straightLineMetres) {
       ? `<span>Look for this tag on the tree</span><strong>${escapeHtml(tag)}</strong>`
       : "";
   }
-  els.adventureMeta.innerHTML = `${age ? `<span class="adventure-age"><small>Estimated age</small><strong>${escapeHtml(age)} years</strong></span>` : ""}<span class="adventure-reward">+${TREE_ADVENTURE_REWARD} points when verified</span>`;
+  const showPoints = typeof communityEnabled === "function" && communityEnabled();
+  els.adventureMeta.innerHTML = `${age ? `<span class="adventure-age"><small>Estimated age</small><strong>${escapeHtml(age)} years</strong></span>` : ""}${showPoints ? `<span class="adventure-reward">+${TREE_ADVENTURE_REWARD} points when verified</span>` : ""}`;
   treeAdventureWrite(TREE_ADVENTURE_ACTIVE_KEY, { target, shownAt: Date.now() });
   banner.hidden = false;
   banner.classList.remove("fading-out");
   updateTreeAdventureDirection();
+  treeAdventureHighlightStart();
 
   const start = () => {
     treeAdventureDismiss();
@@ -227,7 +294,6 @@ function adventureMaybeShow() {
     }
     return;
   }
-  if (typeof communityEnabled === "function" && !communityEnabled()) return;
   const overlay = document.getElementById("onboardingOverlay");
   if (overlay && (overlay._onboardingActive || !overlay.hidden)) {
     treeAdventureRetry();

@@ -153,8 +153,14 @@
   force = true
 
 [[redirects]]
-  from = "/api/admin/session"
-  to = "/.netlify/functions/admin-session"
+  from = "/api/admin/me"
+  to = "/.netlify/functions/admin-me"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/admin/logout"
+  to = "/.netlify/functions/admin-logout"
   status = 200
   force = true
 

@@ -21,8 +21,10 @@ name: Merge after verified label and agent approval
 #
 # Order of operations: first try native auto-merge (enablePullRequestAutoMerge).
 # GitHub rejects that mutation when the PR is already mergeable ("clean
-# status"). Then this workflow merges directly with the same App token,
-# squash, pinned to the head SHA (--match-head-commit), only after the same
+# status") or when required checks pass but a non-required check is not
+# success ("unstable status"). Then this workflow merges directly with the
+# same App token, squash, pinned to the head SHA (--match-head-commit), only
+# after the same
 # checks passed. Right before arming or merging it re-fetches the PR and
 # requires the same head, the same base and the `verified` label still present.
 # The arming mutation also carries expectedHeadOid, so GitHub itself refuses
@@ -303,9 +305,12 @@ jobs:
             fi
           elif grep -qi 'already enabled' <<<"$out"; then
             echo "Auto-merge was already enabled (concurrent event)."
-          elif grep -qiE 'clean status|already.*(mergeable|clean)' <<<"$out"; then
-            # Already mergeable, so GitHub refuses to arm. Merge now; branch
-            # protection still decides whether this is allowed.
+          elif grep -qiE 'clean status|unstable status|already.*(mergeable|clean)' <<<"$out"; then
+            # Already mergeable, so GitHub refuses to arm. "unstable status"
+            # means every required check passed but a non-required check or
+            # status is failing or pending, which GitHub also refuses to arm. Merge now; branch protection still decides
+            # whether this is allowed (a direct merge is refused if a required
+            # check or approval is missing).
             if ! still_current; then
               echo "Head or base moved or verified label removed before the direct merge; not merging $HEAD_SHA."
               exit 0

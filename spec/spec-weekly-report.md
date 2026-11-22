@@ -69,7 +69,7 @@ does a run branch from `main` and call `gh pr create`. This keeps Simon with
 exactly one weekly-report PR to review and merge at any time, however many
 nights it has accumulated changes from.
 
-**Deploy-preview links.** Once Netlify reports a successful deploy, the
+**Deploy-preview links.** The workflow also runs when a PR body is edited, so a mangled preview-links block is regenerated from the latest successful deploy status. Once Netlify reports a successful deploy, the
 `update-preview-links.yml` workflow uses that status's target URL and the
 dated ledger file the PR itself adds or changes to add or refresh the report
 preview link in the PR body. A PR that touches no ledger edition gets no report

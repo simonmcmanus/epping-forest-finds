@@ -27,7 +27,7 @@ in the main session. Only skip it for read-only questions.
   GitHub issue linked from the PR, never silent scope growth or an unrecorded "later". See
   `/team` section 5a.
 - Never report completion while required checks, findings or the owner's `verified` label remain outstanding.
-- Preserve the PR's preview-links block and the template's `Specialist review` table when rewriting a PR description.
+- When rewriting a PR description, keep the template's `Specialist review` table and leave the `<!-- preview-links:start -->` and `<!-- preview-links:end -->` markers in place. Never write or copy the block's contents by hand; `update-preview-links.yml` regenerates it on every PR body edit and after each Netlify deploy.
 - Keep one sticky `<!-- ready-gate -->` PR comment, edited in place, naming the outstanding blocker (see `/team` section 5).
 - Push the PR as a draft as soon as the batch is implemented and committed, so the Netlify preview
   deploys and can be tried. The CI Claude review jobs run on every push, drafts included, so no manual

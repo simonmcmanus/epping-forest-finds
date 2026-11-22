@@ -145,7 +145,7 @@ updated when the gate is satisfied. Content:
 The lead updates it at the end of every batch turn; the section 7 sweep reads it.
 
 PR body rule: any description you write or rewrite keeps the template's `Specialist review` table
-(updating status, reviewed SHA and verdict) and the preview-links block verbatim (see the `pr` skill).
+(updating status, reviewed SHA and verdict) and leave the preview-links markers in place without hand-writing the block (see the `pr` skill).
 
 **Green** (defined here once) means the latest attempt of every required draft-run job on the exact
 current head SHA is `success`, and, if an earlier attempt of that job failed or was cancelled, the PR
