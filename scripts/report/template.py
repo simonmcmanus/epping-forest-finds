@@ -249,6 +249,7 @@ REPORT_CSS = """
     flex:none;
   }
   .line-icon{display:inline-flex;flex:none;line-height:0;}
+  /* 22px matches the numbered pin chip and the transport line icons so the card head reads as one row. */
   .card-subicon{width:22px;height:22px;object-fit:contain;flex:none;}
   .line-bus{color:var(--status-critical);}
   .line-central,.line-weaver{color:var(--ink);}
