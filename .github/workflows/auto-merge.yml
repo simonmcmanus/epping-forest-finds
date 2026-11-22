@@ -30,6 +30,11 @@ name: Merge after verified label and agent approval
 # A push (synchronize) removes the label AND disables native auto-merge, which
 # is a PR-level setting that otherwise survives a push. Removing the label (unlabeled) also disarms
 # an armed PR, as does any other event that finds an armed PR without a valid label. "Already enabled" (two events racing) counts as success.
+# Two mechanisms keep a stale arming from surviving a push: (1) synchronize and
+# unlabeled runs use their own concurrency group so they cannot be replaced by
+# a queued arming run; (2) a workflow_run for a stale CI head that finds the
+# live PR armed removes the label and disarms before exiting, in case the
+# synchronize run was lost anyway.
 #
 # Branch protection still gates every merge (required checks and approvals);
 # the settings below are repository configuration, not enforced by this file:
@@ -57,11 +62,16 @@ on:
 permissions:
   contents: read
 
-# Runs for one PR are serialised (synchronize, label and arming runs never
-# overlap). Nothing is cancelled: each run re-reads the live PR, so a queued
-# run that is superseded by a newer one still sees current state.
+# Runs for one PR are serialised per group and nothing is cancelled. A group
+# keeps only one PENDING run, though: a newer pending run replaces an older
+# pending one even with cancel-in-progress false. So the runs that disarm
+# (synchronize, and unlabeled of `verified`) live in their own group,
+# auto-merge-disarm-<PR number>, where arming and CI runs can never replace
+# them. Arming runs (labeled, ready_for_review, workflow_run) share
+# auto-merge-<PR number>. Each run re-reads the live PR, so a superseded
+# arming run still sees current state.
 concurrency:
-  group: auto-merge-${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.run_id }}
+  group: ${{ (github.event_name == 'pull_request_target' && (github.event.action == 'synchronize' || (github.event.action == 'unlabeled' && github.event.label.name == 'verified'))) && format('auto-merge-disarm-{0}', github.event.pull_request.number) || format('auto-merge-{0}', github.event_name == 'pull_request_target' && github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.run_id) }}
   cancel-in-progress: false
 
 jobs:
@@ -114,17 +124,22 @@ jobs:
             echo "Disabled auto-merge on PR #$PR_NUMBER."
           }
 
-          if [ "$EVENT_NAME" = "pull_request_target" ] && [ "$EVENT_ACTION" = "synchronize" ]; then
-            # A new push invalidates the human check and any armed auto-merge.
+          remove_label() {
             # A 404 on the label means it was not on the PR, which is fine.
+            local out
             if out=$(gh api -X DELETE "repos/$REPO/issues/$PR_NUMBER/labels/verified" 2>&1); then
-              echo "Removed the verified label after a new push."
+              echo "Removed the verified label."
             elif grep -qiE '404|not found|label does not exist' <<<"$out"; then
               echo "No verified label to remove."
             else
               echo "$out" >&2
               exit 1
             fi
+          }
+
+          if [ "$EVENT_NAME" = "pull_request_target" ] && [ "$EVENT_ACTION" = "synchronize" ]; then
+            # A new push invalidates the human check and any armed auto-merge.
+            remove_label
             live=$(gh api "repos/$REPO/pulls/$PR_NUMBER")
             if [ "$(jq -r '.auto_merge != null' <<<"$live")" = "true" ]; then
               disarm "$(jq -r .node_id <<<"$live")"
@@ -137,6 +152,13 @@ jobs:
           # workflow_run: the CI run must be for the live head.
           if [ "$EVENT_NAME" = "workflow_run" ] && [ "$RUN_HEAD_SHA" != "$HEAD_SHA" ]; then
             echo "CI run was for $RUN_HEAD_SHA but the PR head is $HEAD_SHA; not arming."
+            # The synchronize run that disarms may have been lost; an armed PR
+            # here is stale for the new head, so disarm it (fail closed).
+            if [ "$(jq -r '.auto_merge != null' <<<"$pr")" = "true" ]; then
+              echo "PR is armed on a head with stale CI; removing the label and disarming."
+              remove_label
+              disarm "$(jq -r .node_id <<<"$pr")"
+            fi
             exit 0
           fi
           if [ "$(jq -r .state <<<"$pr")" != "open" ] ||

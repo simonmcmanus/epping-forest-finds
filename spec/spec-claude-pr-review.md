@@ -128,8 +128,14 @@ mergeable, so it then squash-merges directly with the same GitHub App token and
 and requires the head and base to still equal the evaluated SHAs and the label
 to be present, otherwise it exits without arming. The arming mutation also passes
 `expectedHeadOid`, so GitHub rejects it if the head moved. Runs are serialised
-per PR by a `concurrency` group (not cancelled), so push, label and arming runs
-for one PR never overlap. "Already enabled" from a racing event counts as success.
+per PR by `concurrency` groups (never cancelled). A group keeps only one pending
+run and a newer pending run replaces an older one, so `synchronize` and
+`unlabeled` (of `verified`) runs use their own group, `auto-merge-disarm-<PR>`,
+where arming and CI runs cannot displace them; arming runs use `auto-merge-<PR>`.
+As a second guard, a `workflow_run` whose CI head differs from the live head
+exits without arming but, if the live PR has auto-merge enabled, removes the
+`verified` label and disables auto-merge first (same helper, fail closed on
+non-404 errors), in case the push-time run was lost. "Already enabled" from a racing event counts as success.
 Branch protection still gates every merge. Agents never approve, arm, merge or
 apply the `verified` label. Agent sessions act through the owner's token, so
 this cannot be technically enforced; it is a policy.
