@@ -308,6 +308,7 @@ function showUpdateBanner() {
   if (existing) {
     existing.querySelector(".update-banner-text strong").textContent = title;
     existing.querySelector(".update-banner-text span").textContent = detail;
+    fillUpdateBannerVersions();
     return;
   }
   const banner = document.createElement("div");
@@ -315,10 +316,12 @@ function showUpdateBanner() {
   banner.className = "update-banner";
   banner.setAttribute("role", "status");
   banner.innerHTML = '<span class="update-banner-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></span>'
-    + `<span class="update-banner-text"><strong>${title}</strong><span>${detail}</span></span>`
+    + `<span class="update-banner-text"><strong>${title}</strong><span>${detail}</span>`
+    + '<small id="updateBannerVersions" class="update-banner-versions" aria-hidden="true"></small></span>'
     + '<button id="updateBannerButton" type="button">Restart</button>';
   banner.inert = true;
   document.body.appendChild(banner);
+  fillUpdateBannerVersions();
   banner.querySelector("button").addEventListener("click", async (event) => {
     const button = event.currentTarget;
     banner.dataset.restoreFocus = String(banner.contains(document.activeElement));
@@ -351,6 +354,26 @@ function showUpdateBanner() {
   });
 }
 
+// The old and new release names, small and out of the way under the banner's detail line. The new
+// name comes from the app cache the waiting worker has already filled; nothing is shown unless the
+// two differ.
+async function fillUpdateBannerVersions() {
+  const line = document.getElementById("updateBannerVersions");
+  if (!line) return;
+  const current = typeof APP_CACHE_VERSION === "string" ? APP_CACHE_VERSION : "";
+  let next = "";
+  try {
+    const keys = await caches.keys();
+    const versionOf = (key) => (key.startsWith("forest-finds-app-") || key.startsWith("forest-finds-dev-app-")
+      ? key.replace("forest-finds-", "").replace("app-", "")
+      : "");
+    next = keys.map(versionOf).find((version) => version && version !== current) || "";
+  } catch {
+    next = "";
+  }
+  line.textContent = current && next ? `${current} → ${next}` : "";
+}
+
 function resetUpdateBannerButton() {
   const button = document.getElementById("updateBannerButton");
   if (!button) return;
@@ -381,9 +404,69 @@ async function prepareWaitingUpdate(waiting) {
   // Recorded up front: the worker's own sync broadcasts DATA_UPDATED, which must not show the
   // banner (or send a tap down the plain-reload path) until this worker is ready to activate.
   state.swWaiting = waiting;
+  // Browsers only compare sw.js bytes, so a worker of the release already running can be installed
+  // and wait. That is not an update: activate it quietly and never announce it.
+  if (await isSameReleaseWorker(waiting)) {
+    activateSameReleaseSilently(waiting);
+    return;
+  }
   setAppUpdateStatus("downloading");
   await requestDataRefresh({ target: waiting, force: false });
   _markSwUpdateAvailable(waiting);
+}
+
+// Asks a worker which app release it carries. Resolves null when it cannot say (an older worker
+// that ignores the question, a failed post, or no reply within the timeout).
+function askWorkerVersion(worker, timeoutMs = 3000) {
+  return new Promise((resolve) => {
+    const requestId = `version-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const container = navigator.serviceWorker;
+    let timer;
+    const finish = (version) => {
+      clearTimeout(timer);
+      try { container.removeEventListener?.("message", onMessage); } catch {}
+      resolve(version);
+    };
+    const onMessage = (event) => {
+      if (event.data?.type !== "VERSION" || event.data.requestId !== requestId) return;
+      finish(typeof event.data.version === "string" ? event.data.version : null);
+    };
+    try {
+      container.addEventListener("message", onMessage);
+      timer = setTimeout(() => finish(null), timeoutMs);
+      worker.postMessage({ type: "VERSION", requestId });
+    } catch {
+      finish(null);
+    }
+  });
+}
+
+async function isSameReleaseWorker(worker) {
+  if (typeof APP_CACHE_VERSION !== "string" || !APP_CACHE_VERSION) return false;
+  return (await askWorkerVersion(worker)) === APP_CACHE_VERSION;
+}
+
+// The resulting controllerchange is the same release taking over, not news: the handler in
+// setupPwa consumes this marker and shows nothing and reloads nothing.
+let sameReleaseActivationTimer = null;
+
+function clearSameReleaseActivation() {
+  clearTimeout(sameReleaseActivationTimer);
+  sameReleaseActivationTimer = null;
+  state.swSameReleaseActivation = false;
+}
+
+function activateSameReleaseSilently(waiting) {
+  if (state.swWaiting === waiting) state.swWaiting = null;
+  clearSameReleaseActivation();
+  state.swSameReleaseActivation = true;
+  sameReleaseActivationTimer = setTimeout(clearSameReleaseActivation, 15000);
+  try {
+    waiting.postMessage({ type: "SKIP_WAITING" });
+  } catch {
+    clearSameReleaseActivation();
+  }
+  if (["checking", "downloading"].includes(state.appUpdateStatus)) setAppUpdateStatus("current");
 }
 
 // A newer worker that is already installing: show it downloading, then hand it to
@@ -408,9 +491,30 @@ function followInstallingWorker(installing) {
   onStateChange();
 }
 
+// The worker the registration is holding back, whether or not this page was told about it. A
+// reload can find a replacement still waiting that no event on this page ever reported.
+async function waitingWorkerOnRegistration() {
+  if (serviceWorkerDisabled || !("serviceWorker" in navigator)) return null;
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    return registration?.waiting || null;
+  } catch {
+    return null;
+  }
+}
+
 async function applySwUpdate() {
+  // Restart must activate a waiting worker when one exists. Without this, a page that never
+  // tracked the worker reloaded into the same release, found it still waiting, and showed the
+  // banner again: the restart loop.
+  if (!state.swWaiting) {
+    const waiting = await waitingWorkerOnRegistration();
+    if (waiting) state.swWaiting = waiting;
+  }
+
   // The new release already controls this page (another tab restarted into it, or the browser
-  // activated it): it has its complete shell, so a plain reload is all that is left.
+  // activated it) and nothing is waiting: it has its complete shell, so a plain reload is all that
+  // is left.
   if (!state.swWaiting && state.swActivatedElsewhere) {
     location.reload();
     return true;
@@ -815,8 +919,15 @@ function setupPwa() {
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (_firstChange) { _firstChange = false; return; }
       if (state.swPendingReload) { location.reload(); return; }
-      state.swActivatedElsewhere = true;
-      _markSwUpdateAvailable(null);
+      // Our own quiet activation is expected; consume the marker. A controller that reports a
+      // different release is still news (another tab can activate one inside the window).
+      const expected = state.swSameReleaseActivation;
+      clearSameReleaseActivation();
+      askWorkerVersion(navigator.serviceWorker.controller).then((version) => {
+        if (version === APP_CACHE_VERSION || (expected && version === null)) return;
+        state.swActivatedElsewhere = true;
+        _markSwUpdateAvailable(null);
+      });
     });
 
     navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
@@ -1027,7 +1138,10 @@ function setupResizeHandler() {
     resizeCanvas();
     if (state.bounds) {
       if (typeof headingUpActive === "function" && headingUpActive()) {
-        alignHeadingUpNavigationViewport();
+        // A resize changes the room the fit solves against, so it refits outright: the compass
+        // follow's hold band would keep the old scale, and the fit is never animated.
+        // A secondary screen holds the camera, so there it keeps the plain (guarded) call.
+        alignHeadingUpNavigationViewport(secondaryScreenActive() ? {} : { force: true, animate: false });
       } else if (state.userLocation && selectedCompassTarget()) {
         ensureUserAndSelectionVisible({ animate: true, durationMs: 360 });
       } else if (state.userLocation && (isOverviewScreenActive() || secondaryScreenActive())) {
@@ -1506,7 +1620,7 @@ function applyWalkingRadiusChange(minutes, options = {}) {
   // could reach here while a cluster is expanded (the automatic grow-back,
   // ensureWalkingRadiusCoversNearest) already refuses to run in that case, so this never fires
   // mid-expansion on its own.
-  exitClusterExpansion({ restoreRadius: false });
+  exitClusterExpansion({ restoreRadius: false, forgetInHistory: true });
   state.outOfRadiusRevealFilters = [];
   refreshNearbyRadiusView(options);
 }
@@ -1617,6 +1731,7 @@ function setNearbyAnchor(latitude, longitude, point, label = null) {
 // rather than calling each of those two functions in turn and refreshing twice.
 function focusNearbyWithinWalkMinutes(latitude, longitude, minutes, label = null) {
   state.selected = null;
+  clearSelectionClusterRecord();
   setInspectorMinimized(false);
   startNearbyOriginTransition(nearbyRenderOriginPoint());
   state.nearbyAnchor = { latitude, longitude, point: projectLonLat(longitude, latitude), label };
@@ -1644,6 +1759,7 @@ function focusNearbyWithinWalkMinutes(latitude, longitude, minutes, label = null
 // reverse case.
 function applyNearbyAnchorFromRoute(anchor) {
   state.selected = null;
+  clearSelectionClusterRecord();
   setInspectorMinimized(false);
   setNearbyAnchor(anchor.latitude, anchor.longitude, projectLonLat(anchor.longitude, anchor.latitude), anchor.label || null);
 }
@@ -1670,19 +1786,53 @@ function restoreNearbyAnchorFromHistory() {
   const entry = history.state;
   const snapshot = entry ? entry[NEARBY_ANCHOR_KEY] : null;
   const current = state.nearbyAnchor;
-  const unchanged = current && snapshot
+  // A group that can no longer be rebuilt from loaded data (a member gone) is just the plain
+  // anchor, i.e. what this entry meant before groups were recorded.
+  const cluster = snapshot && snapshot.cluster ? clusterFromHistorySnapshot(snapshot.cluster) : null;
+  const sameAnchor = current && snapshot
     ? current.latitude === snapshot.latitude && current.longitude === snapshot.longitude
     : !current && !snapshot;
+  const unchanged = sameAnchor && (cluster
+    ? clusterSnapshotsMatch(snapshot.cluster, clusterHistorySnapshot(state.clusterExpanded))
+    : true);
   if (unchanged) return;
   routeApplyDepth += 1;
   try {
     stopViewportAnimation();
     state.clusterZoomed = false;
-    startNearbyOriginTransition(nearbyRenderOriginPoint());
+    // A restored group replaces whatever screen the entry being left was: a selection (Back
+    // from a place) or Filters/Search (their entries carry no group, because opening them leaves
+    // it). Done before the anchor moves, as goToInitialView does, so the camera pivot is
+    // captured on the old basis; that capture owns the slide, so no second origin slide starts.
+    const leavingScreen = Boolean(cluster) && (state.selected || state.filterScreenOpen || state.searchScreenOpen);
+    if (leavingScreen) {
+      clearSelectionForNearby();
+      if (mapSetupModalActive()) dismissOnboarding();
+      state.filterScreenOpen = false;
+      state.searchScreenOpen = false;
+      setInspectorMinimized(false);
+    } else {
+      startNearbyOriginTransition(nearbyRenderOriginPoint());
+    }
     state.nearbyAnchor = snapshot
       ? { latitude: snapshot.latitude, longitude: snapshot.longitude, point: projectLonLat(snapshot.longitude, snapshot.latitude) }
       : null;
     state.outOfRadiusRevealFilters = [];
+    if (cluster) {
+      // Back/Forward onto an entry written while a group was expanded: expand it again with the
+      // radius it had and the real radius it will give back on exit. The entry's URL is just
+      // the anchor, which this already is, so urlMatchesCurrentScreen (js/router.js) treats the
+      // route as applied -- the screen was cleared above, the one change left to make.
+      state.selectionCluster = null;
+      state.clusterExpanded = cluster;
+      // The stored radii are clamped into the range a radius can take; a pre-radius that is not a number
+      // is treated as absent, leaving whatever the app already holds.
+      state.walkingDistanceMinutes = clampedWalkingRadius(snapshot.cluster.radius);
+      state.preClusterWalkingDistanceMinutes = clampedWalkingRadius(snapshot.cluster.preRadius)
+        ?? state.preClusterWalkingDistanceMinutes;
+      syncSettingsWalkSlider();
+      updateCompassOverlay();
+    }
     updateNearbyAnchorBar();
     // If a cluster is still expanded here, urlMatchesCurrentScreen (js/app.js) is about to force
     // applyRouteFromUrl's caller to run applyRouteToScreen right after this returns -- which drops
@@ -1695,7 +1845,8 @@ function restoreNearbyAnchorFromHistory() {
     // in and out a bit" rather than one steady zoom. Snapping instead of easing here is invisible
     // (nothing has painted yet), and leaves nothing in flight for the correction to compete with,
     // so only the one, right ease -- the later refit's -- is ever seen.
-    const clusterAboutToExit = Boolean(state.clusterExpanded);
+    // A restored group is the opposite case: nothing refits afterwards, so this is the one ease.
+    const clusterAboutToExit = !cluster && Boolean(state.clusterExpanded);
     refreshNearbyRadiusView({ animate: !clusterAboutToExit, durationMs: NEARBY_ORIGIN_TRANSITION_MS });
   } finally {
     routeApplyDepth -= 1;
@@ -1758,7 +1909,13 @@ function clusterFocusTarget(items) {
 // restoreRadius: false for applyWalkingRadiusChange, the one caller where state.walkingDistanceMinutes
 // has *already* been set to a new value the user just chose deliberately (the Settings slider,
 // a pinch/wheel gesture) -- that choice must win, not be overwritten by the stashed one.
-function exitClusterExpansion({ restoreRadius = true } = {}) {
+//
+// forgetInHistory: true for the callers that leave the group while staying on the same history
+// entry (dragging, wheel-zooming, resizing the ring, a Nearby re-tap): the entry's snapshot is
+// rewritten without the group, so a later Back/Forward onto it shows the plain view the reader
+// was last on instead of re-expanding a group they had left. Callers that navigate to a *new*
+// entry (picking a place, opening a screen) must not: the entry being left keeps its group.
+function exitClusterExpansion({ restoreRadius = true, forgetInHistory = false } = {}) {
   if (!state.clusterExpanded) return;
   state.clusterExpanded = null;
   const previousRadius = state.preClusterWalkingDistanceMinutes;
@@ -1766,6 +1923,7 @@ function exitClusterExpansion({ restoreRadius = true } = {}) {
   if (restoreRadius && previousRadius != null) {
     state.walkingDistanceMinutes = previousRadius;
   }
+  if (forgetInHistory) refreshHistoryEntryAnchorSnapshot();
 }
 
 function focusNearbyOnClusterGroup(cluster) {
@@ -1776,6 +1934,11 @@ function focusNearbyOnClusterGroup(cluster) {
   const { centerPoint, center, targetMinutes } = clusterFocusTarget(items);
 
   setInspectorMinimized(false);
+  // Read before the tween is stopped: a wide-shot first leg paces the origin slide, so once its
+  // tween is cleared the old slide reads as finished and the origin and the 3D pivot would snap to
+  // the old group's final state instead of continuing from what is on screen.
+  const drawnOrigin = nearbyRenderOriginPointNow();
+  const drawnPivot = tiltRampedAnchor(false);
   stopViewportAnimation();
   state.clusterZoomed = false;
   // Stashed only on the way *into* the exact-membership view, not on every nested drill-down
@@ -1796,13 +1959,14 @@ function focusNearbyOnClusterGroup(cluster) {
   state.searchScreenOpen = false;
   if (state.selected && ["settings", "report", "community"].includes(state.selected.type)) {
     state.selected = null;
+    clearSelectionClusterRecord();
   }
   // Same slide restoreNearbyAnchorFromHistory/setNearbyAnchor use for any other anchor move --
   // started from wherever the ring is currently drawn so it continues smoothly even if this
   // lands mid an earlier slide, rather than cutting straight to the new centre. The tapped group
   // grows into the ring, and like every programmatic move the old set fades out once and the fresh
   // set reveals once after the last leg lands (markerGroupingPaused).
-  startNearbyOriginTransition(nearbyRenderOriginPoint());
+  startNearbyOriginTransition(drawnOrigin, drawnPivot);
   state.nearbyAnchor = { latitude: center.latitude, longitude: center.longitude, point: centerPoint };
   state.walkingDistanceMinutes = targetMinutes;
   state.outOfRadiusRevealFilters = [];
@@ -1825,7 +1989,9 @@ function focusNearbyOnClusterGroup(cluster) {
   // moved in on it" instead of a single rushed zoom that happens to also be panning. See
   // alignHeadingUpNavigationViewport's stagePanThenZoom branch (js/app.js). Not the old
   // zoom-out/pan/zoom-in tour (three tweens, abandoned for reading as a yank away and back) --
-  // this is two. refreshNearbyRadiusView handles the nearest-tree rescan, the Nearby list, the
+  // this is two. In 3D tilt a group outside the tilted view, or too far to pan to, is not "already
+  // on screen": the first leg then pans out only as far as needed to show the old and new places
+  // together (capped, STAGED_WIDE_FRAMING_MIN_SCALE_RATIO), and the second zooms in on the group. refreshNearbyRadiusView handles the nearest-tree rescan, the Nearby list, the
   // anchor bar, and ensureOverviewTargetsVisible's own camera fit. Matches the nearby-origin
   // slide's own duration (started above, via startNearbyOriginTransition -- always
   // NEARBY_ORIGIN_TRANSITION_MS) so the camera's fly-to-cluster tween and the ring/pin reveal
@@ -2095,6 +2261,7 @@ function zoomGestureFloorMinutes() {
 // no pointerup/pointercancel/lostpointercapture, a Safari gesturestart with no gestureend, the
 // screen changing under it): without it the pins would stay hidden and the list stale for good.
 function endAllZoomGestures({ dropPointers = false } = {}) {
+  setWalkingRadiusLimitFeedback(false);
   const wheelPending = Number.isFinite(state.wheelRadiusTargetMinutes) || state.wheelRadiusSettleTimer != null;
   if (!zoomGestureLive() && !state.pinchActive && !Number.isFinite(state.gestureRadiusBaseMinutes) && !wheelPending) return;
   if (dropPointers) {
@@ -2227,6 +2394,8 @@ function flushRadiusGesture() {
 
 function applyWalkingRadiusGesture(rawMinutes) {
   const floor = zoomGestureFloorMinutes();
+  const limit = rawMinutes <= floor ? "floor" : rawMinutes >= WALKING_RADIUS_MAX_MINUTES ? "ceiling" : null;
+  setWalkingRadiusLimitFeedback(Boolean(limit));
   const atFloor = rawMinutes < floor;
   const flagChanged = atFloor !== state.walkingRadiusAtFloor;
   state.walkingRadiusAtFloor = atFloor;
@@ -2249,7 +2418,7 @@ function applyWalkingRadiusGesture(rawMinutes) {
   // cluster changed state.walkingDistanceMinutes (and the ring's own drawn size) while
   // nearbyCameraFitPoints/overviewItemsForActiveFilter kept fitting and listing the cluster's
   // own members regardless -- the camera and list silently stopped tracking the gesture.
-  exitClusterExpansion({ restoreRadius: false });
+  exitClusterExpansion({ restoreRadius: false, forgetInHistory: true });
   state.walkingDistanceMinutes = minutes;
   // No URL write here: it happens once, when the gesture ends (finishRadiusGesture).
   if (flagChanged) patchFloorNoticeInPlace();
@@ -2277,6 +2446,9 @@ const TRACKPAD_PINCH_RATE_MULTIPLIER = 4;
 // "nothing closer to show" notice both key off it, and a wheel has no equivalent of the pinch's
 // pointerup to end on. Long enough to span the gap between notches of one deliberate scroll.
 const WHEEL_RADIUS_SETTLE_MS = 220;
+// The list can settle promptly, but the light needs to span ordinary mouse-wheel
+// notches. Together these windows keep one continuous light for gaps up to 600ms.
+const WHEEL_LIMIT_FEEDBACK_GRACE_MS = 380;
 
 // deltaY is in whichever unit deltaMode names -- pixels on every trackpad and most wheels, but
 // Firefox reports a mouse wheel in lines, and page mode exists. Normalised to pixels so one
@@ -2365,7 +2537,7 @@ function stepRadiusChase(dtMs) {
     // further notch after this simply starts a new hide. The settle timer only decides when the
     // wheel "gesture" is over for the list, the URL and the running value.
     endZoomGesture("wheel");
-    state.wheelRadiusSettleTimer = setTimeout(endNearbyRadiusWheel, WHEEL_RADIUS_SETTLE_MS);
+    state.wheelRadiusSettleTimer = setTimeout(() => endNearbyRadiusWheel({ feedbackReleaseGraceMs: WHEEL_LIMIT_FEEDBACK_GRACE_MS }), WHEEL_RADIUS_SETTLE_MS);
   }
   return done;
 }
@@ -2383,13 +2555,14 @@ function scheduleRadiusChase() {
 // The wheel's equivalent of lifting the fingers (endNearbyRadiusPinch below): one smooth settling
 // animation, the transient floor notice cleared, and the running value dropped so the next scroll
 // starts from wherever the radius actually ended up.
-function endNearbyRadiusWheel() {
+function endNearbyRadiusWheel({ feedbackReleaseGraceMs = 0 } = {}) {
   state.wheelRadiusSettleTimer = null;
   state.wheelRadiusMinutes = null;
   state.wheelRadiusTargetMinutes = null;
   state.wheelRadiusOvershoot = false;
   cancelRadiusChase();
   state.walkingRadiusAtFloor = false;
+  setWalkingRadiusLimitFeedback(false, { delayMs: feedbackReleaseGraceMs });
   endZoomGesture("wheel");
   // The glide's last tick already fitted the camera to this radius (and the pins were revealed at
   // arrival), so the settle re-fits instantly instead of animating a camera move under the reveal.
@@ -2435,6 +2608,7 @@ function endNearbyRadiusGesture() {
   flushRadiusGesture();
   state.gestureRadiusBaseMinutes = null;
   state.walkingRadiusAtFloor = false;
+  setWalkingRadiusLimitFeedback(false);
   endZoomGesture("safari");
   finishRadiusGesture();
   syncSettingsWalkSlider();
@@ -2458,6 +2632,7 @@ function endNearbyRadiusPinch() {
   state.pinchBaseDistance = null;
   state.pinchBaseMinutes = null;
   state.walkingRadiusAtFloor = false;
+  setWalkingRadiusLimitFeedback(false);
   endZoomGesture("pinch");
   // One smooth settling animation now that the gesture has ended, mirroring the single
   // animated re-fit a Settings-slider release triggers (bindSettingsHandlers, index.html).
@@ -2490,6 +2665,8 @@ function releasePointerSafely(element, pointerId) {
 // while a finger was still on the glass, so the map went completely dead to that finger --
 // the user had to lift off entirely and start again.
 function beginMapDrag(clientX, clientY) {
+  // A new drag also interrupts wheel light whose list has already settled.
+  setWalkingRadiusLimitFeedback(false);
   // The viewport has to be still before dragStart snapshots it -- otherwise the drag and a
   // running animation both write state.viewport.tx/ty and fight each other. pointerdown already
   // stops animations; the multi-touch handover does not, and the pinch it just ended queues an
@@ -2619,7 +2796,7 @@ function setupMapCanvasHandlers() {
       }
       state.moved = true;
       state.clusterZoomed = false;
-      exitClusterExpansion();
+      exitClusterExpansion({ forgetInHistory: true });
       dx = event.clientX - state.dragStart.x;
       dy = event.clientY - state.dragStart.y;
     }
@@ -2704,7 +2881,7 @@ function setupMapCanvasHandlers() {
     // the ring and list with the refit blocked, and nothing would put the camera right afterwards.
     if (state.anchoredDragHold) return;
     state.clusterZoomed = false;
-    exitClusterExpansion();
+    exitClusterExpansion({ forgetInHistory: true });
     if (zoomInputResizesNearbyRadius()) {
       updateNearbyRadiusWheel(event);
       return;
@@ -2912,12 +3089,13 @@ function setInspectorMinimized(minimized) {
           durationMs: DEFAULT_VIEWPORT_ANIMATION_MS,
           force: true,
           assumeInspectorOpen: true,
+          deliberate: true,
         });
       }
     } else {
       centerViewportOnPointsKeepScale(
         [state.userLocation.point, selectedCompassTarget().point],
-        { animate: true, durationMs: DEFAULT_VIEWPORT_ANIMATION_MS, focusVisibleArea: true, assumeInspectorOpen: true }
+        { animate: true, durationMs: DEFAULT_VIEWPORT_ANIMATION_MS, focusVisibleArea: true, assumeInspectorOpen: true, deliberate: true }
       );
     }
   } else if (!wasMinimized && minimized) {
@@ -2951,13 +3129,33 @@ function nearbyRetap() {
   }
   shakeInspectorSheet();
   state.nearbyRailGroupKey = undefined;
-  exitClusterExpansion();
+  exitClusterExpansion({ forgetInHistory: true });
   state.clusterZoomed = false;
   railPatchPending = true;
   selectOverview(false);
   // selectOverview returns early when the list is unchanged, so the flag is cleared here regardless.
   railPatchPending = false;
   refitNearbyRingView();
+}
+
+// Leaves whatever is selected for the Nearby view: captures the camera pivot before the basis
+// flips (startCameraOriginTransition, js/app.js), abandons the selection handoff immediately so
+// its stale camera-settle callback (zoomToSelection's pending timer) cannot start a second move
+// or keep suppressing the pins until the old move ends, clears the selection and any manual
+// camera override. Shared by goToInitialView and the history restore of an expanded group
+// (restoreNearbyAnchorFromHistory) so the two can never disagree about what "leaving a
+// selection" resets.
+function clearSelectionForNearby() {
+  // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
+  startCameraOriginTransition();
+  state.selectionMapTransitionToken = null;
+  state.selectionTransition.mapHeld = false;
+  state.selectionTransition.startedAt = null;
+  state.selectionTransition.outgoingIconLookup = null;
+  state.selectionTransition.viewportPending = false;
+  state.selected = null;
+  state.selectionCluster = null;
+  clearManualCameraOverride();
 }
 
 function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
@@ -2982,17 +3180,7 @@ function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
   }
 
   const wasMinimized = els.inspector.classList.contains("minimized");
-  // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
-  startCameraOriginTransition();
-  // Nearby is the new destination, so abandon the selection handoff immediately rather than
-  // letting its stale camera-settle callback keep suppressing the pins until the old move ends.
-  state.selectionMapTransitionToken = null;
-  state.selectionTransition.mapHeld = false;
-  state.selectionTransition.startedAt = null;
-  state.selectionTransition.outgoingIconLookup = null;
-  state.selectionTransition.viewportPending = false;
-  state.selected = null;
-  clearManualCameraOverride();
+  clearSelectionForNearby();
   state.clusterZoomed = false;
   exitClusterExpansion();
   state.filterScreenOpen = false;

@@ -104,8 +104,10 @@ test.describe("Camera framing with the phone held up (heading-up)", () => {
       return { landed, wanted };
     });
     const scaleGap = Math.abs(result.landed.scale - result.wanted.scale) / result.wanted.scale;
-    // The wrongly-chosen flat fit landed about 150% off; a few percent is the panel's own settling.
-    expect(scaleGap, `landed at ${result.landed.scale}, heading-up wants ${result.wanted.scale}`).toBeLessThan(0.1);
+    // The wrongly-chosen flat fit landed about 150% off. With the compass live the camera deliberately
+    // holds its zoom until the fit drifts about 13% (hysteresis, so the map does not breathe), so a
+    // landing 10-12% from the exact forced fit is correct and varies with frame timing. Stay under 15%.
+    expect(scaleGap, `landed at ${result.landed.scale}, heading-up wants ${result.wanted.scale}`).toBeLessThan(0.15);
   });
 });
 

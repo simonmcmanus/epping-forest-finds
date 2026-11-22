@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
 """Unit tests for scripts/report/tfl_transit_status.py. Run: python3 scripts/test_tfl_transit_status.py"""
+import contextlib
+import io
+import json
+import os
 import sys
+import http.client
+import socket
 import unittest
+import urllib.error
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts.report import tfl_transit_status  # noqa: E402
 from scripts.report.tfl_transit_status import (  # noqa: E402
     line_status_findings,
     stop_disruption_findings,
@@ -81,6 +90,17 @@ class LineStatusFindingsTests(unittest.TestCase):
         findings = line_status_findings(lines_json, TEST_LINES)
         self.assertEqual(len(findings), 2)
 
+    def test_elizabeth_line_disruption_is_monitored_and_labelled(self):
+        lines_json = [disrupted_line("elizabeth", "Elizabeth", 6, "Severe Delays", description="Signal failure.")]
+        findings = line_status_findings(lines_json, tfl_transit_status.LINES)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["line"], "elizabeth")
+        self.assertEqual(findings[0]["place"], "Elizabeth line")
+
+    def test_elizabeth_line_good_service_produces_no_finding(self):
+        lines_json = [good_service_line("elizabeth", "Elizabeth line")]
+        self.assertEqual(line_status_findings(lines_json, tfl_transit_status.LINES), [])
+
 
 class StopDisruptionFindingsTests(unittest.TestCase):
     def test_no_disruptions_produces_no_findings(self):
@@ -116,6 +136,258 @@ class StopDisruptionFindingsTests(unittest.TestCase):
     def test_disruption_with_no_named_stop_falls_back_to_the_area(self):
         findings = stop_disruption_findings([{"description": "A stop is suspended nearby."}])
         self.assertEqual(findings[0]["place"], "Epping Forest area")
+
+
+class FindingCoordinatesTests(unittest.TestCase):
+    STOPS = [
+        {"commonName": "Epping", "lat": 51.6937, "lon": 0.1139},
+        {"commonName": "Theydon Bois", "lat": 51.6717, "lon": 0.1033},
+    ]
+
+    def test_stop_disruption_pins_at_its_affected_stops(self):
+        finding = stop_disruption_findings([{"description": "Closed.", "affectedStops": self.STOPS}])[0]
+        self.assertEqual(finding["line"], "bus")
+        self.assertEqual(finding["points"], [{"lon": 0.1139, "lat": 51.6937}, {"lon": 0.1033, "lat": 51.6717}])
+
+    def test_duplicate_and_unusable_coordinates_are_dropped(self):
+        stops = self.STOPS + [
+            {"commonName": "Epping again", "lat": 51.6937, "lon": 0.1139},
+            {"commonName": "No coords"},
+            {"commonName": "Text", "lat": "51.6", "lon": "0.1"},
+            {"commonName": "NaN", "lat": float("nan"), "lon": 0.1},
+            {"commonName": "Inf", "lat": 51.6, "lon": float("inf")},
+            {"commonName": "Bool", "lat": True, "lon": False},
+        ]
+        finding = stop_disruption_findings([{"description": "x", "affectedStops": stops}])[0]
+        self.assertEqual(len(finding["points"]), 2)
+
+    def test_no_coordinates_means_no_points(self):
+        finding = stop_disruption_findings([{"description": "x", "affectedStops": [{"commonName": "A"}]}])[0]
+        self.assertNotIn("points", finding)
+
+    def test_line_disruption_pins_at_its_affected_stops_and_names_its_line(self):
+        payload = [disrupted_line("central", "Central", 6, "Severe Delays",
+                                  description="Signal failure.", affectedStops=self.STOPS)]
+        finding = line_status_findings(payload, TEST_LINES)[0]
+        self.assertEqual(finding["line"], "central")
+        self.assertEqual(len(finding["points"]), 2)
+
+    def test_line_disruption_without_stop_coordinates_has_no_points(self):
+        payload = [disrupted_line("weaver", "Weaver", 6, "Severe Delays", description="x")]
+        finding = line_status_findings(payload, TEST_LINES)[0]
+        self.assertEqual(finding["line"], "weaver")
+        self.assertNotIn("points", finding)
+
+    def test_a_numeric_affected_stops_value_gives_a_finding_with_no_points(self):
+        stop = stop_disruption_findings([{"description": "x", "affectedStops": 7}])[0]
+        self.assertNotIn("points", stop)
+        payload = [disrupted_line("weaver", "Weaver", 6, "Severe Delays", description="x", affectedStops=7)]
+        line = line_status_findings(payload, TEST_LINES)[0]
+        self.assertEqual(line["line"], "weaver")
+        self.assertNotIn("points", line)
+
+
+class FakeResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def read(self):
+        return json.dumps(self.payload).encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def http_403(url):
+    return urllib.error.HTTPError(url, 403, "Forbidden", {}, None)
+
+
+DISRUPTED_CENTRAL = [{
+    "id": "central", "name": "Central",
+    "lineStatuses": [{"statusSeverity": 6, "statusSeverityDescription": "Severe Delays", "reason": "Signal failure."}],
+}]
+STOP_LOOKUP = {"stopPoints": [{"id": "490000001"}]}
+STOP_DISRUPTION = [{"description": "Stop closed.", "affectedStops": [{"commonName": "Loughton Station"}]}]
+
+
+def fake_network(line=None, lookup=STOP_LOOKUP, disruption=STOP_DISRUPTION, seen=None):
+    """Stands in for urlopen. A section given an Exception instance fails."""
+    def urlopen(request, timeout=None):
+        url = request.full_url
+        if seen is not None:
+            seen.append(request)
+        if "/Line/" in url:
+            payload = line
+        elif "/Disruption" in url:
+            payload = disruption
+        else:
+            payload = lookup
+        if isinstance(payload, Exception):
+            raise payload
+        return FakeResponse(payload)
+    return urlopen
+
+
+def run_main(urlopen, env=None):
+    out, err = io.StringIO(), io.StringIO()
+    with mock.patch.dict(os.environ, env or {}, clear=False), \
+            mock.patch("urllib.request.urlopen", urlopen), \
+            contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        tfl_transit_status.main()
+    return json.loads(out.getvalue()), err.getvalue()
+
+
+class FailSoftTests(unittest.TestCase):
+    def test_line_status_403_still_returns_bus_stop_findings_and_reports_failure(self):
+        findings, stderr = run_main(fake_network(line=http_403("https://api.tfl.gov.uk/Line/x")))
+        self.assertEqual([f["place"] for f in findings], ["Loughton Station"])
+        self.assertIn("TfL check failed: line status (HTTP 403)", stderr)
+
+    def test_bus_stop_failure_still_returns_line_findings_and_reports_failure(self):
+        findings, stderr = run_main(fake_network(
+            line=DISRUPTED_CENTRAL, lookup=urllib.error.URLError("connection refused")))
+        self.assertEqual([f["place"] for f in findings], ["Central line"])
+        self.assertIn("TfL check failed: bus stop lookup", stderr)
+
+    def test_all_sections_failing_prints_empty_list_and_names_each_failure(self):
+        err = http_403("u")
+        findings, stderr = run_main(fake_network(line=err, lookup=err))
+        self.assertEqual(findings, [])
+        self.assertIn("line status (HTTP 403)", stderr)
+        self.assertIn("bus stop lookup (HTTP 403)", stderr)
+
+    def test_healthy_run_reports_no_failure(self):
+        findings, stderr = run_main(fake_network(line=DISRUPTED_CENTRAL))
+        self.assertEqual(len(findings), 2)
+        self.assertEqual(stderr, "")
+
+
+class RequestHeaderTests(unittest.TestCase):
+    def requests_for(self, key):
+        seen = []
+        env = {"TFL_APP_KEY": key} if key is not None else {}
+        with mock.patch.dict(os.environ, env, clear=False):
+            if key is None:
+                os.environ.pop("TFL_APP_KEY", None)
+            run_main(fake_network(line=[], seen=seen))
+        return seen
+
+    def test_requests_carry_a_descriptive_user_agent(self):
+        requests = self.requests_for(None)
+        self.assertTrue(requests)
+        for request in requests:
+            self.assertIn("epping-forest-finds", request.get_header("User-agent"))
+            self.assertEqual(request.get_header("Accept"), "application/json")
+
+    def test_app_key_sent_only_when_non_blank(self):
+        for blank in (None, "", "   "):
+            for request in self.requests_for(blank):
+                self.assertNotIn("app_key", request.full_url)
+        for request in self.requests_for(" abc123 "):
+            self.assertIn("app_key=abc123", request.full_url)
+
+
+class FailureDescriptionTests(unittest.TestCase):
+    def test_stop_disruptions_only_failure_keeps_line_findings(self):
+        findings, stderr = run_main(fake_network(
+            line=DISRUPTED_CENTRAL, disruption=http_403("u")))
+        self.assertEqual([f["place"] for f in findings], ["Central line"])
+        self.assertIn("TfL check failed: stop disruptions (HTTP 403)", stderr)
+
+    def test_timeout_is_described_as_timed_out(self):
+        _, stderr = run_main(fake_network(line=socket.timeout("slow")))
+        self.assertIn("TfL check failed: line status (timed out)", stderr)
+
+    def test_invalid_json_is_described_plainly(self):
+        def urlopen(request, timeout=None):
+            response = FakeResponse(None)
+            response.read = lambda: b"<html>not json</html>"
+            return response
+        findings, stderr = run_main(urlopen)
+        self.assertEqual(findings, [])
+        self.assertIn("line status (unexpected response)", stderr)
+        self.assertNotIn("<html>", stderr)
+
+    def test_no_disruption_request_after_bus_stop_lookup_failure(self):
+        seen = []
+        run_main(fake_network(line=[], lookup=http_403("u"), seen=seen))
+        self.assertTrue(seen)
+        self.assertFalse([r for r in seen if "/Disruption" in r.full_url])
+
+    def test_error_output_never_leaks_key_or_url(self):
+        secret = "s3cr3t-key-123"
+        url = "https://api.tfl.gov.uk/Line/central,weaver/Status?app_key=" + secret
+        for line, lookup in (
+            (http_403(url), urllib.error.URLError(f"cannot reach {url}")),
+            (urllib.error.URLError(f"cannot reach {url}"), http.client.IncompleteRead(secret.encode())),
+        ):
+            _, stderr = run_main(fake_network(line=line, lookup=lookup), env={"TFL_APP_KEY": secret})
+            self.assertIn("TfL check failed", stderr)
+            self.assertNotIn(secret, stderr)
+            self.assertNotIn("http", stderr.lower().replace("(http 403)", ""))
+            self.assertNotIn("api.tfl.gov.uk", stderr)
+
+    def test_wrong_shape_200_responses_exit_cleanly_with_failure_lines(self):
+        error_body = {"$type": "Tfl.Api.Presentation.Entities.ApiError", "message": "nope"}
+        findings, stderr = run_main(fake_network(line=error_body, lookup=[1, 2], disruption=error_body))
+        self.assertEqual(findings, [])
+        self.assertIn("line status (unexpected response)", stderr)
+        self.assertIn("bus stop lookup (unexpected response)", stderr)
+        # a dict where a list of disruptions is expected
+        findings, stderr = run_main(fake_network(line=[], disruption=error_body))
+        self.assertEqual(findings, [])
+        self.assertIn("stop disruptions (unexpected response)", stderr)
+
+    def test_incomplete_read_is_caught(self):
+        _, stderr = run_main(fake_network(line=http.client.IncompleteRead(b"x")))
+        self.assertIn("TfL check failed: line status (unexpected response)", stderr)
+
+
+class PartialResultTests(unittest.TestCase):
+    def test_one_failing_town_keeps_other_towns_stops_and_names_the_town(self):
+        first_town = tfl_transit_status.TOWNS[0]
+        seen = []
+
+        def urlopen(request, timeout=None):
+            url = request.full_url
+            seen.append(url)
+            if "/Line/" in url:
+                return FakeResponse([])
+            if "/Disruption" in url:
+                return FakeResponse(STOP_DISRUPTION)
+            if f"lat={first_town['lat']}&" in url:
+                raise http_403(url)
+            return FakeResponse(STOP_LOOKUP)
+
+        findings, stderr = run_main(urlopen)
+        self.assertEqual([f["place"] for f in findings], ["Loughton Station"])
+        self.assertIn(f"bus stop lookup for {first_town['name']} (HTTP 403)", stderr)
+        self.assertEqual(stderr.count("TfL check failed"), 1)
+        self.assertTrue([u for u in seen if "/Disruption" in u])
+
+    def test_one_failing_disruption_batch_keeps_other_batches(self):
+        many = {"stopPoints": [{"id": f"49{n:07d}"} for n in range(25)]}
+        calls = []
+
+        def urlopen(request, timeout=None):
+            url = request.full_url
+            if "/Line/" in url:
+                return FakeResponse([])
+            if "/Disruption" in url:
+                calls.append(url)
+                if len(calls) == 1:
+                    raise http_403(url)
+                return FakeResponse(STOP_DISRUPTION)
+            return FakeResponse(many)
+
+        findings, stderr = run_main(urlopen)
+        self.assertGreaterEqual(len(calls), 2)
+        self.assertEqual(len(findings), len(calls) - 1)
+        self.assertIn("stop disruptions batch 1 of", stderr)
+        self.assertIn("(HTTP 403)", stderr)
 
 
 if __name__ == "__main__":

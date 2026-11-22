@@ -1,37 +1,40 @@
 # Epping Forest Finds — active agent rules
 
-Vanilla HTML/CSS/JS, phone-first, offline-first. Keep changes scoped and use the owning module.
-`app.html` is markup and script references only. Marketing (`index.html`, `assets/home/`) is an
+Vanilla HTML/CSS/JS, phone-first, offline-first. Keep changes scoped.
+`app.html` is markup and `<script src>` tags only. Marketing (`index.html`, `assets/home/`) is an
 independent surface: never import app CSS/JS or reference app icons there at runtime.
 
-- Delegate implementation to one scoped `implementer` per owned part of a coherent batch, on a
-  branch/worktree from `origin/main`; place-fact corrections go to `data-curator`. The lead plans,
-  dispatches and reports. If those agents are unavailable, say so and work directly. Subagents do
-  not spawn agents. Serialize changes to shared hot files.
-- Update affected spec sections with behavior changes. Correct individual place facts in `data/**`,
-  never by documenting a place name/status/coordinates in a spec. State when no spec update applies.
-- CI owns `js/app-cache-version.js`, `js/data-cache-version.js` and screenshot baselines. Never edit
-  markers, pick version numbers in conflicts or regenerate committed baselines in an agent task.
-- Tests execute user/caller behavior, not source strings or implementation formulas. Prove a
-  regression test fails before the fix. Finish with full unfiltered unit coverage and focused local
-  E2E on affected projects; CI on the PR is the only full browser sweep. No sleeps, unexplained skips
-  or weakened assertions to get green. Shared helper changes require their dependent journeys.
-- Run independent correctness review plus selected risk lenses. Rerun affected reviews/tests after
-  fixes; architecture/shared-contract changes require broad rereview. Evidence belongs to an exact
-  SHA and environment. Static reading cannot establish runtime layout, focus, timing or offline behavior.
-- Implementers commit locally. The lead pushes the coherent batch after the aggregate review/test
-  gates, opens one PR and reconciles checks on its exact head. The steward is the single repair
-  owner; fixes and conflict resolutions go through the same gates. Never approve, merge or force-push.
-- Do not report completion while required checks, findings or human approval remain outstanding.
-  Compare failing tests CI-to-CI before calling them pre-existing. State a waiting/blocker condition
-  plainly; do not busy-poll or treat a passing rerun as proof a defect is unrelated.
-- Preserve the PR's preview-links block. Inspect visual evidence, wait for the current preview, and
-  hand over a representative testing URL with `nuke=true`; explicitly report when unavailable.
+**Mandatory:** before editing any app or website file, or any place data under `data/**`, invoke the
+`team` skill with the Skill tool and follow its lead playbook. Do not hand-edit those files directly
+in the main session. Only skip it for read-only questions.
 
-Load references on demand, rather than reading every spec on each invocation:
+- Delegate implementation to scoped `implementer` agents; place-fact corrections go to `data-curator`.
+  The lead dispatches, reviews, pushes once and opens one PR. Agents never approve, merge, arm
+  auto-merge, apply the `verified` label or force-push. The CI reviewer APPROVEs a clean head and otherwise REQUEST_CHANGES. Auto-merge
+  is armed only when the same head has both the owner's `verified` label (a human check, replacing
+  approval because GitHub forbids approving your own PR; a push removes it) and the agent approval
+  (`.github/workflows/auto-merge.yml`); merge happens once checks pass. If the PR is already mergeable,
+  the workflow merges it directly under the same conditions.
+- Place facts are corrected in `data/**`, never documented in a spec.
+- CI owns `js/app-cache-version.js`, `js/data-cache-version.js` and screenshot baselines. Never edit them.
+- Tests assert user-visible behaviour, never source text. Prove a regression test fails before the fix.
+- Finish all in-scope work on a PR (every valid finding including minors, CI, checklist and review
+  threads) without being prompted. Work not specific to the PR's request becomes a deduplicated
+  GitHub issue linked from the PR, never silent scope growth or an unrecorded "later". See
+  `/team` section 5a.
+- Never report completion while required checks, findings or the owner's `verified` label remain outstanding.
+- Preserve the PR's preview-links block and the template's `Specialist review` table when rewriting a PR description.
+- Keep one sticky `<!-- ready-gate -->` PR comment, edited in place, naming the outstanding blocker (see `/team` section 5).
+- Push the PR as a draft as soon as the batch is implemented and committed, so the Netlify preview
+  deploys and can be tried. The CI Claude review jobs run on every push, drafts included, so no manual
+  step starts them. Every batch turn ends by evaluating the /team gate: satisfied, mark ready; open,
+  update the sticky ready-gate comment with the named blocker and leave it draft (never draft without a
+  stated reason). The gate is local reviews and verification plus draft-run CI green on the exact head,
+  including the final-head review jobs. Never mark ready while that gate is open.
+
+Load references on demand:
 
 - `spec/agents.md`: module/spec map, active constraints, role routing and completion rules.
 - `.claude/skills/team/SKILL.md`: batch selection, lead dispatch, risk selection and repair rounds.
 - `docs/agents/review-contract.md`: findings, evidence receipts, invalidation and PR status.
 - `docs/agents/testing.md`: test commands, snapshot evidence and CI diagnosis.
-- Relevant product spec headings and `CODING_STANDARDS.md` for the change; expand only along dependencies.

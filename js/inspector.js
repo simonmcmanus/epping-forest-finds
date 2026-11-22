@@ -36,6 +36,7 @@ function handleMapClick(event) {
   if (cluster) {
     if (state.selected) {
       state.selected = null;
+      clearSelectionClusterRecord();
       syncHashFromSelection();
     }
     if (focusNearbyOnClusterGroup(cluster)) {
@@ -85,7 +86,11 @@ function handleMapClick(event) {
   }
 
   state.clusterZoomed = false;
+  // The group this pick belongs to: the one just expanded, or the one the current selection came
+  // from (tapping a dimmed sibling). A place outside it ends the group context.
+  const pickGroup = state.clusterExpanded || selectionClusterGroup();
   exitClusterExpansion();
+  state.selectionCluster = clusterGroupHasItem(pickGroup, hit.item) ? pickGroup : null;
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
@@ -210,10 +215,21 @@ function findHit(screen, world) {
   }
   _hitTestMarkerCache = null;
   const selectedItem = hasRealSelection() ? state.selected.item : null;
+  // Dimmed members of the selected place's group (selectionSiblingLookup) are tappable as lone pins
+  // at the ordinary pin hit size; shouldDrawMapIcon refuses everything while a place is selected.
+  const siblingsActive = Boolean(selectionClusterGroup());
+  if (siblingsActive && selectedItem && selectedItem.point && MARKER_TYPES.includes(state.selected.type)) {
+    // The selected place's own target wins wherever a sibling's overlaps it.
+    const selectedDistance = pinDistance(toScreen(selectedItem.point), selectedItem);
+    if (selectedDistance < mapMarkerPinHitRadius(dpr, pinScaleFor(selectedItem))) {
+      return { type: state.selected.type, item: selectedItem, distance: selectedDistance };
+    }
+  }
   function isTappablePin(type, item) {
     const marker = markerByItem.get(item);
-    return item === selectedItem
-      || (shouldDrawMapIcon(type, item, iconLookup) && marker && marker.items.length === 1);
+    if (item === selectedItem) return true;
+    if (siblingsActive) return Boolean(iconLookup[type] && iconLookup[type].has(item) && marker && marker.items.length === 1);
+    return shouldDrawMapIcon(type, item, iconLookup) && marker && marker.items.length === 1;
   }
 
   let bestPlace = null;
@@ -748,6 +764,10 @@ function swapStaticChipsForRail() {
 }
 
 function selectOverview(animate = false) {
+  // Keep live data/location/heading refreshes from replacing the held gesture's list
+  // or re-announcing its floor note. Each input clears its state before the final refresh.
+  if (!animate && (state.pinchActive || Number.isFinite(state.gestureRadiusBaseMinutes)
+    || Number.isFinite(state.wheelRadiusTargetMinutes))) return;
   if ((state.filterScreenOpen && !mapSetupModalActive()) || state.searchScreenOpen) return;
   const preserveScroll = !animate && els.inspector.classList.contains("nearby-overview");
   els.inspector.classList.add("nearby-overview");
@@ -1257,7 +1277,10 @@ function focusOverviewItem(type, key) {
     return;
   }
   state.clusterZoomed = false;
+  // The Nearby list only offers members of the expanded group, so a list pick is always one of them.
+  const pickGroup = state.clusterExpanded;
   exitClusterExpansion();
+  state.selectionCluster = pickGroup;
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
@@ -1683,6 +1706,10 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
   // neighbourhood it is showing. Otherwise landing there re-anchors to the reader's own GPS fix,
   // which strands the reader's actual reason for coming here (how far from *this place*).
   const anchorHash = nearbyAnchorRouteValue({ latitude, longitude, label: name });
+  // The reader's own walking radius travels with each category link as ?radius=. Without it the
+  // category page's arrival applies the 30-minute /nearby/<slug> landing default (applyRadiusFromQuery,
+  // js/router.js), so a 5-minute reader would land on a wider ring than the counts on this card describe.
+  const radiusQuery = `?radius=${state.walkingDistanceMinutes}`;
   // One card per category the reader has chosen (state.overviewFilters, or the defaults when none
   // are set or on an SEO page), each saying how many sit within the walking radius of this point.
   const nearestCardKeys = nearbyCardFilterKeys();
@@ -1695,7 +1722,7 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
       if (!sub || (key === "cows" && !state.cows.length)) return "";
       const counts = countNearbyEntries([key], latitude, longitude);
       if (counts.within === 0) return "";
-      return cardHtml(`/nearby/${key.replace(/_/g, "-")}/#${anchorHash}`, sub.icon, sub.label, nearbyCountCopy(sub.label.toLowerCase(), counts, placeName));
+      return cardHtml(`/nearby/${key.replace(/_/g, "-")}/${radiusQuery}#${anchorHash}`, sub.icon, sub.label, nearbyCountCopy(sub.label.toLowerCase(), counts, placeName));
     })
     .join("");
   // The "Everything" card (nearbyWithinWalkHtml) joins the same list when at least one location
@@ -1713,7 +1740,7 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
     const subfilterCounts = countNearbyEntries([subfilter.key], latitude, longitude);
     if (subfilterCounts.within > 0 && !nearestCardKeySet.has(subfilter.key)) {
       relatedCards.push(cardHtml(
-        `/nearby/${subfilter.key.replace(/_/g, "-")}/#${anchorHash}`,
+        `/nearby/${subfilter.key.replace(/_/g, "-")}/${radiusQuery}#${anchorHash}`,
         subfilter.icon,
         subfilter.label,
         nearbyCountCopy(subfilter.label.toLowerCase(), subfilterCounts, placeName)
@@ -1722,7 +1749,7 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
     const groupCounts = countNearbyEntries(group.subfilters.map((s) => s.key), latitude, longitude);
     if (groupCounts.within > 0 && !nearestCardKeySet.has(subfilter.groupKey)) {
       relatedCards.push(cardHtml(
-        `/nearby/${subfilter.groupKey.replace(/_/g, "-")}/#${anchorHash}`,
+        `/nearby/${subfilter.groupKey.replace(/_/g, "-")}/${radiusQuery}#${anchorHash}`,
         group.icon,
         group.label,
         nearbyCountCopy(group.label.toLowerCase(), groupCounts, placeName)

@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-11-15T02:14:15.813621Z",
+  "generatedAt": "2026-11-21T12:52:23.930722Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -43947,6 +43947,76 @@
         "address": "Epping Forest Conservators The Warren, Nursery Road, Loughton, Essex, IG10 4RN",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 84.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/the-avenue-express",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0001735,
+          51.6088739
+        ]
+      },
+      "properties": {
+        "id": "manual/the-avenue-express",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "The Avenue Express",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "5 The Avenue, Chingford, London, E4 9LB",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 391.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/fiana",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0029098,
+          51.5807084
+        ]
+      },
+      "properties": {
+        "id": "manual/fiana",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Fiana",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Eastern Works 4 Eastern Road, Walthamstow, London, E17 9DU",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 256.4,
         "distanceLimitFromForestBoundaryMetres": 466.7,
         "ledgerUrl": null
       }

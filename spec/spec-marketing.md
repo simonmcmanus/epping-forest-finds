@@ -97,7 +97,7 @@ Epping Forest." so the first line leads.
 > See the latest reported cattle locations from their GPS collars. Positions refresh while online; offline, you’ll see the last saved positions, which may be out of date.
 
 **Everything else you need out there**
-> 9,162 paths and bridleways. 1,309 pubs, cafés and shops. 1,597 car parks,
+> 9,162 paths and bridleways. 1,311 pubs, cafés and shops. 1,597 car parks,
 > benches, toilets and gates. 1,106 bus stops and stations. All within walking
 > distance of the forest.
 
@@ -136,7 +136,7 @@ The counts in §3.4 are real values from the current checkout:
 | --- | --- |
 | 24,906 veteran trees | `data/trees/index.json` → `recordCount` |
 | 9,162 paths | feature count, `data/local-paths.geojson` |
-| 1,309 food & drink | feature count, `data/local-landmarks-food.geojson` |
+| 1,311 food & drink | feature count, `data/local-landmarks-food.geojson` |
 | 1,597 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 
@@ -186,7 +186,7 @@ rendered with thousands separators.
 ## 5. Homepage structure
 
 Copy stays brief: no introductory filler above the inventory or offline steps;
-tree captions give one action each. The signup introduction says “Get launch news, opportunities to take part as an early tester, and weekly Epping Forest Ledger updates when they launch.”
+tree captions give one action each. The signup introduction says “Sign up to get access to the community features and weekly Epping Forest Ledger updates.”
 FAQ answers match their JSON-LD wording. The veteran-tree card uses the oak-leaf
 brand icon. These edits preserve the signup consent wording and mailing scope.
 
@@ -251,8 +251,8 @@ Sections, in order:
    row. Load these supporting images lazily. The navigation caption explains
    that routes try to favour scenic forest paths and alleyways, without
    guaranteeing them. The screenshots are interim real captures from the app
-   (`app-search.jpg`, `app-nearby-route.png`, `app-tree-age.png`), scaled to
-   600px wide. Each is framed as a
+   (`app-search.jpg`, `app-nearby-route.png`, `app-tree-age.png`), at
+   iPhone 18 Pro Max screen size (1320x2868 px) and scaled down by CSS. Each is framed as a
    phone with a 4px dark-green rounded border and no card around it; its white
    caption card, exactly the phone's width, tucks behind the bottom of the
    phone, and the three caption cards stretch to a common height on wide
@@ -276,7 +276,7 @@ Sections, in order:
    screens (stacked on mobile). The introduction doubles as the explicit opt-in
    statement above the form; the privacy line sits below. Both use the full card
    content width; only the email-and-button row has a narrower cap. The opt-in
-   statement includes weekly Epping Forest Ledger updates when they launch.
+   statement covers access to the community features and weekly Epping Forest Ledger updates.
 6. **No signal? Here’s the plan** — three steps: open it once
    on signal, it downloads, it then works anywhere in the forest. The steps and
    the cattle note share one white shadowed card (like the map inventory), so
@@ -293,7 +293,9 @@ Sections, in order:
    The tree-data answer credits the City of London, acknowledges possible
    inaccuracies, and explains that the trial will investigate and improve the
    data and report findings back to the City of London. The visible answer and
-   JSON-LD use the same wording.
+   JSON-LD use the same wording. It also states that Epping Forest Finds is not
+   associated with the City of London and that the City of London has not
+   confirmed it will update its own data from our updates.
    Each question links to its own stable fragment: `#faq-offline`, `#faq-free`,
    `#faq-tree-data`, `#faq-cattle` and `#faq-coverage`. Direct links scroll to
    the answer with breathing room above it and highlight the targeted row in
@@ -1021,16 +1023,16 @@ the site runs in.
 
 | State | CTA | Supporting line |
 | --- | --- | --- |
-| `closed` | Keep me in the loop → sign-up form | "Sign up for launch news, to take part as an early tester, and for weekly Ledger updates when they launch." |
+| `closed` | Keep me in the loop → sign-up form | "Sign up to get access to the community features and weekly Ledger updates." |
 | `open` | Open the map → `/nearby` | "Free, and it works offline." |
 
 Everything else on the page — the pillars, the counts, the FAQ, the ledger
 links — is written to be true in all three states and does not change.
 
-The app is linked from the site; signup offers launch news and opportunities to take part as an early tester.
+The app is linked from the site; signup offers access to the community features and weekly Ledger updates.
 The signup heading is “Be in the know”, the submit button
-is “Email me updates”, and the introduction offers launch news, opportunities to take part as an early tester,
-and weekly Ledger updates when they launch. The consent statement retains
+is “Email me updates”, and the introduction offers access to the community features
+and weekly Ledger updates. The consent statement retains
 the same mailing scope.
 
 ## 9. Mailing list
@@ -1097,7 +1099,7 @@ which addresses are on the list is an enumeration oracle.
   survives later copy changes.
 - Every message carries a working unsubscribe link from the first one.
 - Consent wording in the form and server-side record must match exactly:
-  “By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds with launch news, opportunities to take part as an early tester, and weekly Epping Forest Ledger updates when they launch.”
+  “By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds about access to the community features and weekly Epping Forest Ledger updates.”
   Nothing else is sent to this list without fresh consent.
 
 ### 9.4 Privacy policy changes (blocking)

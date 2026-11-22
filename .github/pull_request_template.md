@@ -41,6 +41,29 @@
 - [ ] Relevant browser coverage passed
 - [ ] Spec updated, or this is implementation/data-only
 
+## Follow-ups
+
+<!-- Link GitHub issues filed for out-of-scope work, or write "none". -->
+
+## Specialist review
+
+<!-- List every local or on-demand specialist that reviewed this PR. Record the head SHA each one
+     reviewed; if you push again, rerun only the affected specialists and update the SHA.
+     Use "not selected" with the reason for any specialist whose risk does not apply.
+     An on-demand run can be requested with a PR comment: `@claude review <specialist-name>`. -->
+
+| Specialist | Status | Reviewed SHA | Verdict / link |
+| --- | --- | --- | --- |
+| reviewer (correctness, tests) | not run | | |
+| accessibility-reviewer | not selected | | |
+| design-reviewer | not selected | | |
+| offline-reviewer | not selected | | |
+| performance-reviewer | not selected | | |
+| progressive-enhancement-reviewer | not selected | | |
+| security-reviewer | not selected | | |
+| transition-reviewer | not selected | | |
+| ux-reviewer | not selected | | |
+
 ## Deploy preview
 
 Netlify replaces this section with links for the deploy preview once it is ready.

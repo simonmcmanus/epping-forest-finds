@@ -4,13 +4,24 @@
 const fs = require("fs");
 const path = require("path");
 const { connectLambda, getStore } = require("@netlify/blobs");
+const { isProductionDeploy } = require("./deploy-context");
 
-const LOCAL_DIR = path.join(__dirname, "..", "..", "..", "data", "tracking", "community");
+const LOCAL_ROOT = path.join(__dirname, "..", "..", "..", "data", "tracking", "community");
 
-function storeName() {
-  if (process.env.CONTEXT === "production") return "community";
-  const branch = (process.env.BRANCH || "dev").toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 48);
-  return `community-${branch}`;
+function branchName(env = process.env) {
+  return (env.BRANCH || "dev").toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 48) || "dev";
+}
+
+function communityStoreName(env = process.env) {
+  if (isProductionDeploy(env)) return "community";
+  return `community-${branchName(env)}`;
+}
+
+function communityLocalDir(env = process.env) {
+  // Keep local development on the same branch boundary as deploy previews. In particular, do not
+  // let a feature branch reuse the old shared `data/tracking/community` directory.
+  const scope = isProductionDeploy(env) ? "production" : branchName(env);
+  return path.join(LOCAL_ROOT, scope);
 }
 
 function useBlobs(event) {
@@ -24,7 +35,7 @@ function useBlobs(event) {
 
 function openStore(event) {
   if (useBlobs(event)) {
-    const store = getStore(storeName());
+    const store = getStore(communityStoreName());
     return {
       async get(key) { return store.get(key, { type: "json" }).catch(() => null); },
       // Unlike get, a storage failure throws instead of reading as "nothing there" (used by data deletion).
@@ -43,7 +54,8 @@ function openStore(event) {
       },
     };
   }
-  const file = (key) => path.join(LOCAL_DIR, key.replace(/[^A-Za-z0-9._-]/g, "_") + ".json");
+  const localDir = communityLocalDir();
+  const file = (key) => path.join(localDir, key.replace(/[^A-Za-z0-9._-]/g, "_") + ".json");
   return {
     async get(key) {
       try { return JSON.parse(fs.readFileSync(file(key), "utf8")); } catch { return null; }
@@ -56,7 +68,7 @@ function openStore(event) {
       }
     },
     async put(key, value) {
-      fs.mkdirSync(LOCAL_DIR, { recursive: true });
+      fs.mkdirSync(localDir, { recursive: true });
       fs.writeFileSync(file(key), JSON.stringify(value));
     },
     async delete(key) {
@@ -65,7 +77,7 @@ function openStore(event) {
     async list(prefix) {
       const p = prefix.replace(/[^A-Za-z0-9._-]/g, "_");
       let names;
-      try { names = fs.readdirSync(LOCAL_DIR); } catch (error) {
+      try { names = fs.readdirSync(localDir); } catch (error) {
         if (error && error.code === "ENOENT") return []; // nothing written yet
         throw error;
       }
@@ -79,4 +91,4 @@ function openStore(event) {
 // the whole log, so it stays bounded (about 250 KB at the cap).
 const MINE_LOG_MAX = 1000;
 
-module.exports = { openStore, MINE_LOG_MAX };
+module.exports = { openStore, MINE_LOG_MAX, branchName, communityStoreName, communityLocalDir };

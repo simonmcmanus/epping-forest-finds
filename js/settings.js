@@ -10,6 +10,7 @@ function openSettings() {
   // Without this the walk-radius slider here showed the tapped group's borrowed radius as if it
   // were the user's own setting.
   exitClusterExpansion();
+  clearSelectionClusterRecord();
   state.selected = { type: "settings", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   setNavScreenActive(els.settingsToggle);
@@ -161,6 +162,12 @@ function settingsFormHtml() {
       <div class="settings-presets" role="group" aria-label="Walking time presets">${reachablePresets.map((m) => `<button type="button" class="settings-btn" data-walk-minutes="${m}" aria-pressed="${sliderValue === m}">${formatWalkingRadius(m)}</button>`).join("")}</div>
       <p class="source-note walk-radius-floor-note" id="settingsWalkMinsFloorNote" aria-live="polite"${sliderValue > floorMinutes ? " hidden" : ""}>This is as close as it gets — nothing closer to show nearby.</p>
     </section>
+    <section class="settings-section" id="settingsAccount">
+      <h3 class="settings-section-title">Account</h3>
+      <div id="settingsAccountBody">${settingsAccountHtml(typeof communityReadAccount === "function" ? communityReadAccount() : null)}</div>
+      ${Native.isNative ? "" : `<p class="settings-description">Get early access to the community features and weekly Ledger updates by email.</p>
+      <a id="settingsSignup" class="settings-btn settings-btn-link" href="/#signup" target="_blank" rel="noopener">Sign up for early access</a>`}
+    </section>
     <section class="settings-section">
       <h3 class="settings-section-title">Reminders</h3>
       <label class="community-nudge-setting settings-switch"><span><strong>Tree check reminders</strong><span class="settings-description">A gentle nudge to check trees you’re standing next to.</span></span><input type="checkbox" id="communityNudgeToggle"${communityNudgesOn() ? " checked" : ""}></label>
@@ -185,10 +192,6 @@ function settingsFormHtml() {
         <p id="refreshOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Refreshing needs an internet connection — you\'re offline right now.</p>
       </div>
     </section>
-    <section class="settings-section" id="settingsAccount">
-      <h3 class="settings-section-title">Account</h3>
-      <div id="settingsAccountBody">${settingsAccountHtml(typeof communityReadAccount === "function" ? communityReadAccount() : null)}</div>
-    </section>
     <section class="settings-section">
       <h3 class="settings-section-title">Privacy</h3>
       <p class="settings-description">Location: <strong id="locationStatus">${locationStatusLabel()}</strong>. Used on this device to centre the map on you and measure distances.</p>
@@ -212,7 +215,7 @@ function settingsAccountHtml(account, note = "") {
     return `<p class="settings-description">Signing in is not available in the app yet. Your Community points are kept on this device.</p>${noteHtml}`;
   }
   if (account && account.signedIn) {
-    return `<p class="settings-description">Signed in as <strong>${escapeHtml(account.name)}</strong>. Your points follow you to any device you sign in on.</p>
+    return `<p class="settings-description">${accountAvatarHtml(account)}Signed in as <strong>${escapeHtml(account.name)}</strong>. Your points follow you to any device you sign in on.</p>
       <a id="settingsSignOut" class="settings-btn settings-btn-link" href="/api/auth/logout?return=/settings">Sign out</a>
       <p class="settings-description">Used a different login on another device? Sign in with it here to bring its points and devices into this account.</p>
       <a id="settingsMerge" class="settings-btn settings-btn-link" href="/api/auth/login?return=/settings&amp;merge=1">Merge another sign-in</a>${noteHtml}`;

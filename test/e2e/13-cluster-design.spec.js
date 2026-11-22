@@ -685,7 +685,10 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       for (const type of ['pointerdown', 'pointerup']) {
         canvas.dispatchEvent(new PointerEvent(type, { pointerId: 2001, clientX, clientY, bubbles: true, cancelable: true, pointerType: 'touch' }));
       }
-      for (let i = 0; i < 4; i += 1) await new Promise((resolve) => requestAnimationFrame(resolve));
+      // Back is pressed once the old pins have finished leaving (a fixed frame count is not enough:
+      // the exit fade is time-based, and a Back that lands first starts the reveal from a part-faded
+      // opacity, which is correct behaviour but means the pins never reached fully hidden).
+      for (let i = 0; i < 4 || (mapPinFadeOpacity() > 0.01 && i < 120); i += 1) await new Promise((resolve) => requestAnimationFrame(resolve));
       const inFlight = markerGroupingPaused() && (state.viewportAnimationTo != null || nearbyOriginTransitionActive());
       history.back();
       return { inFlight, expanded: state.clusterExpanded?.items.length };

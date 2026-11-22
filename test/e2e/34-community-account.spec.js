@@ -421,6 +421,48 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     await expect(page.locator("#settingsSignIn")).toHaveCount(0);
   });
 
+  const PICTURE = "https://pictures.example.test/sam.png";
+  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+
+  async function signedIn(page, extra) {
+    await page.route(ME_URL, (route) => route.fulfill(json({ signedIn: true, name: "Sam", account: "acct-aaaa", ...extra })));
+    await page.route(LINK_URL, (route) => route.fulfill(json({ ok: true })));
+  }
+
+  test("a signed-in visitor with a provider picture sees it as their icon in Community and Settings", async ({ page }) => {
+    await page.route(PICTURE, (route) => route.fulfill({ status: 200, contentType: "image/png", body: PNG }));
+    await signedIn(page, { picture: PICTURE });
+    await setup(page, "/community");
+    await expect(page.locator("#communityAccount")).toContainText("Signed in as Sam");
+    await expect(page.locator("#communityAccount img")).toHaveAttribute("src", PICTURE);
+    await expect(page.locator("#communityAccount a[href^='/api/auth/logout']")).toBeVisible();
+    await setup(page, "/settings");
+    await expect(page.locator("#settingsAccount")).toContainText("Signed in as Sam");
+    await expect(page.locator("#settingsAccountBody img")).toHaveAttribute("src", PICTURE);
+    await expect(page.locator("#settingsSignOut")).toBeVisible();
+  });
+
+  test("without a picture there is no image in the account card or Settings", async ({ page }) => {
+    await signedIn(page, {});
+    await setup(page, "/community");
+    await expect(page.locator("#communityAccount")).toContainText("Signed in as Sam");
+    await expect(page.locator("#communityAccount img")).toHaveCount(0);
+    await setup(page, "/settings");
+    await expect(page.locator("#settingsAccount")).toContainText("Signed in as Sam");
+    await expect(page.locator("#settingsAccountBody img")).toHaveCount(0);
+  });
+
+  test("a picture that fails to load is removed and the signed-in text stays", async ({ page }) => {
+    await page.route(PICTURE, (route) => route.fulfill({ status: 404, body: "" }));
+    await signedIn(page, { picture: PICTURE });
+    await setup(page, "/community");
+    await expect(page.locator("#communityAccount")).toContainText("Signed in as Sam");
+    await expect(page.locator("#communityAccount img")).toHaveCount(0);
+    await setup(page, "/settings");
+    await expect(page.locator("#settingsAccount")).toContainText("Signed in as Sam");
+    await expect(page.locator("#settingsAccountBody img")).toHaveCount(0);
+  });
+
   test("Settings offers to merge another sign-in, and says how the merge went once", async ({ page, context }) => {
     await page.route(ME_URL, (route) => route.fulfill(json({ signedIn: true, name: "Sam", account: "acct-bbbb" })));
     await page.route(LINK_URL, (route) => route.fulfill(json({ ok: true })));

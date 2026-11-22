@@ -37,15 +37,33 @@
         "lng": 0.025315,
         "accuracy": "approximate: source places it by the Avey Lane and Pynest Green Lane junction; coordinate is for Pynest Green Lane"
       },
-      "folklore_summary": "Local legend says cars left in neutral appear to roll uphill, sometimes attributed to a hangman or spirits. This is usually treated as an optical illusion or gravity-hill story.",
+      "folklore_summary": "Local legend says cars left in neutral appear to roll uphill, sometimes attributed to a hangman or spirits. This is usually treated as an optical illusion or gravity-hill story. Hangman's Hill is one of the Forest's best-known haunted-road stories, associated with execution legends, phantom movement uphill, a White Lady, a headless horseman and phantom coach retellings. Folklore entry. Treat execution claims and ghost sightings as legend unless supported by historic records.",
       "confidence": "medium",
       "source_links": [
         "https://www.hauntedrooms.co.uk/epping-forest-essex",
         "https://eppingforestforum.com/ghosts-of-epping-forest/",
-        "https://www.streetlist.co.uk/en/en9/en9-3/pynest-green-lane"
+        "https://www.streetlist.co.uk/en/en9/en9-3/pynest-green-lane",
+        "https://www.stoneacre.co.uk/blog/top-5-haunted-roads-in-the-uk",
+        "https://moonmausoleum.com/the-endless-hauntings-of-epping-forest-in-england/"
       ],
-      "external_links": [],
-      "has_more_detail_links": false
+      "external_links": [
+        {
+          "title": "stoneacre.co.uk: blog",
+          "url": "https://www.stoneacre.co.uk/blog/top-5-haunted-roads-in-the-uk",
+          "type": "folklore_or_local_story_source"
+        },
+        {
+          "title": "moonmausoleum.com: the endless hauntings of epping forest in england",
+          "url": "https://moonmausoleum.com/the-endless-hauntings-of-epping-forest-in-england/",
+          "type": "folklore_or_local_story_source"
+        }
+      ],
+      "has_more_detail_links": true,
+      "aliases": [
+        "Hangman's Hill ghost road",
+        "Avey Lane haunted road",
+        "phantom coach Epping Forest"
+      ]
     },
     {
       "id": "turpins-cave-high-beach",
@@ -5363,47 +5381,7 @@
       "has_more_detail_links": true
     },
     {
-      "name": "Hangman's Hill Haunted Road Cluster",
-      "aliases": [
-        "Hangman's Hill ghost road",
-        "Avey Lane haunted road",
-        "phantom coach Epping Forest"
-      ],
-      "category": [
-        "paranormal",
-        "haunted road",
-        "folklore",
-        "crime legend"
-      ],
-      "coordinates": {
-        "latitude": 51.6545,
-        "longitude": 0.0565,
-        "accuracy": "approximate"
-      },
-      "location_precision": "road_area_approximate",
-      "location_description": "Hangman's Hill / Avey Lane area near High Beach and Loughton.",
-      "story": "Hangman's Hill is one of the Forest's best-known haunted-road stories, associated with execution legends, phantom movement uphill, a White Lady, a headless horseman and phantom coach retellings.",
-      "notes": "Folklore entry. Treat execution claims and ghost sightings as legend unless supported by historic records.",
-      "confidence": "medium",
-      "sources": [
-        "https://www.stoneacre.co.uk/blog/top-5-haunted-roads-in-the-uk",
-        "https://moonmausoleum.com/the-endless-hauntings-of-epping-forest-in-england/"
-      ],
-      "external_links": [
-        {
-          "title": "stoneacre.co.uk: blog",
-          "url": "https://www.stoneacre.co.uk/blog/top-5-haunted-roads-in-the-uk",
-          "type": "folklore_or_local_story_source"
-        },
-        {
-          "title": "moonmausoleum.com: the endless hauntings of epping forest in england",
-          "url": "https://moonmausoleum.com/the-endless-hauntings-of-epping-forest-in-england/",
-          "type": "folklore_or_local_story_source"
-        }
-      ],
-      "has_more_detail_links": true
-    },
-    {
+      "id": "folklore-140",
       "name": "Lindsey Street Pond Horseback Apparitions",
       "aliases": [
         "Lindsey Street ghost riders",
@@ -5438,6 +5416,7 @@
       "has_more_detail_links": true
     },
     {
+      "id": "folklore-141",
       "name": "Punk History of Epping Forest",
       "aliases": [
         "Epping Forest punk history",
@@ -5472,6 +5451,7 @@
       "has_more_detail_links": true
     },
     {
+      "id": "folklore-142",
       "name": "Alternative Epping Forest Sites Trail",
       "aliases": [
         "Londonist alternative Epping Forest sites",
@@ -5506,6 +5486,7 @@
       "has_more_detail_links": true
     },
     {
+      "id": "folklore-143",
       "name": "City of London Conservatorship Story",
       "aliases": [
         "City of London owns Epping Forest",
@@ -5547,6 +5528,7 @@
       "has_more_detail_links": true
     },
     {
+      "id": "folklore-144",
       "name": "Ancient Tree Inventory Research Layer",
       "aliases": [
         "Ancient Tree Inventory Epping Forest",
@@ -5581,6 +5563,7 @@
       "has_more_detail_links": true
     },
     {
+      "id": "folklore-145",
       "name": "Blue Plaque: Muriel Lester and Doris Lester",
       "aliases": [
         "Muriel Lester",
@@ -5624,6 +5607,7 @@
       "has_more_detail_links": true
     },
     {
+      "id": "folklore-146",
       "name": "Blue Plaque: George Pearson",
       "aliases": [
         "George Pearson",
@@ -5666,6 +5650,7 @@
       "has_more_detail_links": true
     },
     {
+      "id": "folklore-147",
       "name": "Blue Plaque: Rudyard Kipling, Alice Kipling and Stanley Baldwin",
       "aliases": [
         "Rudyard Kipling Loughton",
@@ -5754,6 +5739,7 @@
       "coordinate_source": "https://www.openstreetmap.org/node/13049742873"
     },
     {
+      "id": "folklore-149",
       "name": "Blue Plaque: Sir Leonard Hill and Austin Bradford Hill",
       "aliases": [
         "Sir Leonard Hill Loughton",
@@ -5798,6 +5784,7 @@
       "has_more_detail_links": true
     },
     {
+      "id": "folklore-150",
       "name": "Blue Plaque: Millican Dalton",
       "aliases": [
         "Millican Dalton",
@@ -5840,6 +5827,7 @@
       "has_more_detail_links": true
     },
     {
+      "id": "folklore-151",
       "name": "Blue Plaque: Charles Frederick Clark",
       "aliases": [
         "Charles Frederick Clark",
@@ -5882,6 +5870,7 @@
       "has_more_detail_links": true
     },
     {
+      "id": "folklore-152",
       "name": "Blue Plaque: Percy Thompson",
       "aliases": [
         "Percy Thompson",
@@ -5969,6 +5958,7 @@
       "coordinate_source": "https://www.openstreetmap.org/node/13049742872"
     },
     {
+      "id": "folklore-154",
       "name": "Blue Plaque: Barbara Harmer",
       "aliases": [
         "Barbara Harmer",
