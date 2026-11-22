@@ -257,6 +257,15 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Mirrors netlify.toml's /beta/* -> /beta.html rewrite: the standalone beta sign-in page (ungated).
+  if (url.pathname.startsWith("/beta/")) {
+    const betaFile = path.join(ROOT, "beta.html");
+    if (!fs.existsSync(betaFile)) { send(res, 404, "Beta page not found"); return; }
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    fs.createReadStream(betaFile).pipe(res);
+    return;
+  }
+
   if (url.pathname === "/admin") {
     const adminFile = path.join(ROOT, "admin.html");
     if (!fs.existsSync(adminFile)) { send(res, 404, "Admin not found"); return; }
@@ -281,6 +290,8 @@ const server = http.createServer((req, res) => {
     "/api/auth/link": "auth-link",
     "/api/auth/logout": "auth-logout",
     "/api/features": "features",
+    "/api/beta/codes": "beta-codes",
+    "/api/beta/redeem": "beta-redeem",
     // Tracking runs the real function too; with no Blobs context it falls back to data/tracking/*.ndjson.
     "/api/track": "track",
     "/api/admin/tracks": "track",

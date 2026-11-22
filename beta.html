@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Join the beta</title>
+<style>
+:root {
+  --bg: #f6f4ee;
+  --surface: #ffffff;
+  --text: #1f2a22;
+  --muted: #55625a;
+  --border: #d9d6cb;
+  --accent: #2f6b3f;
+  --accent-text: #ffffff;
+  --error: #9b2c2c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131a15;
+    --surface: #1c251f;
+    --text: #e8ece8;
+    --muted: #a3b0a7;
+    --border: #324036;
+    --accent: #7fc08f;
+    --accent-text: #10170f;
+    --error: #f0a3a3;
+  }
+}
+[data-theme="dark"] {
+  --bg: #131a15;
+  --surface: #1c251f;
+  --text: #e8ece8;
+  --muted: #a3b0a7;
+  --border: #324036;
+  --accent: #7fc08f;
+  --accent-text: #10170f;
+  --error: #f0a3a3;
+}
+* { box-sizing: border-box; }
+html { color-scheme: light dark; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 48px 16px;
+}
+h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 24px; overflow-wrap: anywhere; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 16px;
+}
+#message { margin: 0 0 16px; overflow-wrap: anywhere; }
+#message.is-error { color: var(--error); }
+#message:empty { display: none; }
+.actions:empty { display: none; }
+.btn {
+  display: inline-block;
+  min-height: 44px;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Epping Forest Finds beta</h1>
+  <div class="card">
+    <p id="message" role="status" aria-live="polite"></p>
+    <div class="actions" id="actions"></div>
+    <noscript><p>This page needs JavaScript to sign you in. Please turn it on, or contact the person who sent you the link.</p></noscript>
+  </div>
+</main>
+<script>
+(function () {
+  var messageEl = document.getElementById("message");
+  var actionsEl = document.getElementById("actions");
+  var code = (location.pathname.split("/")[2] || "").toLowerCase();
+
+  function say(text, isError) {
+    messageEl.textContent = text;
+    messageEl.className = isError ? "is-error" : "";
+  }
+  function clearActions() { actionsEl.textContent = ""; }
+  function addRetry(onClick) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn";
+    b.textContent = "Retry";
+    b.addEventListener("click", onClick);
+    actionsEl.appendChild(b);
+  }
+  function showSignIn() {
+    clearActions();
+    say("Sign in to join the beta", false);
+    var a = document.createElement("a");
+    a.className = "btn";
+    a.href = "/api/auth/login?return=/beta/" + code;
+    a.textContent = "Sign in to join the beta";
+    actionsEl.appendChild(a);
+  }
+  function redeem() {
+    clearActions();
+    say("Joining the beta…", false);
+    fetch("/api/beta/redeem", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: code })
+    }).then(function (res) {
+      if (res.ok) {
+        say("You're in.", false);
+        location.replace("/nearby");
+        return null;
+      }
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (res.status === 401) { showSignIn(); return; }
+        say((data && data.error) || "Could not join the beta. Try again.", true);
+        if (res.status === 503) addRetry(redeem);
+      });
+    }).catch(function () {
+      say("Could not join the beta. Try again.", true);
+      addRetry(redeem);
+    });
+  }
+  function start() {
+    clearActions();
+    say("Checking your sign-in…", false);
+    fetch("/api/auth/me", { credentials: "same-origin" })
+      .then(function (res) { if (!res.ok) throw new Error("me"); return res.json(); })
+      .then(function (me) {
+        if (me && me.signedIn) redeem(); else showSignIn();
+      })
+      .catch(function () {
+        say("Could not check your sign-in. Check your connection and try again.", true);
+        addRetry(start);
+      });
+  }
+
+  if (!/^[abcdefghjkmnpqrstuvwxyz2-9]{5}$/.test(code)) {
+    say("That beta link isn't valid.", true);
+    return;
+  }
+  start();
+})();
+</script>
+</body>
+</html>
