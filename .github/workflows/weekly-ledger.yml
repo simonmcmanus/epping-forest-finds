@@ -692,6 +692,25 @@ jobs:
                   test suites run as normal CI checks on the PR instead
                   (step e below) -- that's Simon's and CI's job to wait on,
                   not yours.
+               b2. Once every change to data/forest-events.json for this
+                  run is made (new entries, edits, deletions), run
+
+                    node scripts/locate-events.js
+
+                  so each dated event in it that has no coordinates gets a
+                  real map location from a geocoder. For any entry it
+                  leaves marked "unlocated", read that entry's body,
+                  correct its "place" field to a geocodable address or
+                  venue name that the source actually names, and run the
+                  script again. Never type coordinates in from memory and
+                  never invent a place the source does not name; an entry
+                  that stays unlocated stays unlocated. Then run
+
+                    node scripts/generate-map-events.js
+
+                  so data/events.json, the map's events, is regenerated
+                  from the located, upcoming entries. Only then continue
+                  to the commit step below.
                c. git add the changed data file(s), index.html and
                   spec/spec-marketing.md if sync-homepage-counts.js touched
                   them, data/business-slugs.json (regenerate-business-slugs.js
@@ -701,7 +720,8 @@ jobs:
                   (always -- they are this run's memory, and leaving them out
                   is what makes next week start from nothing),
                   data/road-closures.json, data/forest-notices.json and
-                  data/forest-events.json if step 2c/2d updated them, the new
+                  data/forest-events.json if step 2c/2d updated them,
+                  data/events.json if step b2 updated it, the new
                   report, and
                   data/cow-grazing-history.json if cow_boundary_tracker.py
                   updated it (see step 6), commit
