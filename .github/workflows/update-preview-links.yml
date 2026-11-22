@@ -38,12 +38,14 @@ jobs:
             let sha;
             let pullRequests;
             if (context.payload.pull_request) {
-              sha = context.payload.pull_request.head.sha;
+              // A queued run can start after a newer push, so take the head from the latest PR,
+              // not from the event payload.
               const { data: latestPr } = await github.rest.pulls.get({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: context.payload.pull_request.number,
               });
+              sha = latestPr.head.sha;
               pullRequests = [latestPr];
               // Statuses come newest first, so the first success is the latest deploy.
               const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
@@ -180,7 +182,19 @@ jobs:
                 continue;
               }
 
-              const body = pr.body || "";
+              // Re-read the PR right before writing: skip if it closed or got a newer head (that
+              // head's own run writes the block), and build from the freshest body.
+              const { data: fresh } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+              });
+              if (fresh.state !== "open" || fresh.head.sha !== sha) {
+                core.notice(`#${pr.number} changed while this run was working (state ${fresh.state}, head ${fresh.head.sha}, expected ${sha}); skipping the write.`);
+                continue;
+              }
+
+              const body = fresh.body || "";
               const replacement = `<!-- preview-links:start -->\n${links}\n<!-- preview-links:end -->`;
               let nextBody = marker.test(body)
                 ? body.replace(marker, () => replacement)

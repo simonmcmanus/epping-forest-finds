@@ -16,25 +16,31 @@ const START = '<!-- preview-links:start -->';
 const END = '<!-- preview-links:end -->';
 const block = (body) => body.slice(body.indexOf(START), body.indexOf(END) + END.length);
 
-function harness({ statuses, name = 'The Plough', payload, latestBody }) {
+function harness({ statuses, statusesByRef, name = 'The Plough', payload, latestBody, latestHeadSha, headShas, latestState }) {
   const updates = [];
+  const statusRefs = [];
+  let getCalls = 0;
   const index = { entries: [{ key: 'pubs', slug: 'the-plough', id: 'osm-1', name }] };
   const github = {
     rest: {
       repos: {
         listPullRequestsAssociatedWithCommit: async () => ({ data: [] }),
-        listCommitStatusesForRef: async () => ({ data: statuses }),
+        listCommitStatusesForRef: async ({ ref }) => { statusRefs.push(ref); return { data: statusesByRef ? statusesByRef[ref] || [] : statuses }; },
         getContent: async () => ({ data: { content: Buffer.from(JSON.stringify(index)).toString('base64') } }),
       },
       pulls: {
-        get: async () => ({ data: { ...payload.pull_request, body: latestBody === undefined ? payload.pull_request.body : latestBody } }),
+        get: async () => {
+          const call = getCalls++;
+          const sha = headShas ? headShas[Math.min(call, headShas.length - 1)] : (latestHeadSha || payload.pull_request.head.sha);
+          return { data: { ...payload.pull_request, state: latestState || payload.pull_request.state, head: { sha }, body: latestBody === undefined ? payload.pull_request.body : latestBody } };
+        },
         listFiles: async () => ({ data: [] }), update: async (args) => { updates.push(args); return {}; } },
     },
     paginate: async () => [],
   };
   const context = { repo: { owner: 'o', repo: 'r' }, eventName: 'pull_request', payload };
   const core = { warning() {}, notice() {}, info() {} };
-  return { github, context, core, updates };
+  return { github, context, core, updates, statusRefs };
 }
 const success = [
   { context: 'deploy/netlify', state: 'pending', target_url: 'https://pending.example/' },
@@ -86,4 +92,34 @@ test('a queued run keeps hand edits made after its event by reading the latest P
   assert.ok(next.includes(note));
   assert.ok(next.includes(`<img src="${PREVIEW}/data/icons/home.png"`));
   assert.ok(!block(next).includes('&lt;'));
+});
+
+test('a queued run uses the deploy preview of the latest head, not the head in its event', async () => {
+  const NEW_PREVIEW = 'https://deploy-preview-2--epping-forest.netlify.app';
+  const statusesByRef = {
+    old: [{ context: 'deploy/netlify', state: 'success', target_url: 'https://old-deploy.example/' }],
+    new: [{ context: 'deploy/netlify', state: 'success', target_url: `${NEW_PREVIEW}/` }],
+  };
+  const payload = prPayload(mangled);
+  payload.pull_request.head.sha = 'old';
+  const h = harness({ statusesByRef, payload, latestHeadSha: 'new' });
+  await run(h.github, h.context, h.core);
+  assert.deepEqual(h.statusRefs, ['new']);
+  assert.equal(h.updates.length, 1);
+  assert.ok(block(h.updates[0].body).includes(`<img src="${NEW_PREVIEW}/data/icons/home.png"`));
+  assert.ok(!h.updates[0].body.includes('old-deploy.example'));
+});
+
+test('a run does not write when the PR head moves while it is working', async () => {
+  const payload = prPayload(mangled);
+  payload.pull_request.head.sha = 'old';
+  const h = harness({ statuses: success, payload, headShas: ['old', 'new'] });
+  await run(h.github, h.context, h.core);
+  assert.equal(h.updates.length, 0);
+});
+
+test('a run does not write to a PR that was closed while it was working', async () => {
+  const h = harness({ statuses: success, payload: prPayload(mangled), latestState: 'closed' });
+  await run(h.github, h.context, h.core);
+  assert.equal(h.updates.length, 0);
 });
