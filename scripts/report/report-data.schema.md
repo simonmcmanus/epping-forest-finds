@@ -60,6 +60,12 @@ are added by the renderer itself -- never write either by hand.
       "status_label": "Already trading",   // short badge text
       "body": "One or two plain-English sentences. No jargon.",
       "lon": 0.0573766, "lat": 51.6521913,  // optional -- omit for "no pin"
+      // optional -- several pins for one card, all carrying the card's number.
+      // Points off the map get no pin. Works alongside lon/lat.
+      "points": [{"lon": 0.1139, "lat": 51.6937}],
+      // optional -- "central" | "elizabeth" | "weaver" | "bus": small icon by the
+      // card title. Anything else (or absent) shows no icon.
+      "line": "central",
       "sources": [{"label": "Tripadvisor", "url": "https://..."}],
       // "event" findings only, optional: "week" (happening within the next
       // 7 days) or "month" (further out, or recurring with no next date

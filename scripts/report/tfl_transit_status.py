@@ -36,6 +36,7 @@ structured_findings.py.
 """
 import http.client
 import json
+import math
 import os
 import sys
 import urllib.error
@@ -153,6 +154,28 @@ def fetch_stop_disruptions(stop_ids, batch_size=STOP_IDS_PER_REQUEST, failures=N
 # ---- pure transforms: no network, covered by scripts/test_tfl_transit_status.py ----
 
 
+# Line ids the report draws an icon for (see render_report.LINE_ICONS).
+ICON_LINE_IDS = ("central", "elizabeth", "weaver")
+
+
+def _stop_points(stops):
+    """`{"lon", "lat"}` for each affected stop with numeric, finite, distinct
+    coordinates. A stop without them is skipped: no coordinates means no pin,
+    which is correct, not an error."""
+    points = []
+    for stop in stops or []:
+        if not isinstance(stop, dict):
+            continue
+        lat, lon = stop.get("lat"), stop.get("lon")
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+                   for v in (lat, lon)):
+            continue
+        point = {"lon": lon, "lat": lat}
+        if point not in points:
+            points.append(point)
+    return points
+
+
 def line_status_findings(lines_json, lines=LINES):
     """`lines_json` is the /Line/{ids}/Status response. A line with nothing
     but "Good Service" statuses produces no finding -- most weeks that is
@@ -172,14 +195,21 @@ def line_status_findings(lines_json, lines=LINES):
                 or status.get("reason")
                 or f"{label}: {severity_label.lower()}."
             )
-            findings.append({
+            finding = {
                 "category": "road",
                 "title": f"{label}: {severity_label}",
                 "place": label,
                 "status_label": severity_label,
                 "body": body,
                 "sources": [STATUS_SOURCE],
-            })
+            }
+            if line.get("id") in ICON_LINE_IDS:
+                finding["line"] = line["id"]
+            # TfL lists the stops a disruption affects on the disruption itself.
+            points = _stop_points(list(disruption.get("affectedStops") or []) + list(status.get("affectedStops") or []))
+            if points:
+                finding["points"] = points
+            findings.append(finding)
     return findings
 
 
@@ -201,14 +231,19 @@ def stop_disruption_findings(disruptions_json):
             or disruption.get("summary")
             or f"{place}: bus stop disruption."
         )
-        findings.append({
+        finding = {
             "category": "road",
             "title": f"Bus stop disruption: {place}",
             "place": place,
             "status_label": status_label,
             "body": body,
+            "line": "bus",
             "sources": [STOP_SOURCE],
-        })
+        }
+        points = _stop_points(disruption.get("affectedStops"))
+        if points:
+            finding["points"] = points
+        findings.append(finding)
     return findings
 
 

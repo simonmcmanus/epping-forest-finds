@@ -321,10 +321,50 @@ def render_sources_line(sources):
     return f'<p class="src">{label}: {links}</p>'
 
 
+def is_pinned(finding):
+    return bool(svg_map.located_points(finding))
+
+
+# Small decorative marks beside a transport card's title; the title itself
+# names the line. Central and Weaver are roundels (ring and bar), the
+# Elizabeth line is a solid purple tile with a white stripe, buses a red bus.
+LINE_ICONS = {
+    "central": (
+        '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
+        '<circle cx="12" cy="12" r="8.5" fill="none" stroke="#E32017" stroke-width="3.4"/>'
+        '<rect x="1" y="9.6" width="22" height="4.8" fill="#0019A8"/></svg>'
+    ),
+    "elizabeth": (
+        '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
+        '<rect x="2" y="2" width="20" height="20" rx="5" fill="#6950A1"/>'
+        '<rect x="5.5" y="10" width="13" height="4" rx="1" fill="#fff"/></svg>'
+    ),
+    "weaver": (
+        '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
+        '<circle cx="12" cy="12" r="8.5" fill="none" stroke="#EE7C0E" stroke-width="3.4"/>'
+        '<rect x="1" y="9.6" width="22" height="4.8" fill="#0019A8"/></svg>'
+    ),
+    "bus": (
+        '<svg viewBox="0 0 24 24" width="22" height="22" focusable="false">'
+        '<rect x="3.5" y="3" width="17" height="15" rx="3" fill="#B3261E"/>'
+        '<rect x="6" y="6" width="12" height="5" rx="1" fill="#fff"/>'
+        '<circle cx="8" cy="15" r="1.4" fill="#fff"/><circle cx="16" cy="15" r="1.4" fill="#fff"/>'
+        '<rect x="5.5" y="18" width="3" height="3" fill="#B3261E"/><rect x="15.5" y="18" width="3" height="3" fill="#B3261E"/></svg>'
+    ),
+}
+
+
+def line_icon_html(line):
+    icon = LINE_ICONS.get(line) if isinstance(line, str) else None
+    if not icon:
+        return ""
+    return f'<span class="line-icon line-{line}" aria-hidden="true">{icon}</span>'
+
+
 def render_card(finding):
     style = style_for(finding.get("category"))
     css_class = style["css_class"]
-    if finding.get("lon") is None:
+    if not is_pinned(finding):
         chip = ""
     elif finding.get("category") == "grazing":
         chip = cow_marker_html("pin-chip")
@@ -342,7 +382,7 @@ def render_card(finding):
     title_html = f'<a href="{escape(link_url)}">{title}</a>' if link_url else title
     return (
         f'<div class="card {css_class}">'
-        f'<div class="card-head">{chip}<h3>{title_html}</h3>{status_html}</div>'
+        f'<div class="card-head">{chip}{line_icon_html(finding.get("line"))}<h3>{title_html}</h3>{status_html}</div>'
         f'{place_html}{body_html}{sources_html}'
         f'</div>'
     )
@@ -473,7 +513,7 @@ def render_map_legend():
 def render_map_side_list(findings):
     items = []
     for f in findings:
-        if f.get("lon") is None:
+        if not is_pinned(f):
             continue
         style = style_for(f.get("category"))
         css_class = style["css_class"]
@@ -492,7 +532,7 @@ def render_map_side_list(findings):
 
 
 def render_map_section(forest_geojson, findings, cow_icon):
-    pinned = [f for f in findings if f.get("lon") is not None]
+    pinned = [f for f in findings if is_pinned(f)]
     svg = svg_map.render_map_svg(forest_geojson, pinned, cow_icon_url=cow_icon)
     legend = render_map_legend()
     side_list = render_map_side_list(findings)

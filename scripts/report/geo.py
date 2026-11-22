@@ -66,6 +66,11 @@ class MapProjection:
             round((y - self.min_y) * self.scale, 1),
         )
 
+    def contains(self, lon, lat):
+        """True if (lon, lat) lands on the map canvas."""
+        x, y = self.project(lon, lat)
+        return 0 <= x <= self.width and 0 <= y <= self.height
+
     def project_ring(self, ring):
         return [self.project(pt[0], pt[1]) for pt in ring]
 

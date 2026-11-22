@@ -248,6 +248,7 @@ REPORT_CSS = """
     font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:600;color:#fff;
     flex:none;
   }
+  .line-icon{display:inline-flex;flex:none;line-height:0;}
   .pin-chip.good{background:var(--status-good);}
   .pin-chip.critical{background:var(--status-critical);}
   .pin-chip.warning{background:var(--status-warning); color:var(--status-warning-ink);}

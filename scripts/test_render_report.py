@@ -471,5 +471,91 @@ class RenderReportEndToEndTests(unittest.TestCase):
             self.assertEqual(path.name, "epping-forest-ledger-2026-09-03.html")
 
 
+def render_findings(findings):
+    with tempfile.TemporaryDirectory() as tmp:
+        root = make_repo_root(Path(tmp), ["Pub"])
+        return rr.render_report({"date": "2026-11-22", "findings": findings}, root)
+
+
+def transit(line=None, **extra):
+    finding = {"category": "road", "title": "Transit thing", "place": "Epping",
+               "status_label": "Delays", "body": "Delays.", "sources": []}
+    if line:
+        finding["line"] = line
+    finding.update(extra)
+    return finding
+
+
+def map_pin_count(html):
+    return html.count('class="pin-num"')
+
+
+def icon_of(html):
+    """The decorative line icon the reader sees beside a card title, or None."""
+    import re
+    match = re.search(r'<span class="line-icon[^"]*" aria-hidden="true">(.*?)</span>', html, re.S)
+    return match.group(1) if match else None
+
+
+class LineIconTests(unittest.TestCase):
+    def test_each_line_has_its_own_distinct_icon(self):
+        icons = {line: icon_of(rr.render_card(dict(transit(line), number=1)))
+                 for line in ("central", "elizabeth", "weaver", "bus")}
+        for line, icon in icons.items():
+            self.assertTrue(icon, line)
+        self.assertEqual(len(set(icons.values())), 4)
+
+    def test_icons_use_the_tfl_colours(self):
+        card = lambda line: rr.render_card(dict(transit(line), number=1)).upper()
+        self.assertIn("#E32017", card("central"))
+        self.assertIn("#6950A1", card("elizabeth"))
+        self.assertIn("#EE7C0E", card("weaver"))
+
+    def test_unknown_or_missing_line_shows_no_icon(self):
+        self.assertIsNone(icon_of(rr.render_card(dict(transit(), number=1))))
+        self.assertIsNone(icon_of(rr.render_card(dict(transit("dlr"), number=1))))
+
+
+class PointsPinTests(unittest.TestCase):
+    INSIDE_A = {"lon": 0.05, "lat": 51.62}
+    INSIDE_B = {"lon": 0.03, "lat": 51.66}
+    OUTSIDE = {"lon": -1.5, "lat": 52.9}
+
+    def test_finding_with_several_points_pins_each_with_its_number(self):
+        html = render_findings([transit("central", points=[self.INSIDE_A, self.INSIDE_B])])
+        self.assertEqual(map_pin_count(html), 2)
+        self.assertIn('<span class="pin-chip', html)
+        self.assertIn("1 thing to know about this week", html)
+
+    def test_points_outside_the_map_get_no_pin_and_no_chip(self):
+        html = render_findings([transit("central", points=[self.OUTSIDE])])
+        self.assertEqual(map_pin_count(html), 0)
+        self.assertNotIn('<span class="pin-chip', html)
+        self.assertIn("Transit thing", html)
+        self.assertIn("Nothing needed a pin on the map this week", html)
+
+    def test_only_the_points_inside_the_map_are_drawn(self):
+        html = render_findings([transit(points=[self.OUTSIDE, self.INSIDE_A])])
+        self.assertEqual(map_pin_count(html), 1)
+
+    def test_findings_without_points_or_position_are_not_pinned(self):
+        html = render_findings([transit("weaver", points=[])])
+        self.assertEqual(map_pin_count(html), 0)
+        self.assertNotIn('<span class="pin-chip', html)
+
+    def test_junk_points_are_ignored(self):
+        html = render_findings([transit(points=[{"lon": "x", "lat": None}, "nope", {"lon": float("nan"), "lat": 51.6}])])
+        self.assertEqual(map_pin_count(html), 0)
+
+    def test_top_level_position_still_pins_and_counts_once(self):
+        html = render_findings([transit(lon=0.05, lat=51.62), transit(points=[self.INSIDE_A, self.INSIDE_B])])
+        self.assertEqual(map_pin_count(html), 3)
+        self.assertIn("2 things to know about this week", html)
+
+    def test_the_side_list_lists_a_multi_point_finding_once(self):
+        html = rr.render_map_side_list([dict(transit(points=[self.INSIDE_A, self.INSIDE_B]), number=1)])
+        self.assertEqual(html.count('class="find-mini"'), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
