@@ -384,9 +384,15 @@ of this upkeep, because it checks Transport for London's own live status
 rather than a hand-researched file: the Central line (Epping, Theydon Bois,
 Debden, Loughton) and the Weaver line, London Overground's name for the
 Chingford branch, plus bus stop disruptions around the coverage settlements.
-It folds into `"road"` the same way notices do, needs no `TFL_APP_KEY` (see
-`.env.example` — the key only raises a shared rate limit, it doesn't unlock
-different data), and most weeks prints no findings at all, which is the
+It folds into `"road"` the same way notices do, takes an optional but recommended `TFL_APP_KEY`
+(see `.env.example` — the key doesn't unlock different data; it is
+recommended because unauthenticated calls from the shared GitHub runner IPs
+got HTTP 403 in ledger runs #54 and #56). The script sends a descriptive
+User-Agent and each section (line status, bus stop lookup, stop disruptions)
+fails soft: a failure prints a `TfL check failed: <section> (<reason>)` line
+to stderr (or, for one town or batch of stops, a line naming just that part, keeping the rest) and never counts as "no disruption". The ledger then sets the report's about note to a plain-English "rail and bus disruption information was not available, check TfL before travelling" and mentions the failure in the pull request body. Whether the key and
+User-Agent fully stop the 403s is not yet confirmed; the next ledger run will
+show. Most weeks prints no findings at all, which is the
 correct result (good service, no disrupted stops), not a gap to research
 around. The bus stop check batches its stop ids: `/StopPoint/{ids}/Disruption`
 rejects a request past 22 comma-joined ids regardless of which ones.
@@ -422,7 +428,7 @@ Business detection (see "Keeping the map's businesses current" above):
 - `scripts/report/structured_findings.py` — turns the three files above into
   report-data.json findings that are still within their own recorded dates
 - `scripts/report/tfl_transit_status.py` — live Central line / Weaver line
-  and bus stop disruption check; no file of its own, no key required
+  and bus stop disruption check; no file of its own, `TFL_APP_KEY` optional but recommended
 - `scripts/test_*.py` for each of the above — unit tests
 
 Handy while working: `npm run audit:quality` and `npm run audit:duplicates`.
