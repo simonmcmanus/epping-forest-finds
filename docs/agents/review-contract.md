@@ -75,9 +75,10 @@ and report the remaining issues. Never push to use CI as a substitute for the lo
 ## PR status and one repair owner
 
 The lead collects status deterministically: head SHA, checks with run URLs, unresolved thread IDs,
-review state, draft/ready state, visual decision and preview state. `Claude PR review` and `Inspect final PR head` skip on drafts; that is expected, not a failure, and they are not required before marking ready (marking ready triggers them). A draft PR must carry a stated blocker or waiting reason; a ready PR with open final-head findings stays ready and reports them as the named blocker. Compare this tuple with the previous snapshot.
+review state, draft/ready state, visual decision and preview state. `Claude PR review` and `Inspect final PR head` run on drafts too, on every push; a pending review is in progress, not a failure. A draft PR must carry a stated blocker or waiting reason; a ready PR with open final-head findings stays ready and reports them as the named blocker. Compare this tuple with the previous snapshot.
+The lead records the outcome in one sticky `<!-- ready-gate -->` PR comment, edited in place each batch turn (content in `team/SKILL.md` section 5). Any PR description rewrite must keep the template's `Specialist review` table (updated status, reviewed SHA, verdict) and the preview-links block verbatim.
 Dispatch the steward only on an actionable change (the list in `team/SKILL.md` section 6), not for
-unchanged running/pending states or waiting human approval. The periodic open-PR sweep
+unchanged running/pending states or a missing `verified` label. The periodic open-PR sweep
 (`team/SKILL.md` section 7) applies the same rule to PRs whose lead session has ended. Fetch detailed logs only for failing jobs. Keep a bounded safety check for missed events;
 if subscriptions are unavailable, report that and use the platform's supported wait/poll facility.
 Do not claim a permanent event subscription exists merely because the playbook requests one.
@@ -96,7 +97,7 @@ regression, intermittent, pre-existing-with-evidence or unknown.
 "Green", including the flake-record condition and the no-CI rule, is defined once in
 `team/SKILL.md` section 5.
 
-Human approval, CI success, local review findings and visual acceptance are separate fields. A
+The human `verified` label, CI success, local review findings and visual acceptance are separate fields. A
 waiting state is not completion; avoid repeated LLM wakeups while waiting on a person.
 
 ## Model routing and compact briefs
