@@ -56,6 +56,15 @@ test.describe("Beta sign-in page", () => {
     await expect(page.getByRole("link", { name: "Open Nearby" })).toHaveAttribute("href", "/nearby");
   });
 
+  test("a code already used by this very account goes straight to Nearby without the already-used text", async ({ page }) => {
+    await mockMe(page, true);
+    await mockNearby(page);
+    trackRedeem(page, 409, { error: "That beta link has already been used.", member: true });
+    await page.goto("/beta/a234e");
+    await page.waitForURL("**/nearby");
+    await expect(page.getByText("already been used")).toHaveCount(0);
+  });
+
   test("a withdrawn link says to ask for a new one", async ({ page }) => {
     await mockMe(page, true);
     trackRedeem(page, 410, { error: "That beta link has been withdrawn." });

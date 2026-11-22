@@ -17,7 +17,7 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || "{}"); } catch { return reply(400, { error: "That beta link isn't valid." }); }
   try {
     const result = await beta.redeem(gate.storeFor(event), session, body && body.code);
-    return result.ok ? reply(200, { ok: true }) : reply(result.status, { error: result.error });
+    return result.ok ? reply(200, { ok: true }) : reply(result.status, result.member ? { error: result.error, member: true } : { error: result.error });
   } catch {
     return reply(503, { error: "Storage unavailable. Try again." });
   }

@@ -98,7 +98,8 @@ async function redeem(store, session, value) {
   if (await revokedAtOf(store, code, record)) return WITHDRAWN;
   const used = { ok: false, status: 409, error: "That beta link has already been used." };
   // A used code is used for everyone, including the account that claimed it; its access is left as it is.
-  if (record.claimedBy) return used;
+  // Only the holder, who still has a valid grant, is told so (member: true), so the page can send them on. Grants nothing.
+  if (record.claimedBy) return record.claimedBy === account && (await betaMember(store, session)) ? { ...used, member: true } : used;
   await store.put(`${CODE_PREFIX}${code}`, { ...record, claimedBy: account, claimedAt: Date.now() });
   const held = await store.getStrict(`${CODE_PREFIX}${code}`);
   if (await revokedAtOf(store, code, held)) return WITHDRAWN;

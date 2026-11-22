@@ -151,6 +151,23 @@ test("a used code cannot be redeemed again, even by the account that claimed it,
   });
 });
 
+test("the claimant's second redeem is 409 marked member, and nothing changes", async () => {
+  await withStore(gated(), async () => {
+    const { code } = await create();
+    await redeemAs("auth0|a", code);
+    const again = await redeemAs("auth0|a", code);
+    assert.equal(again.statusCode, 409);
+    assert.equal(JSON.parse(again.body).member, true);
+    assert.equal(JSON.parse(again.body).error, "That beta link has already been used.");
+    assert.equal(await communityFor("auth0|a"), true);
+    const other = await redeemAs("auth0|b", code);
+    assert.equal(other.statusCode, 409);
+    assert.notEqual(JSON.parse(other.body).member, true);
+    assert.equal(await communityFor("auth0|b"), false);
+    assert.equal(await communityFor("auth0|a"), true);
+  });
+});
+
 test("a code belongs to one person: another account gets 409 and has no access", async () => {
   await withStore(gated(), async () => {
     const { code } = await create();

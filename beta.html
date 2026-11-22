@@ -218,6 +218,12 @@ h1 {
       return res.json().catch(function () { return {}; }).then(function (data) {
         var text = data && typeof data.error === "string" ? data.error : "";
         if (res.status === 401) { showSignIn(); return; }
+        if (res.status === 409 && data && data.member === true) {
+          document.body.classList.add("joined");
+          say("Opening Nearby…", false);
+          location.replace("/nearby");
+          return;
+        }
         if (res.status === 409) {
           say((text || "That beta link has already been used.") + NEXT_USED, true);
           addLink("/nearby", "Open Nearby");
