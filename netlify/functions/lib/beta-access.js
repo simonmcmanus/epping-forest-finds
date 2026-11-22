@@ -76,7 +76,11 @@ async function revokeCode(store, value) {
   if (!(await store.getStrict(`${REVOKED_PREFIX}${code}`))) await store.put(`${REVOKED_PREFIX}${code}`, { at: Date.now() });
   // Read the claimant fresh, after the revoke is in place: a claim that lands later sees the revoke and backs out.
   const record = (await store.getStrict(`${CODE_PREFIX}${code}`)) || first;
-  if (record.claimedBy) await store.delete(`${USER_PREFIX}${record.claimedBy}`);
+  if (record.claimedBy) {
+    // Only the grant for this code: the account may since have redeemed another code, which stays valid.
+    const grant = await store.getStrict(`${USER_PREFIX}${record.claimedBy}`);
+    if (grant && grant.code === code) await store.delete(`${USER_PREFIX}${record.claimedBy}`);
+  }
   return { ok: true };
 }
 
@@ -107,6 +111,11 @@ async function redeem(store, session, value) {
   if (!after || (await revokedAtOf(store, code, after))) {
     await store.delete(`${USER_PREFIX}${account}`);
     return WITHDRAWN;
+  }
+  // A rival claim may have overwritten ours since: the last claim wins, so take the access back and refuse.
+  if (after.claimedBy !== account) {
+    await store.delete(`${USER_PREFIX}${account}`);
+    return used;
   }
   return { ok: true };
 }

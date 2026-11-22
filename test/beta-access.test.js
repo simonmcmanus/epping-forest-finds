@@ -362,3 +362,33 @@ test("the list shows a revoked claimed code as revoked with a numeric revoked da
     assert.ok(!/claimedBy|account/i.test(response.body));
   });
 });
+
+test("revoking an earlier code does not take away access an account got from a later code", async () => {
+  await withStore(gated(), async () => {
+    const first = await create("first");
+    const second = await create("second");
+    await redeemAs("auth0|x", first.code);
+    await redeemAs("auth0|x", second.code);
+    assert.equal(await communityFor("auth0|x"), true);
+    assert.equal((await adminPost({ action: "revoke", code: first.code })).statusCode, 200);
+    assert.equal(await communityFor("auth0|x"), true, "the account keeps the access its other code gives");
+  });
+});
+
+test("when a rival's claim overwrites ours before the access is written, the loser is 409 and has no access", async () => {
+  const inner = memoryStore();
+  await withStore(inner, async () => {
+    const { code } = await create();
+    const { accountKey } = require("../netlify/functions/lib/community-account");
+    // The rival's claim lands after our claim was verified, just before our access is written.
+    let rival = false;
+    const racing = { ...inner, async put(key, value) {
+      if (key.startsWith("beta-user/") && !rival) { rival = true; await inner.put(`beta-code/${code}`, { ...(await inner.get(`beta-code/${code}`)), claimedBy: "someone-else" }); }
+      await inner.put(key, value);
+    } };
+    const result = await beta.redeem(racing, { sub: "auth0|a" }, code);
+    assert.equal(result.status, 409);
+    assert.equal(result.error, "That beta link has already been used.");
+    assert.equal(await inner.get(`beta-user/${accountKey("auth0|a")}`), null);
+  });
+});
