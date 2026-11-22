@@ -295,7 +295,8 @@ const server = http.createServer((req, res) => {
     // Tracking runs the real function too; with no Blobs context it falls back to data/tracking/*.ndjson.
     "/api/track": "track",
     "/api/admin/tracks": "track",
-    "/api/admin/session": "admin-session",
+    "/api/admin/me": "admin-me",
+    "/api/admin/logout": "admin-logout",
   };
   if (COMMUNITY_FUNCTION_ROUTES[url.pathname]) {
     const fnName = COMMUNITY_FUNCTION_ROUTES[url.pathname];
@@ -361,10 +362,12 @@ const server = http.createServer((req, res) => {
 if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`Forest Finds server running at http://localhost:${PORT}`);
-    if (ADMIN_PASSWORD) {
-      console.log(`Admin dashboard: http://localhost:${PORT}/admin  (password set ✓)`);
+    if (process.env.ADMIN_SUBJECTS) {
+      console.log(`Admin dashboard: http://localhost:${PORT}/admin  (Auth0 sign-in for ADMIN_SUBJECTS ✓)`);
+    } else if (ADMIN_PASSWORD) {
+      console.log(`Admin dashboard: Auth0 sign-in disabled (set ADMIN_SUBJECTS); admin API open to scripts with the password`);
     } else {
-      console.log(`Admin dashboard: disabled — set ADMIN_PASSWORD in .env to enable`);
+      console.log(`Admin dashboard: disabled — set ADMIN_SUBJECTS (and the AUTH0_* vars) in .env to enable`);
     }
   });
 }

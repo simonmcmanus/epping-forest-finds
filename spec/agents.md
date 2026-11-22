@@ -154,7 +154,7 @@ so. Never claim completion while required checks, actionable findings or the own
 - `data/tracking/` — local NDJSON tracking storage (gitignored)
 - `scripts/` — data regeneration scripts (Python/Node)
 - `scripts/session-start.sh` — idempotent session bootstrap (installs deps, resolves `PLAYWRIGHT_CHROMIUM_EXECUTABLE`); registered as a SessionStart hook in `.claude/settings.json`
-- `admin.html` / `js/admin.js` / `css/admin.css` — password-protected analytics dashboard
+- `admin.html` / `js/admin.js` / `css/admin.css` — analytics dashboard behind Auth0 sign-in (ADMIN_SUBJECTS allowlist)
 - `netlify/functions/track.js` — Netlify serverless tracking endpoint (POST events, GET admin data)
 - `netlify.toml` — Netlify build config and redirects (update when adding API routes)
 

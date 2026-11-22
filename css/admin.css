@@ -91,6 +91,7 @@ textarea:focus-visible,
 
 /* Light surfaces need a darker ring to keep 3:1 against the paper and card colours. */
 .login-screen button:focus-visible,
+.login-screen a:focus-visible,
 .login-screen input:focus-visible,
 .admin-nav-view :focus-visible {
   outline-color: var(--focus-ring-light);
@@ -183,6 +184,10 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 
 .login-btn {
+  display: block;
+  box-sizing: border-box;
+  text-align: center;
+  text-decoration: none;
   width: 100%;
   min-height: var(--tap);
   padding: 11px;

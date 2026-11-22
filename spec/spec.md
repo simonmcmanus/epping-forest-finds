@@ -873,7 +873,7 @@ Events are stored in `localStorage` (`ff-track-queue`) when offline and flushed 
 - **Netlify:** stored as blobs in the `tracking` store via `@netlify/blobs`
 
 ### Admin interface
-- URL: `/admin` — password-protected (env var `ADMIN_PASSWORD`)
+- URL: `/admin` — Auth0 sign-in restricted to the subject ids in env var `ADMIN_SUBJECTS` (see `spec-admin.md`); scripts may still use `ADMIN_PASSWORD` as a Bearer value
 - Canvas map of Epping Forest showing user positions and tracks
 - Sidebar with user list; click to isolate an individual user's route
 - Toggle between **Tracks view** (coloured route lines + direction arrows) and **Heatmap view** (density grid)

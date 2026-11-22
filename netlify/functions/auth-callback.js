@@ -2,6 +2,7 @@
 // on the server (the client secret never reaches the browser), read the subject id and name, and set
 // the session cookie.
 const auth = require("./lib/auth-session");
+const adminAuth = require("./lib/admin-auth");
 const { openStore } = require("./lib/community-store");
 const { accountKey, accountOf, mergeAccounts } = require("./lib/community-account");
 
@@ -21,7 +22,8 @@ exports.handler = async (event) => {
   const pending = auth.readState(event, config.secret);
   const secure = auth.isSecureRequest(event);
   const cleared = auth.clearStateCookie(secure);
-  if (!params.code || !pending || params.state !== pending.state) return back(event, "/community?signin=failed", [cleared]);
+  const failedTo = pending && pending.admin ? "/admin?signin=failed" : "/community?signin=failed";
+  if (!params.code || !pending || params.state !== pending.state) return back(event, failedTo, [cleared]);
   try {
     const token = await fetch(`https://${config.domain}/oauth/token`, {
       method: "POST",
@@ -40,6 +42,12 @@ exports.handler = async (event) => {
     if (!profile.ok) throw new Error(`userinfo ${profile.status}`);
     const user = await profile.json();
     if (!user.sub) throw new Error("no subject");
+    if (pending.admin) {
+      // The dashboard's sign-in: only an allow-listed subject gets the admin cookie, and the community session
+      // is neither created nor changed. The subject id is never put in the address; email is never read.
+      if (!adminAuth.isAllowedSubject(String(user.sub))) return back(event, "/admin?signin=denied", [cleared]);
+      return back(event, "/admin", [adminAuth.adminCookie({ sub: String(user.sub), name: auth.displayName(user) }, secure), cleared]);
+    }
     if (pending.merge) {
       // A merge: this login is the *second* one. The person must still be signed in, as the same account the
       // merge was started from; then the new login's devices move into that account and the new login is
@@ -60,6 +68,6 @@ exports.handler = async (event) => {
     if (picture) session.picture = picture;
     return back(event, pending.ret, [auth.sessionCookie(session, secure), cleared]);
   } catch {
-    return back(event, "/community?signin=failed", [cleared]);
+    return back(event, failedTo, [cleared]);
   }
 };
