@@ -141,15 +141,13 @@ const CODES = [
 
 async function openBeta(page, handler) {
   await skipOnboarding(page);
-  await page.route(/\/api\/admin\/session/, (route) => json(route, 200, { token: "test-session-token", expiresAt: new Date("2030-01-01").getTime() }));
+  await page.route(/\/api\/admin\/me/, (route) => json(route, 200, { signedIn: true, name: "Test Admin" }));
   await page.route(/\/api\/admin\/tracks/, (route) => json(route, 200, TRACKS));
   await page.route(/\/api\/beta\/codes/, (route) => {
     const req = route.request();
     return handler(route, req.method() === "POST" ? JSON.parse(req.postData() || "{}") : null);
   });
   await page.goto("/admin");
-  await page.getByLabel("Admin password").fill("secret");
-  await page.click("#loginBtn");
   await expect(page.locator("#loginScreen")).toBeHidden();
   await expect(page.locator("#adminStats")).toContainText("location pings");
   await page.getByRole("button", { name: "Beta codes" }).click();
