@@ -61,6 +61,7 @@
 | performance-reviewer | not selected | | |
 | progressive-enhancement-reviewer | not selected | | |
 | security-reviewer | not selected | | |
+| snapshot-reviewer | not selected | | |
 | transition-reviewer | not selected | | |
 | ux-reviewer | not selected | | |
 

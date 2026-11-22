@@ -41,7 +41,7 @@ jobs:
             const allowed = [
               'accessibility-reviewer', 'design-reviewer', 'offline-reviewer',
               'performance-reviewer', 'progressive-enhancement-reviewer',
-              'security-reviewer', 'transition-reviewer', 'ux-reviewer',
+              'security-reviewer', 'snapshot-reviewer', 'transition-reviewer', 'ux-reviewer',
             ];
             const match = /@claude review ([a-z-]+)/.exec(process.env.COMMENT_BODY || '');
             const name = match ? match[1] : '';
