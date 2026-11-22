@@ -146,6 +146,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/admin/session"
+  to = "/.netlify/functions/admin-session"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/admin/tracks"
   to = "/.netlify/functions/track"
   status = 200
@@ -160,6 +166,12 @@
 [[redirects]]
   from = "/api/subscribe"
   to = "/.netlify/functions/subscribe"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/calendar.ics"
+  to = "/.netlify/functions/calendar"
   status = 200
   force = true
 
