@@ -72,6 +72,15 @@ test.describe("Admin login", () => {
     await expect(page.locator("#loginError")).toHaveText("");
   });
 
+  test("an unknown ?signin= value shows no message, just the normal sign-in card", async ({ page }) => {
+    await signedOut(page);
+    for (const value of ["constructor", "toString", "bogus"]) {
+      await page.goto(`/admin?signin=${value}`);
+      await expect(SIGN_IN_LINK(page)).toBeVisible();
+      await expect(page.locator("#loginError")).toHaveText("");
+    }
+  });
+
   test("a sign-in that did not finish says so", async ({ page }) => {
     await signedOut(page);
     await page.goto("/admin?signin=failed");

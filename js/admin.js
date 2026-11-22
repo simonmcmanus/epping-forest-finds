@@ -1840,7 +1840,7 @@ async function adminBoot() {
   // On load, ask the server who is signed in (the HttpOnly cookie rides along). 200 shows the dashboard, 401 the
   // sign-in card. Coming back from Auth0 with ?signin=denied|failed shows why, then the address is cleaned.
   const signinResult = new URLSearchParams(location.search).get("signin");
-  const signinMessage = SIGNIN_MESSAGES[signinResult] || "";
+  const signinMessage = Object.prototype.hasOwnProperty.call(SIGNIN_MESSAGES, signinResult) ? SIGNIN_MESSAGES[signinResult] : "";
   if (signinResult !== null) history.replaceState(null, "", `/admin${location.hash}`);
   async function restoreSession() {
     try {
