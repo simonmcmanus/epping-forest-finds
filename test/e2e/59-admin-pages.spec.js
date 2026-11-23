@@ -214,7 +214,7 @@ test.describe("Admin Community and Beta pages", () => {
     await expect(page.locator("#adminCanvas")).toBeHidden();
     await expect(page.getByRole("heading", { name: "Community", level: 2 })).toBeFocused();
     const page_ = page.locator("#adminCommunity");
-    await expect(page_.locator(".admin-stat-card").filter({ hasText: "Reports" }).locator(".admin-stat-value")).toHaveText("40");
+    await expect(page_.locator("#adminCommunityBody .nav-card").filter({ hasText: "Reports" }).locator(".admin-stat-value")).toHaveText("40");
     await expect(page.getByRole("button", { name: "Community", exact: true })).toHaveAttribute("aria-pressed", "true");
     await page.goBack();
     await expect(page.locator("#adminCanvas")).toBeVisible();
@@ -238,7 +238,7 @@ test.describe("Admin Community and Beta pages", () => {
     await expect(page.getByRole("heading", { name: "Beta", level: 2 })).toBeVisible();
     await expect(page.locator("#adminBeta li").first()).toBeVisible();
     await page.goto("/admin#community");
-    await expect(page.locator("#adminCommunity .admin-stat-card").first()).toBeVisible();
+    await expect(page.locator("#adminCommunityBody .nav-card").first()).toBeVisible();
   });
 
   test("Beta lists people who claimed a code apart from open and revoked codes, with counts", async ({ page }) => {

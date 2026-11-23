@@ -396,8 +396,10 @@ test.describe("Admin time frame", () => {
     await expect(page.locator("#adminToolbar")).toHaveAttribute("aria-busy", "true");
     await page.getByLabel("Time frame").selectOption("7");
     await expect(page.locator(".admin-user-item")).toHaveCount(2); // All users + aaaaaaaa
+    const slowFinished = page.waitForEvent("requestfinished", (request) => request.url().includes("days=90"));
     releaseSlow();
-    await page.evaluate(() => new Promise((r) => setTimeout(r, 300)));
+    await slowFinished;
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     await expect(page.locator(".admin-user-item")).toHaveCount(2);
     await expect(page.getByLabel("Time frame")).toHaveValue("7");
     await expect(page.locator("#adminToolbar")).toHaveAttribute("aria-busy", "false");
@@ -450,6 +452,7 @@ test.describe("Admin beta users filter", () => {
     await expect(page.locator(".nav-card", { hasText: "Location pings" })).toContainText("2");
     await expect(page.locator("#adminStatsSub")).toContainText("for beta users");
     await expect.poll(() => page.url()).toContain("beta=1");
+    await expect(page.locator("#adminFilterNote")).toHaveText("Beta users only: activity from before beta marking began isn't marked, so it isn't counted here.");
     await everyone.click();
     await expect(page.locator(".admin-user-item")).toHaveCount(3);
     await expect(page.locator(".nav-card", { hasText: "Location pings" })).toContainText("7");
@@ -471,6 +474,9 @@ test.describe("Admin beta users filter", () => {
     await expect(page.locator("#adminFilterNote")).toHaveText("No beta user activity in this window yet — only activity from after beta tagging was released is marked.");
     await page.getByRole("button", { name: "Everyone" }).click();
     await expect(page.locator("#adminFilterNote")).toHaveText("");
+    await page.getByRole("button", { name: "Beta users only" }).click();
+    await page.getByRole("button", { name: "Stats" }).click();
+    await expect(page.locator("#adminStatsBody .nav-empty-state")).toHaveText("No beta user activity in this window yet — only activity from after beta tagging was released is marked.");
   });
 
   test("the packed beta index from the server marks events, so the filter works on real responses", async ({ page }) => {
@@ -539,5 +545,87 @@ test.describe("Admin sign-in check", () => {
       await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
       await expect(page.getByText("Checking your sign-in")).toBeHidden();
     });
+  });
+});
+
+const COMMUNITY = { generatedAt: Date.parse("2026-11-20T10:00:00Z"), devices: 12, activeDevices1d: 3, activeDevices7d: 7, reports: 40, questioned: 9, verified: 5, newTreesUnconfirmed: 2, newTreesConfirmed: 1, conflicts: 0, totalPoints: 120, byStatus: { verified: 5 }, perDay: { "2026-11-20": 6 } };
+const CODES = [{ code: "b345f", note: "Ann", createdAt: "2026-10-30T10:00:00.000Z", status: "open" }];
+async function mockPages(page) {
+  await page.route(/\/api\/community\/overlay/, (route) => json(route, 200, COMMUNITY));
+  await page.route(/\/api\/beta\/codes/, (route) => json(route, 200, { codes: CODES }));
+}
+
+test.describe("Admin refresh and visibility", () => {
+  test("Refresh on the Community and Beta pages keeps their content", async ({ page }) => {
+    await openAdmin(page);
+    await mockPages(page);
+    await page.getByRole("button", { name: "Community" }).click();
+    await expect(page.locator("#adminCommunityBody .nav-card", { hasText: "Reports" })).toBeVisible();
+    await page.getByRole("button", { name: "Refresh" }).click();
+    await expect(page.getByRole("button", { name: "Refresh" })).toBeEnabled();
+    await expect(page.locator("#adminCommunityBody .nav-card", { hasText: "Reports" })).toBeVisible();
+    await page.getByRole("button", { name: "Beta", exact: true }).click();
+    await expect(page.locator("#adminBetaOpen")).toContainText("Ann");
+    await page.getByRole("button", { name: "Refresh" }).click();
+    await expect(page.getByRole("button", { name: "Refresh" })).toBeEnabled();
+    await expect(page.locator("#adminBetaOpen")).toContainText("Ann");
+  });
+
+  test("the 5-minute auto-refresh waits while the tab is hidden and refreshes once when it comes back", async ({ page }) => {
+    await skipOnboarding(page);
+    await page.clock.install();
+    await page.addInitScript(() => { window.__hidden = false; Object.defineProperty(document, "hidden", { get: () => window.__hidden }); });
+    let asked = 0;
+    await openAdmin(page, { onTracks: (route) => { asked += 1; return json(route, 200, tracks()); } });
+    expect(asked).toBe(1);
+    await page.evaluate(() => { window.__hidden = true; });
+    await page.clock.fastForward(6 * 60 * 1000);
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    expect(asked).toBe(1);
+    await page.evaluate(() => { window.__hidden = false; document.dispatchEvent(new Event("visibilitychange")); });
+    await expect.poll(() => asked).toBe(2);
+  });
+});
+
+test.describe("Admin touch targets on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const NAMES = ["tracksBtn", "heatmapBtn", "navigationBtn", "statsBtn", "communityBtn", "betaBtn"];
+
+  test("all six top-bar buttons are at least 44x44 and fully inside a 390px screen", async ({ page }) => {
+    await openAdmin(page);
+    for (const id of NAMES) {
+      const box = await page.locator(`#${id}`).boundingBox();
+      expect(box.width, id).toBeGreaterThanOrEqual(43.5);
+      expect(box.height, id).toBeGreaterThanOrEqual(43.5);
+      expect(box.x, id).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width, id).toBeLessThanOrEqual(390.5);
+    }
+  });
+});
+
+test.describe("Admin on the narrowest phone", () => {
+  test.use({ viewport: { width: 320, height: 568 }, hasTouch: true, isMobile: true });
+
+  test("every top-bar button is reachable by Tab and is scrolled fully into view when focused", async ({ page }) => {
+    await openAdmin(page);
+    await page.locator("#tracksBtn").focus();
+    for (const id of ["heatmapBtn", "navigationBtn", "statsBtn", "communityBtn", "betaBtn"]) {
+      await page.keyboard.press("Tab");
+      await expect(page.locator(`#${id}`)).toBeFocused();
+      await expect.poll(async () => {
+        const box = await page.locator(`#${id}`).boundingBox();
+        return box.x >= -0.5 && box.x + box.width <= 320.5;
+      }, { message: `${id} is scrolled into view` }).toBe(true);
+    }
+  });
+
+  test("Stats, Community and Beta have no horizontal page scroll at 320px", async ({ page }) => {
+    await openAdmin(page);
+    await mockPages(page);
+    for (const [name, ready] of [["Stats", "#adminStatsBody .nav-card"], ["Community", "#adminCommunityBody .nav-card"], ["Beta", "#adminBetaOpen li"]]) {
+      await page.getByRole("button", { name, exact: true }).click();
+      await expect(page.locator(ready).first()).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), name).toBeLessThanOrEqual(320);
+    }
   });
 });

@@ -1036,7 +1036,7 @@ test.describe("Admin login", () => {
     await page.click("#communityBtn");
     await expect(page.locator("#adminCommunityStatus")).toHaveText("Could not load community stats (500).");
     await expect(page.locator("#adminCommunityBody")).toHaveText("");
-    await expect(page.locator(".admin-stat-card")).toHaveCount(0);
+    await expect(page.locator("#adminCommunityBody .nav-card")).toHaveCount(0);
     const retry = page.locator("#adminCommunity").getByRole("button", { name: "Retry" });
     await expect(retry).toBeVisible();
     expect(await retry.evaluate((el) => !!el.closest("#adminCommunityBody"))).toBe(false);
@@ -1064,14 +1064,14 @@ test.describe("Admin login", () => {
     await page.route(/\/api\/community\/rebuild/, async (route) => { await gate; await route.fulfill(json({ reports: 57, targets: 12 })); });
     await page.click("#communityBtn");
     await expect(page.getByRole("button", { name: "Rebuild snapshot now" })).toBeVisible();
-    await expect(page.locator(".admin-stat-card", { hasText: "Reports" })).toContainText("4");
+    await expect(page.locator("#adminCommunityBody .nav-card", { hasText: "Reports" })).toContainText("4");
     await page.getByRole("button", { name: "Rebuild snapshot now" }).click();
     await expect(page.locator("#communityValidateResult")).toHaveText("Rebuilding…");
     await expect(page.locator("#communityRebuildBtn")).toBeDisabled();
     await expect(page.locator("#communityValidateBtn")).toBeDisabled();
     release();
     await expect(page.locator("#communityValidateResult")).toHaveText("Rebuild: Rebuilt from 57 reports (12 trees on the overlay).");
-    await expect(page.locator(".admin-stat-card", { hasText: "Reports" })).toContainText("57");
+    await expect(page.locator("#adminCommunityBody .nav-card", { hasText: "Reports" })).toContainText("57");
     const shown = await page.evaluate((ms) => new Date(ms).toLocaleString(), Date.parse("2026-10-28T11:20:00Z"));
     await expect(page.locator("#adminCommunity")).toContainText(shown);
     await expect(page.locator("#communityRebuildBtn")).toBeEnabled();

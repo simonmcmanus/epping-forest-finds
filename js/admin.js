@@ -22,6 +22,9 @@ const SIGNIN_MESSAGES = {
   failed: "Sign-in didn't finish. Try again.",
   unavailable: "Admin sign-in isn't set up on this site yet. The site owner needs to configure Auth0 and ADMIN_SUBJECTS.",
 };
+// Beta marking only began when the server started tagging events, so older activity is never counted under the beta filter.
+const BETA_EMPTY_TEXT = "No beta user activity in this window yet — only activity from after beta tagging was released is marked.";
+const BETA_CAVEAT_TEXT = "Beta users only: activity from before beta marking began isn't marked, so it isn't counted here.";
 const ME_CHECK_TIMEOUT_MS = 8000;
 const ADMIN_VIEWPORT_KEY = "ff-admin-map-viewport";
 const BASE_MAP_OPACITY = 0.42;
@@ -366,6 +369,14 @@ function toAdminRoadFeature(feature) {
 
 // ---- Rendering ----
 
+// Drag and pinch fire pointermove faster than the screen refreshes: draw at most once a frame.
+let _renderPending = false;
+function scheduleRender() {
+  if (_renderPending) return;
+  _renderPending = true;
+  requestAnimationFrame(() => { _renderPending = false; render(); });
+}
+
 function render() {
   const canvas = document.getElementById("adminCanvas");
   if (!canvas) return;
@@ -374,14 +385,20 @@ function render() {
   if (rect.width === 0 || rect.height === 0) return;
 
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
+  // Resizing the backing store is costly and clears it: only do it when the css size or the pixel ratio changed.
+  const pixelW = Math.round(rect.width * dpr);
+  const pixelH = Math.round(rect.height * dpr);
+  if (canvas.width !== pixelW || canvas.height !== pixelH) {
+    canvas.width = pixelW;
+    canvas.height = pixelH;
+  }
   const W = canvas.width;
   const H = canvas.height;
 
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  ctx.scale(dpr, dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W / dpr, H / dpr);
   const w = W / dpr;
   const h = H / dpr;
 
@@ -729,10 +746,11 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
   // Every pointer on the canvas (a mouse, or up to two fingers). One pointer drags; two pinch (zoom about their midpoint and pan with it).
   const pointers = new Map(); // pointerId -> { x, y } in client pixels
   let pinch = null; // { zoom, panX, panY, mid, dist } at the start of the pinch
+  let gestureRect = null; // the canvas box, read once when a gesture starts (not on every move)
 
   function pinchNow() {
     const [a, b] = [...pointers.values()];
-    const rect = canvas.getBoundingClientRect();
+    const rect = gestureRect || canvas.getBoundingClientRect();
     return { mid: { x: (a.x + b.x) / 2 - rect.left, y: (a.y + b.y) / 2 - rect.top }, dist: Math.hypot(a.x - b.x, a.y - b.y) };
   }
 
@@ -750,6 +768,7 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
     adminViewport.dragging = false;
     adminViewport.pointerId = null;
     pinch = null;
+    gestureRect = null;
     canvas.classList.remove("dragging");
   }
 
@@ -758,6 +777,7 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
     if (pointers.size >= 2 || pointers.has(event.pointerId)) return;
     event.preventDefault();
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 1) gestureRect = canvas.getBoundingClientRect();
     try { canvas.setPointerCapture(event.pointerId); } catch {}
     if (pointers.size === 1) {
       adminViewport.dragMoved = false;
@@ -778,13 +798,13 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
     known.x = event.clientX;
     known.y = event.clientY;
     if (pinch && pointers.size === 2) {
-      const size = canvasCssSize(canvas);
+      const size = { width: (gestureRect || canvas.getBoundingClientRect()).width, height: (gestureRect || canvas.getBoundingClientRect()).height };
       const next = AdminTools.pinchViewport(pinch, pinchNow(), size, { min: MIN_MAP_ZOOM, max: MAX_MAP_ZOOM });
       adminViewport.zoom = next.zoom;
       adminViewport.panX = next.panX;
       adminViewport.panY = next.panY;
       invalidateMapFit();
-      render();
+      scheduleRender();
       return;
     }
     if (!adminViewport.dragging || event.pointerId !== adminViewport.pointerId) return;
@@ -792,7 +812,7 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
     adminViewport.panX = adminViewport.startPanX + (event.clientX - adminViewport.startX);
     adminViewport.panY = adminViewport.startPanY + (event.clientY - adminViewport.startY);
     invalidateMapFit();
-    render();
+    scheduleRender();
   });
 
   // A finger lifted (or cancelled): lifting one of two continues as a pan from where the other finger is now, so the map does not jump.
@@ -1226,6 +1246,16 @@ function drawClickMarkers(ctx, w, h) {
   ctx.restore();
 }
 
+// The marker colours are CSS tokens (--track-start, --track-stop) so the canvas and the legend cannot drift apart.
+let _trackColours = null;
+function trackMarkerColours() {
+  if (!_trackColours) {
+    const css = getComputedStyle(document.documentElement);
+    _trackColours = { start: css.getPropertyValue("--track-start").trim() || "#1fa855", stop: css.getPropertyValue("--track-stop").trim() || "#e5383b" };
+  }
+  return _trackColours;
+}
+
 // Start (green circle) and stop (red square) of the selected user's track and of the track whose sheet is open. Different shapes, so colour is not the only cue.
 function drawTrackEnds(ctx, w, h) {
   const uids = new Set([selectedUid, selectedTrackUid].filter(Boolean));
@@ -1239,12 +1269,12 @@ function drawTrackEnds(ctx, w, h) {
     ctx.strokeStyle = "#ffffff";
     ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
     ctx.shadowBlur = 4;
-    ctx.fillStyle = "#e5383b";
+    ctx.fillStyle = trackMarkerColours().stop;
     ctx.beginPath();
     ctx.rect(stop.x - 7, stop.y - 7, 14, 14);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#1fa855";
+    ctx.fillStyle = trackMarkerColours().start;
     ctx.beginPath();
     ctx.arc(start.x, start.y, 8, 0, Math.PI * 2);
     ctx.fill();
@@ -1731,13 +1761,13 @@ function communityRow(label, value) {
 // The figures part of the Community panel: replaced after a rebuild without touching the buttons or the result line.
 function renderCommunityFigures(stats) {
   const row = communityRow;
-  const card = (label, value) => `<li class="admin-stat-card"><span class="admin-stat-value">${escapeHtml(value)}</span><span class="admin-stat-label">${escapeHtml(label)}</span></li>`;
+  const card = (label, value) => `<li class="nav-card"><span class="nav-card-value">${escapeHtml(String(value))}</span><span class="nav-card-label">${escapeHtml(label)}</span></li>`;
   const statusRows = Object.entries(stats.byStatus || {}).sort((a, b) => b[1] - a[1])
     .map(([status, n]) => row(status, n)).join("");
   const days = Object.entries(stats.perDay || {}).sort().slice(-7)
     .map(([day, n]) => row(day, n)).join("");
   return `${stats.generatedAt ? `<p class="admin-community-asof">As of the last snapshot, ${escapeHtml(formatEventTime(new Date(stats.generatedAt).toISOString()))}</p>` : ""}
-    <ul class="admin-stat-grid">
+    <ul class="nav-cards">
       ${card("People reporting (all time)", stats.devices)}
       ${card("Active, last 24 h / 7 days", `${stats.activeDevices1d} / ${stats.activeDevices7d}`)}
       ${card("Reports", stats.reports)}
@@ -1925,7 +1955,7 @@ function navPanel(cls, title, legend, svg, table, note) {
 
 function navigationViewHtml() {
   const journeys = navigationJourneysForView();
-  if (!journeys.length) return `<p class="nav-empty nav-empty-state">No navigation journeys in this window${selectedUid ? " for the selected user" : ""}.</p>`;
+  if (!journeys.length) return `<p class="nav-empty nav-empty-state">${betaOnly && !selectedUid ? `No beta user navigation journeys in this window yet — only activity from after beta tagging was released is marked.` : `No navigation journeys in this window${selectedUid ? " for the selected user" : ""}.`}</p>`;
   const s = summariseNavJourneys(journeys);
   const rows = groupJourneysByDay(journeys);
   const pct = (v) => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
@@ -2018,9 +2048,9 @@ function statsViewHtml() {
   const partial = lastMeta?.partial
     ? `<p class="nav-note">Partial: too much data for one read, newest shown${lastMeta.oldestDay ? ` (back to ${escapeHtml(lastMeta.oldestDay)}${lastMeta.oldestDayIncomplete ? ", that day only in part" : ""})` : ""}.</p>`
     : "";
-  const head = `<ul class="nav-cards admin-card-grid">${cards}</ul>${partial}${statsNavigationHtml()}`;
+  const head = `<ul class="nav-cards">${cards}</ul>${partial}${statsNavigationHtml()}`;
   const rows = typeof groupActivityByDay === "function" ? groupActivityByDay(locs, clicks) : [];
-  if (!rows.length) return `${head}<p class="nav-empty nav-empty-state">No tracking activity in this window${selectedUid ? " for the selected user" : ""}.</p>`;
+  if (!rows.length) return `${head}<p class="nav-empty nav-empty-state">${betaOnly && !selectedUid ? BETA_EMPTY_TEXT : `No tracking activity in this window${selectedUid ? " for the selected user" : ""}.`}</p>`;
   const swatch = (cls, text) => `<li><span class="nav-swatch nav-bar-${cls}"></span>${text}</li>`;
   const note = (key, what) => {
     const total = rows.reduce((a, r) => a + r[key], 0);
@@ -2160,7 +2190,7 @@ async function adminBoot() {
   // Beta users only, with nothing to show: say why (events are only marked from the release of beta tagging on).
   function updateFilterNote() {
     const empty = betaOnly && !allData.locations.length && !allData.clicks.length && !(allData.navigation || []).length;
-    filterNote.textContent = empty ? "No beta user activity in this window yet — only activity from after beta tagging was released is marked." : "";
+    filterNote.textContent = empty ? BETA_EMPTY_TEXT : betaOnly ? BETA_CAVEAT_TEXT : "";
   }
 
   // Redraw everything that depends on the data or the filters.
@@ -2872,7 +2902,12 @@ async function adminBoot() {
   window.addEventListener("resize", () => { invalidateMapFit(); refreshScrollCues(); render(); });
 
   // Auto-refresh every 5 minutes
-  setInterval(() => { if (signedIn) refreshData(); }, 5 * 60 * 1000);
+  // (skipped while the tab is hidden; coming back to a tab whose data is older than that refreshes it once)
+  const AUTO_REFRESH_MS = 5 * 60 * 1000;
+  setInterval(() => { if (signedIn && !document.hidden) refreshData(); }, AUTO_REFRESH_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && signedIn && lastLoadedAt && Date.now() - lastLoadedAt.getTime() >= AUTO_REFRESH_MS) refreshData();
+  });
 }
 
 // A throw anywhere in boot must still end the "Checking your sign-in…" note: show the card with its link.
