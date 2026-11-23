@@ -149,7 +149,9 @@ function packEvents(type, events) {
     return map.get(key);
   };
   const fields = fieldsFor(type);
-  const rows = events.map((event) => {
+  const beta = [];
+  const rows = events.map((event, i) => {
+    if (event.beta === true) beta.push(i);
     const row = [indexOf(uidIndex, uids, event.uid, event.uid), eventMs(event), ...fields.map((f) => event[f] ?? null)];
     // A navigation row ends with its kind (start, arrive or end) so one table holds all three.
     if (type === "navigation") row.push(String(event.type).slice(11));
@@ -159,14 +161,19 @@ function packEvents(type, events) {
     }
     return row;
   });
-  return type === "location" ? { v: 2, type, uids, targets, rows } : { v: 2, type, uids, rows };
+  // `beta` lists the indexes of rows from a beta member; it is left out when there are none, so an old
+  // client (which ignores it) and a response with no beta events are unchanged.
+  const packed = type === "location" ? { v: 2, type, uids, targets, rows } : { v: 2, type, uids, rows };
+  if (beta.length) packed.beta = beta;
+  return packed;
 }
 
 function unpackEvents(packed) {
   if (!packed || !Array.isArray(packed.rows)) return [];
   const type = packed.type;
   const fields = fieldsFor(type);
-  return packed.rows.map((row) => {
+  const beta = new Set(Array.isArray(packed.beta) ? packed.beta : []);
+  return packed.rows.map((row, index) => {
     const event = { type, uid: packed.uids[row[0]], ts: new Date(row[1]).toISOString() };
     if (type === "navigation") event.type = `navigation_${row[fields.length + 2]}`;
     fields.forEach((field, i) => { event[field] = row[i + 2]; });
@@ -174,6 +181,7 @@ function unpackEvents(packed) {
       const t = row[fields.length + 2];
       event.navTarget = t >= 0 ? packed.targets[t] : null;
     }
+    if (beta.has(index)) event.beta = true;
     return event;
   });
 }
