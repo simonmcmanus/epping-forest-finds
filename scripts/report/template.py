@@ -237,7 +237,7 @@ REPORT_CSS = """
   .card.event{border-left-color:var(--status-event);}
   .card-head{
     display:flex;
-    align-items:center;
+    align-items:flex-start;
     gap:10px;
     margin-bottom:6px;
     flex-wrap:wrap;
@@ -249,6 +249,11 @@ REPORT_CSS = """
     flex:none;
   }
   .line-icon{display:inline-flex;flex:none;line-height:0;}
+  /* Icons align to the first title line (about 22.4px: 1.12rem x line-height 1.25), not the middle of a wrapped title.
+     The margin-top values are tuned to that h3 line-height: 3px puts the icon centre on the first line centre,
+     4px sits the smaller status label on the first line. Revisit both if the h3 size or line-height changes. */
+  .card-head>.pin-chip,.card-head>.line-icon,.card-head>.card-subicon{margin-top:3px;}
+  .card-head>.status-label{margin-top:4px;}
   /* 22px matches the numbered pin chip and the transport line icons so the card head reads as one row. */
   .card-subicon{width:22px;height:22px;object-fit:contain;flex:none;}
   .line-bus{color:var(--status-critical);}
@@ -257,7 +262,8 @@ REPORT_CSS = """
   .pin-chip.critical{background:var(--status-critical);}
   .pin-chip.warning{background:var(--status-warning); color:var(--status-warning-ink);}
   .pin-chip.event{background:var(--status-event);}
-  .card h3{font-family:"Fraunces", serif; font-weight:600; font-size:1.12rem; margin:0;}
+  /* Small flex-basis lets the title wrap beside the icons instead of being pushed to its own row. */
+  .card h3{font-family:"Fraunces", serif; font-weight:600; font-size:1.12rem; margin:0; line-height:1.25; flex:1 1 12ch; min-width:0;}
   .status-label{
     font-size:0.72rem;
     font-weight:700;
