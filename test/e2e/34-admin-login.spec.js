@@ -11,7 +11,7 @@ async function mockAdminMe(page, signedIn = true) {
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Test Admin" }) });
   });
 }
-const SIGN_IN_LINK = (page) => page.getByRole("link", { name: "Sign in with Auth0" });
+const SIGN_IN_LINK = (page) => page.getByRole("link", { name: "Sign in" });
 
 test.describe("Admin login", () => {
   test.beforeEach(async ({ page }) => { await mockAdminMe(page); });
@@ -97,7 +97,7 @@ test.describe("Admin login", () => {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) });
     });
     await page.goto("/admin");
-    await expect(page.locator("#adminStats")).toContainText("location pings");
+    await expect(page.locator("#adminUserList")).toContainText("All users");
     expect(seen[0]).toEqual({ csrf: "admin", auth: undefined });
   });
 
@@ -114,7 +114,7 @@ test.describe("Admin login", () => {
     await expect(SIGN_IN_LINK(page)).toHaveAttribute("aria-describedby", "loginError");
   });
 
-  test("a server error while checking the sign-in gives a plain message and a Try again button that re-checks", async ({ page }) => {
+  test("a server error while checking the sign-in gives a plain message, keeps the Sign in link and a reload re-checks", async ({ page }) => {
     let up = false;
     await skipOnboarding(page);
     await page.unroute(/\/api\/admin\/me/);
@@ -123,13 +123,14 @@ test.describe("Admin login", () => {
       : route.fulfill({ status: 503, contentType: "text/plain", body: "<html>upstream-detail</html>" })));
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
     await page.goto("/admin");
-    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Try again.");
+    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page or sign in again.");
     await expect(page.locator("body")).not.toContainText("upstream-detail");
     await expect(SIGN_IN_LINK(page)).toBeVisible();
     up = true;
-    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
+    await page.reload();
     await expect(page.locator("#loginScreen")).toBeHidden();
-    await expect(page.locator("#adminStats")).toContainText("location pings");
+    await expect(page.locator("#adminUserList")).toContainText("All users");
   });
 
   test("a failed log out keeps the dashboard and says so, rather than pretending to be signed out", async ({ page }) => {
@@ -138,13 +139,13 @@ test.describe("Admin login", () => {
     await page.click("#logoutBtn");
     await expect(page.locator("#adminRefreshStatus")).toHaveText("Couldn't log out. Check your connection and try again.");
     await expect(page.locator("#loginScreen")).toBeHidden();
-    await expect(page.locator("#adminStats")).toContainText("location pings");
+    await expect(page.locator("#adminUserList")).toContainText("All users");
   });
 
   test("a 401 from a non-tracks endpoint mid-session returns to the sign-in card with the expired message", async ({ page }) => {
-    await page.route(/\/api\/features\?admin=1/, (route) => route.fulfill({ status: 401, contentType: "application/json", body: "{}" }));
+    await page.route(/\/api\/community\/overlay\?admin=1/, (route) => route.fulfill({ status: 401, contentType: "application/json", body: "{}" }));
     await signIn(page);
-    await page.click("#accessBtn");
+    await page.click("#communityBtn");
     await expect(SIGN_IN_LINK(page)).toBeVisible();
     await expect(page.locator("#loginError")).toHaveText("Admin session expired. Sign in again.");
     await expect(page.locator("#adminApp")).toBeHidden();
@@ -155,7 +156,7 @@ test.describe("Admin login", () => {
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
     await page.goto("/admin");
     await expect(page.locator("#loginScreen")).toBeHidden();
-    await expect(page.locator("#adminStats")).toContainText("location pings");
+    await expect(page.locator("#adminUserList")).toContainText("All users");
   }
 
   test("Log out asks the server to clear the sign-in, then shows the sign-in screen", async ({ page }) => {
@@ -195,12 +196,12 @@ test.describe("Admin login", () => {
     await page.unroute(/\/api\/admin\/tracks/);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 502, contentType: "text/plain", body: "Bad Gateway" }));
     await page.reload();
-    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Try again.");
+    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page or sign in again.");
     await page.unroute(/\/api\/admin\/tracks/);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
     await page.reload();
     await expect(page.locator("#loginScreen")).toBeHidden();
-    await expect(page.locator("#adminStats")).toContainText("location pings");
+    await expect(page.locator("#adminUserList")).toContainText("All users");
   });
 
   test("Admin clears a password that an earlier version left in session storage", async ({ page }) => {
@@ -209,7 +210,7 @@ test.describe("Admin login", () => {
     await page.goto("/admin");
     await page.evaluate(() => sessionStorage.setItem("ff-admin-session-password", "left-by-old-version"));
     await page.reload();
-    await expect(page.locator("#adminStats")).toContainText("location pings");
+    await expect(page.locator("#adminUserList")).toContainText("All users");
     const leftover = await page.evaluate(() => sessionStorage.getItem("ff-admin-session-password"));
     expect(leftover).toBeNull();
   });
@@ -223,8 +224,8 @@ test.describe("Admin login", () => {
       if (!url.searchParams.get("days")) return route.fulfill({ status: 502, contentType: "text/plain", body: "Bad Gateway" });
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...TRACKS, meta: { ...TRACKS.meta, windowDays: Number(url.searchParams.get("days")) } }) });
     });
-    await page.goto("/admin");
-    await expect(page.locator("#adminStats")).toContainText("last 7 days");
+    await page.goto("/admin#stats");
+    await expect(page.locator("#adminStatsPage .nav-card", { hasText: "Time window" })).toContainText("7 days");
     expect(asked).toEqual([null, "7"]);
   });
 
@@ -233,7 +234,7 @@ test.describe("Admin login", () => {
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 502, contentType: "text/plain", body: "<html><body><h1>internal-proxy-detail</h1></body></html>" }));
     await page.goto("/admin");
     // The status code and its plain name, never the raw body (which may be a page of HTML).
-    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Try again.");
+    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page or sign in again.");
     await expect(page.locator("body")).not.toContainText("internal-proxy-detail");
   });
 
@@ -249,14 +250,14 @@ test.describe("Admin login", () => {
       meta: { ...TRACKS.meta, partial: true, oldestDay: "2026-10-20", oldestDayIncomplete: true },
     };
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
-    await page.goto("/admin");
+    await page.goto("/admin#stats");
 
     await expect(page.getByRole("button", { name: /pts/ })).toHaveCount(2);
-    await expect(page.locator("#adminStats")).toContainText("2 location pings");
-    await expect(page.locator("#adminStats")).toContainText("back to 2026-10-20, that day only in part");
+    await expect(page.locator("#adminStatsPage .nav-card", { hasText: "Location pings" }).locator(".nav-card-value")).toHaveText("2");
+    await expect(page.locator("#adminStatsPage")).toContainText("back to 2026-10-20, that day only in part");
   });
 
-  test("snapshot: admin navigation journey block when packed navigation events are present", async ({ page }) => {
+  test("snapshot: admin stats page with the navigation summary when packed navigation events are present", async ({ page }) => {
     await skipOnboarding(page);
     const at = (iso) => Date.parse(iso);
     // Fictional fixed coordinates and timestamps: one walker starts, arrives, then ends a navigation.
@@ -275,24 +276,23 @@ test.describe("Admin login", () => {
       meta: { ...TRACKS.meta },
     };
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
-    await page.goto("/admin");
+    await page.goto("/admin#stats");
 
-    const stats = page.locator("#adminStats");
-    await expect(stats).toContainText("Navigation:");
-    await expect(stats).toContainText("1 started");
-    await expect(stats).toContainText("1 arrived (100%)");
-    await expect(stats).toContainText("Detour: walked 1.25x the shortest route");
+    const stats = page.locator("#adminStatsPage");
+    await expect(stats).toContainText("Navigation: 1 journey started, 1 arrived (100%), 1.3 km walked.");
+    await expect(stats.getByRole("link", { name: /Navigation page/ })).toBeVisible();
     // Navigation events carry no location pings or taps, so these are the final counts.
-    await expect(stats).toContainText("0 users");
-    await expect(stats).toContainText("0 location pings");
-    await expect(stats).toContainText("0 taps");
+    await expect(stats.locator(".nav-card", { hasText: "Users" }).locator(".nav-card-value")).toHaveText("0");
+    await expect(stats.locator(".nav-card", { hasText: "Location pings" }).locator(".nav-card-value")).toHaveText("0");
+    await expect(stats.locator(".nav-card", { hasText: "Taps" }).locator(".nav-card-value")).toHaveText("0");
+    await expect(stats).toContainText("No tracking activity in this window");
     // Let the dashboard's entrance fade finish (an element state, not a sleep) before capturing.
     await expect.poll(() => page.evaluate(() => {
       const app = document.getElementById("adminApp");
       const running = document.getAnimations().filter((a) => a.playState === "running" || a.pending).length;
-      return running === 0 && getComputedStyle(app).opacity === "1" && getComputedStyle(document.getElementById("adminStats")).opacity === "1";
+      return running === 0 && getComputedStyle(app).opacity === "1";
     })).toBe(true);
-    await expect(stats).toHaveScreenshot("admin-navigation-stats.png");
+    await expect(stats).toHaveScreenshot("admin-stats-page.png");
   });
 
   test("the Navigation view shows summary cards, a daily table and chart labels", async ({ page }) => {
@@ -493,38 +493,6 @@ test.describe("Admin login", () => {
     await expect(view.locator(".nav-destinations tbody tr")).toHaveCount(0);
   });
 
-  test("the stats bar is a readable panel over the map", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await skipOnboarding(page);
-    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
-    await page.goto("/admin");
-    await expect(page.locator("#adminStats")).toContainText("location pings");
-    const m = await page.evaluate(() => {
-      const el = document.getElementById("adminStats");
-      const cs = getComputedStyle(el);
-      const rect = el.getBoundingClientRect();
-      return {
-        bg: cs.backgroundColor, color: cs.color, size: parseFloat(cs.fontSize),
-        strongColor: getComputedStyle(el.querySelector("strong")).color,
-        strongWeight: parseInt(getComputedStyle(el.querySelector("strong")).fontWeight, 10),
-        weight: parseInt(cs.fontWeight, 10),
-        inView: rect.right <= window.innerWidth && rect.bottom <= window.innerHeight && rect.left >= 0,
-      };
-    });
-    const rgba = (c) => { const n = c.match(/[\d.]+/g).map(Number); return { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 }; };
-    const lum = ({ r, g, b }) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
-    const bg = rgba(m.bg);
-    expect(bg.a).toBeGreaterThan(0);
-    // Worst case: the panel sits over a white map. Composite the background over white first.
-    const flat = { r: bg.r * bg.a + 255 * (1 - bg.a), g: bg.g * bg.a + 255 * (1 - bg.a), b: bg.b * bg.a + 255 * (1 - bg.a) };
-    const contrast = (fg) => { const f = rgba(fg); const [hi, lo] = [lum(f), lum(flat)].sort((a, b) => b - a); return (hi + 0.05) / (lo + 0.05); };
-    expect(m.size).toBeGreaterThanOrEqual(14);
-    expect(contrast(m.color)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(m.strongColor)).toBeGreaterThanOrEqual(4.5);
-    expect(m.strongWeight).toBeGreaterThan(m.weight);
-    expect(m.inView).toBe(true);
-  });
-
   test("Navigation summary labels stay on one line on desktop and the charts fill the page in two columns", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const view = await openNavigationWithNineDays(page);
@@ -606,12 +574,12 @@ test.describe("Admin login", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await skipOnboarding(page);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(tracks) }));
+    await page.route(/\/api\/beta\/codes/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ codes: [] }) }));
     await page.route(/\/api\/community\/overlay\?admin=1/, (route) => route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ generatedAt: Date.parse("2026-10-27T09:35:00Z"), reports: 4, devices: 2, activeDevices1d: 1, activeDevices7d: 2, byStatus: { verified: 3 }, perDay: { "2026-10-26": 4 }, questioned: 1, verified: 3, newTreesUnconfirmed: 0, newTreesConfirmed: 0, conflicts: 0, totalPoints: 9 }),
     }));
-    await page.route(/\/api\/features\?admin=1/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] }) }));
     await page.goto("/admin");
     await expect(page.locator("#adminApp")).toBeVisible();
   }
@@ -640,18 +608,6 @@ test.describe("Admin login", () => {
     expect(small).toEqual([]);
   });
 
-  test("opening the Access panel closes the Community panel so only one overlay shows", async ({ page }) => {
-    await signInOnPhone(page);
-    await page.getByRole("button", { name: "Community" }).click();
-    await expect(page.locator("#adminCommunity")).toBeVisible();
-    await page.getByRole("button", { name: "Access" }).click();
-    await expect(page.locator("#adminAccess")).toBeVisible();
-    await expect(page.locator("#adminCommunity")).toBeHidden();
-    await page.getByRole("button", { name: "Community" }).click();
-    await expect(page.locator("#adminCommunity")).toBeVisible();
-    await expect(page.locator("#adminAccess")).toBeHidden();
-  });
-
   test("user rows can be picked from the keyboard with Enter and Space", async ({ page }) => {
     await signInOnPhone(page);
     const rows = page.locator(".admin-user-item");
@@ -671,10 +627,10 @@ test.describe("Admin login", () => {
   }
   const intersects = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 
-  test("on a phone all five view and panel buttons are fully on screen without scrolling", async ({ page }) => {
+  test("on a phone all six view and page buttons are fully on screen without scrolling", async ({ page }) => {
     await signInOnPhone(page);
-    const boxes = await boxesOf(page, "#tracksBtn, #heatmapBtn, #navigationBtn, #communityBtn, #accessBtn");
-    expect(boxes).toHaveLength(5);
+    const boxes = await boxesOf(page, "#tracksBtn, #heatmapBtn, #navigationBtn, #statsBtn, #communityBtn, #betaBtn");
+    expect(boxes).toHaveLength(6);
     for (const b of boxes) {
       expect(b.left, `${b.id} left`).toBeGreaterThanOrEqual(0);
       expect(b.right, `${b.id} right`).toBeLessThanOrEqual(390);
@@ -684,44 +640,25 @@ test.describe("Admin login", () => {
     expect((await boxesOf(page, ".admin-topbar-title"))[0].w).toBeLessThanOrEqual(1);
   });
 
-  for (const [name, size] of [["desktop", { width: 1440, height: 900 }], ["phone", { width: 390, height: 844 }]]) {
-    test(`the open ${name} overlay sheet leaves the legend and stats strip uncovered`, async ({ page }) => {
-      await signInOnPhone(page);
-      await page.setViewportSize(size);
-      for (const name of ["Community", "Access"]) {
-        await page.getByRole("button", { name, exact: true }).click();
-        const sheet = page.locator(name === "Community" ? "#adminCommunity" : "#adminAccess");
-        await expect(sheet).toBeVisible();
-        if (name === "Community") {
-          // Loading text lives in #adminCommunityStatus; wait for it to clear and the stats to appear.
-          await expect(page.locator("#adminCommunityStatus")).toHaveText("");
-          await expect(page.getByRole("button", { name: "Run reward check now" })).toBeVisible();
-        }
-        const stats = (await boxesOf(page, "#adminStats"))[0];
-        expect(stats.right - stats.left, "stats strip has width").toBeGreaterThan(0);
-        expect(stats.bottom - stats.top, "stats strip has height").toBeGreaterThan(0);
-        const [s] = await boxesOf(page, name === "Community" ? "#adminCommunity" : "#adminAccess");
-        for (const sel of [".admin-legend", "#adminStats", ".admin-map-controls"]) {
-          const [other] = await boxesOf(page, sel);
-          expect(intersects(s, other), `${name} sheet covers ${sel}`).toBe(false);
-        }
-      }
-    });
-  }
-
-  test("the active view tab is exposed with aria-pressed", async ({ page }) => {
+  test("the active view tab or page button is exposed with aria-pressed", async ({ page }) => {
     await signInOnPhone(page);
-    const state = () => page.evaluate(() => ["tracksBtn", "heatmapBtn", "navigationBtn"].map((id) => document.getElementById(id).getAttribute("aria-pressed")));
-    expect(await state()).toEqual(["true", "false", "false"]);
+    const state = () => page.evaluate(() => ["tracksBtn", "heatmapBtn", "navigationBtn", "statsBtn", "communityBtn", "betaBtn"].map((id) => document.getElementById(id).getAttribute("aria-pressed")));
+    expect(await state()).toEqual(["true", "false", "false", "false", "false", "false"]);
     await page.click("#heatmapBtn");
-    expect(await state()).toEqual(["false", "true", "false"]);
+    expect(await state()).toEqual(["false", "true", "false", "false", "false", "false"]);
     await page.click("#navigationBtn");
-    expect(await state()).toEqual(["false", "false", "true"]);
+    expect(await state()).toEqual(["false", "false", "true", "false", "false", "false"]);
+    await page.click("#statsBtn");
+    expect(await state()).toEqual(["false", "false", "false", "true", "false", "false"]);
+    await page.click("#communityBtn");
+    expect(await state()).toEqual(["false", "false", "false", "false", "true", "false"]);
+    await page.click("#betaBtn");
+    expect(await state()).toEqual(["false", "false", "false", "false", "false", "true"]);
     await page.click("#tracksBtn");
-    expect(await state()).toEqual(["true", "false", "false"]);
+    expect(await state()).toEqual(["true", "false", "false", "false", "false", "false"]);
   });
 
-  test("Navigation is its own page: map controls, legend and stats are hidden, the hash is set, and the heading takes focus", async ({ page }) => {
+  test("Navigation is its own page: map controls and legend are hidden, the hash is set, and the heading takes focus", async ({ page }) => {
     await signInOnPhone(page);
     await page.click("#communityBtn");
     await expect(page.locator("#adminCommunity")).toBeVisible();
@@ -730,10 +667,10 @@ test.describe("Admin login", () => {
     await expect(page).toHaveURL(/#navigation$/);
     await expect(page.getByRole("heading", { name: "Navigation", level: 2 })).toBeFocused();
     await expect(page.locator("#adminNavigationSub")).toContainText("Users");
-    for (const sel of [".admin-map-controls", ".admin-legend", "#adminStats", "#adminCanvas", "#adminCommunity", "#adminAccess", "#adminClickDetails"]) {
+    for (const sel of [".admin-map-controls", ".admin-legend", "#adminCanvas", "#adminCommunity", "#adminBeta", "#adminStatsPage", "#adminClickDetails"]) {
       await expect(page.locator(sel), sel).toBeHidden();
     }
-    await expect(page.locator("#communityBtn")).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator("#communityBtn")).toHaveAttribute("aria-pressed", "false");
     // The page sits beside the map's slot, not on top of the map controls.
     const nav = await page.locator("#adminNavigation").boundingBox();
     const side = await page.locator(".admin-sidebar").boundingBox();
@@ -773,14 +710,18 @@ test.describe("Admin login", () => {
     await expect(page.locator(".admin-map-controls")).toBeVisible();
   });
 
-  test("opening Community from the Navigation page returns to the map and shows the panel", async ({ page }) => {
+  test("opening Community from the Navigation page replaces it with the Community page, and Back returns", async ({ page }) => {
     await signInOnPhone(page);
     await page.click("#navigationBtn");
     await page.click("#communityBtn");
     await expect(page.locator("#adminNavigation")).toBeHidden();
     await expect(page.locator("#adminCommunity")).toBeVisible();
-    const canvas = await page.locator("#adminCanvas").boundingBox();
-    expect(canvas.width).toBeGreaterThan(300);
+    await expect(page.locator("#adminCanvas")).toBeHidden();
+    const community = await page.locator("#adminCommunity").boundingBox();
+    expect(community.width).toBeGreaterThanOrEqual(390 * 0.9);
+    await page.goBack();
+    await expect(page.locator("#adminNavigation")).toBeVisible();
+    await expect(page.locator("#adminCommunity")).toBeHidden();
   });
 
   test("leaving the Navigation page with Back puts focus on the active view button, not the body", async ({ page }) => {
@@ -864,31 +805,16 @@ test.describe("Admin login", () => {
     expect(await len()).toBe(before);
   });
 
-  test("overlay panels take focus, close on Escape and give focus back to their button", async ({ page }) => {
+  test("pages and the tap details are labelled regions and are not live regions themselves", async ({ page }) => {
     await signInOnPhone(page);
-    for (const [btn, panel] of [["#communityBtn", "#adminCommunity"], ["#accessBtn", "#adminAccess"]]) {
+    await expect(page.locator("#adminClickDetails")).toHaveAttribute("role", "region");
+    await expect(page.locator("#adminClickDetails")).not.toHaveAttribute("aria-live", /.+/);
+    for (const [btn, id, name] of [["#communityBtn", "adminCommunity", "Community"], ["#betaBtn", "adminBeta", "Beta"], ["#statsBtn", "adminStatsPage", "Stats"], ["#navigationBtn", "adminNavigation", "Navigation"]]) {
       await page.click(btn);
-      await expect(page.locator(panel)).toBeVisible();
-      expect(await page.evaluate((sel) => document.querySelector(sel).contains(document.activeElement), panel)).toBe(true);
-      await page.keyboard.press("Escape");
-      await expect(page.locator(panel)).toBeHidden();
-      await expect(page.locator(btn)).toBeFocused();
+      await expect(page.getByRole("region", { name, exact: true })).toBeVisible();
+      await expect(page.locator(`#${id}`)).not.toHaveAttribute("aria-live", /.+/);
     }
-    await page.click("#communityBtn");
-    await page.click("#adminCommunityClose");
-    await expect(page.locator("#communityBtn")).toBeFocused();
-  });
-
-  test("overlay panels are labelled regions and are not live regions themselves", async ({ page }) => {
-    await signInOnPhone(page);
-    for (const id of ["adminCommunity", "adminAccess", "adminClickDetails"]) {
-      const el = page.locator(`#${id}`);
-      await expect(el).toHaveAttribute("role", "region");
-      await expect(el).not.toHaveAttribute("aria-live", /.+/);
-    }
-    await page.click("#accessBtn");
-    await expect(page.getByRole("region", { name: "Early access: Community" })).toBeVisible();
-    await expect(page.locator("#adminAccessStatus")).toHaveAttribute("role", "status");
+    await expect(page.locator("#adminBetaStatus")).toHaveAttribute("role", "status");
   });
 
   test("a user row keeps keyboard focus after it is activated and the list redraws", async ({ page }) => {
@@ -901,17 +827,6 @@ test.describe("Admin login", () => {
     await page.locator(".admin-user-item").first().focus();
     await page.keyboard.press("Enter");
     expect(await page.evaluate(() => document.activeElement.classList.contains("admin-user-item") && document.activeElement.dataset.uid)).toBe("");
-  });
-
-  test("Refresh keeps an open Access panel and the text typed into it", async ({ page }) => {
-    await signInOnPhone(page);
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
-    await page.fill("#adminAccessList", "a1b2c3d4e5 Sam\nnot saved yet");
-    await page.click("#refreshBtn");
-    await expect(page.locator("#refreshBtn")).toBeEnabled();
-    await expect(page.locator("#adminAccess")).toBeVisible();
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam\nnot saved yet");
   });
 
   test("the focus ring on the sign-in card is dark enough for a light surface", async ({ page }) => {
@@ -952,9 +867,9 @@ test.describe("Admin login", () => {
     test(`at ${width}px wide no top-bar button overlaps another or runs off screen`, async ({ page }) => {
       await signInOnPhone(page);
       await page.setViewportSize({ width, height: width >= 768 ? 800 : 700 });
-      const ids = "#tracksBtn, #heatmapBtn, #navigationBtn, #communityBtn, #accessBtn, #refreshBtn, #logoutBtn";
+      const ids = "#tracksBtn, #heatmapBtn, #navigationBtn, #statsBtn, #communityBtn, #betaBtn, #refreshBtn, #logoutBtn";
       const boxes = await boxesOf(page, ids);
-      expect(boxes).toHaveLength(7);
+      expect(boxes).toHaveLength(8);
       for (let i = 0; i < boxes.length; i++) {
         for (let j = i + 1; j < boxes.length; j++) {
           expect(intersects(boxes[i], boxes[j]), `${boxes[i].id} overlaps ${boxes[j].id} at ${width}px`).toBe(false);
@@ -1059,13 +974,13 @@ test.describe("Admin login", () => {
     await expect(page.locator('#adminCommunity [role="status"]').filter({ hasText: /\S/ })).toHaveCount(1);
   });
 
-  test("the top bar is two rows at 1099px and one row at 1100px, with no overlaps either way", async ({ page }) => {
+  test("the top bar is two rows at 1279px and one row at 1280px, with no overlaps either way", async ({ page }) => {
     await signInOnPhone(page);
-    const ids = "#tracksBtn, #heatmapBtn, #navigationBtn, #communityBtn, #accessBtn, #refreshBtn, #logoutBtn";
-    for (const [width, rows] of [[1099, 2], [1100, 1]]) {
+    const ids = "#tracksBtn, #heatmapBtn, #navigationBtn, #statsBtn, #communityBtn, #betaBtn, #refreshBtn, #logoutBtn";
+    for (const [width, rows] of [[1279, 2], [1280, 1]]) {
       await page.setViewportSize({ width, height: 800 });
       const boxes = await boxesOf(page, ids);
-      expect(boxes).toHaveLength(7);
+      expect(boxes).toHaveLength(8);
       for (let i = 0; i < boxes.length; i++) {
         for (let j = i + 1; j < boxes.length; j++) {
           expect(intersects(boxes[i], boxes[j]), `${boxes[i].id} overlaps ${boxes[j].id} at ${width}px`).toBe(false);
@@ -1186,147 +1101,6 @@ test.describe("Admin login", () => {
     await expect(page.locator("#loginError")).toHaveText("Admin session expired. Sign in again.");
   });
 
-  test("Escape keeps unsaved Access edits until it is pressed a second time", async ({ page }) => {
-    await signInOnPhone(page);
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
-    await page.fill("#adminAccessList", "typed but never saved");
-    await page.keyboard.press("Escape");
-    await expect(page.locator("#adminAccess")).toBeVisible();
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Unsaved changes — Save or press Esc again to discard.");
-    await expect(page.locator("#adminAccessList")).toHaveValue("typed but never saved");
-    await page.keyboard.press("Escape");
-    await expect(page.locator("#adminAccess")).toBeHidden();
-    await expect(page.locator("#accessBtn")).toBeFocused();
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
-  });
-
-  test("typing after the Escape warning cancels it, and a clean Access panel still closes on one Escape", async ({ page }) => {
-    await signInOnPhone(page);
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
-    await page.keyboard.press("Escape");
-    await expect(page.locator("#adminAccess")).toBeHidden();
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toBeEnabled();
-    await page.fill("#adminAccessList", "x");
-    await page.keyboard.press("Escape");
-    await page.locator("#adminAccessList").pressSequentially("y");
-    await page.keyboard.press("Escape");
-    await expect(page.locator("#adminAccess")).toBeVisible();
-    await expect(page.locator("#adminAccessList")).toHaveValue("xy");
-  });
-
-  test("unsaved Access text survives re-clicking Access, opening Community and the close button", async ({ page }) => {
-    await signInOnPhone(page);
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
-    await page.fill("#adminAccessList", "a1b2c3d4e5 Sam\nnot saved yet");
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam\nnot saved yet");
-    await page.click("#communityBtn");
-    await expect(page.locator("#adminAccess")).toBeHidden();
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccess")).toBeVisible();
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam\nnot saved yet");
-    await expect(page.locator("#adminAccessStatus")).toContainText("Unsaved changes");
-    await page.click("#adminAccessClose");
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam\nnot saved yet");
-  });
-
-  test("a failed Access load disables the list and Save until a retry works, and nothing is posted meanwhile", async ({ page }) => {
-    await signInOnPhone(page);
-    const posts = [];
-    let mode = "fail";
-    let release;
-    const gate = new Promise((resolve) => { release = resolve; });
-    await page.route(/\/api\/features/, async (route) => {
-      const req = route.request();
-      if (req.method() === "POST") { posts.push(req.postData()); return route.fulfill(json({ community: [] })); }
-      if (mode === "slow") await gate;
-      if (mode === "fail") return route.fulfill({ status: 500, body: "x" });
-      return route.fulfill(json({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] }));
-    });
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not load the list (500). Try again.");
-    await expect(page.locator("#adminAccessList")).toBeDisabled();
-    await expect(page.locator("#adminAccessSave")).toBeDisabled();
-    mode = "slow";
-    await page.locator("#adminAccess").getByRole("button", { name: "Retry" }).click();
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Loading…");
-    await expect(page.locator("#adminAccessList")).toBeDisabled();
-    await expect(page.locator("#adminAccessSave")).toBeDisabled();
-    release();
-    await expect(page.locator("#adminAccessList")).toBeEnabled();
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
-    await expect(page.locator("#adminAccessSave")).toBeEnabled();
-    await expect(page.locator("#adminAccess").getByRole("button", { name: "Retry" })).toBeHidden();
-    expect(posts).toEqual([]);
-  });
-
-  test("Access Save shows Saving, cannot be double-submitted, and counts dropped lines", async ({ page }) => {
-    await signInOnPhone(page);
-    const posts = [];
-    let release;
-    const gate = new Promise((resolve) => { release = resolve; });
-    await page.route(/\/api\/features/, async (route) => {
-      const req = route.request();
-      if (req.method() !== "POST") return route.fulfill(json({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] }));
-      posts.push(req.postData());
-      await gate;
-      return route.fulfill(json({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] }));
-    });
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessSave")).toBeEnabled();
-    await page.fill("#adminAccessList", "a1b2c3d4e5 Sam\nbad line\nanother bad");
-    await page.locator("#adminAccessSave").dblclick();
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Saving…");
-    await expect(page.locator("#adminAccessSave")).toBeDisabled();
-    release();
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Saved 1 tester. 2 lines were not valid tester IDs (10 characters, 0-9 and a-f) or were repeated, and were dropped.");
-    await expect(page.locator("#adminAccessSave")).toBeEnabled();
-    expect(posts).toHaveLength(1);
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
-  });
-
-  test("a clean Access save does not mention dropped lines", async ({ page }) => {
-    await signInOnPhone(page);
-    await page.route(/\/api\/features/, (route) => route.fulfill(json({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] })));
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessSave")).toBeEnabled();
-    await page.click("#adminAccessSave");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Saved 1 tester.");
-  });
-
-  test("the Community and Access buttons show which panel is open and the close buttons advertise Esc", async ({ page }) => {
-    await signInOnPhone(page);
-    const expanded = () => page.evaluate(() => ["communityBtn", "accessBtn"].map((id) => document.getElementById(id).getAttribute("aria-expanded")));
-    expect(await expanded()).toEqual(["false", "false"]);
-    await page.click("#communityBtn");
-    expect(await expanded()).toEqual(["true", "false"]);
-    // The lit style fades in over a short transition, so poll for it.
-    await expect.poll(() => page.evaluate(() => ["communityBtn", "accessBtn"].map((id) => getComputedStyle(document.getElementById(id)).backgroundColor)).then(([open, shut]) => open !== shut)).toBe(true);
-    await page.click("#accessBtn");
-    expect(await expanded()).toEqual(["false", "true"]);
-    await page.keyboard.press("Escape");
-    expect(await expanded()).toEqual(["false", "false"]);
-    await page.click("#communityBtn");
-    await page.click("#adminCommunityClose");
-    expect(await expanded()).toEqual(["false", "false"]);
-    await page.click("#accessBtn");
-    expect(await expanded()).toEqual(["false", "true"]);
-    await page.click("#logoutBtn");
-    await logIn(page);
-    expect(await expanded()).toEqual(["false", "false"]);
-    for (const id of ["adminCommunityClose", "adminAccessClose", "adminClickDetailsClose"]) {
-      await expect(page.locator(`#${id}`)).toHaveAttribute("aria-label", /^Close .+ \(Esc\)$/);
-      await expect(page.locator(`#${id}`)).toHaveAttribute("title", "Esc closes");
-      await expect(page.locator(`#${id}`)).toHaveAttribute("aria-keyshortcuts", "Escape");
-    }
-  });
-
   test("selecting a user chip near the edge brings it fully into the strip, and the All users chip counts users", async ({ page }) => {
     await signInOnPhone(page, MANY_USERS);
     await expect(page.locator(".admin-user-item").first()).toContainText("8 users");
@@ -1360,8 +1134,8 @@ test.describe("Admin login", () => {
     await expect.poll(() => mask(".admin-nav")).not.toBe(atStart);
     expect(await mask(".admin-nav")).not.toBe("none");
     // The fade is not in the way: the last button is still the element under its own centre.
-    const hit = await page.evaluate(() => { const b = document.getElementById("accessBtn").getBoundingClientRect(); return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)?.id; });
-    expect(hit).toBe("accessBtn");
+    const hit = await page.evaluate(() => { const b = document.getElementById("betaBtn").getBoundingClientRect(); return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)?.id; });
+    expect(hit).toBe("betaBtn");
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect.poll(() => mask(".admin-nav")).toBe("none");
   });
@@ -1370,7 +1144,7 @@ test.describe("Admin login", () => {
     await skipOnboarding(page);
     await page.route(/\/api\/admin\/tracks/, (route) => route.abort("failed"));
     await page.goto("/admin");
-    await expect(page.locator("#loginError")).toHaveText("Cannot reach the server. Check your connection and try again.");
+    await expect(page.locator("#loginError")).toHaveText("Cannot reach the server. Check your connection, then reload the page.");
   });
 
   test("a failed refresh says so, keeps the old data on screen and clears on the next success", async ({ page }) => {
@@ -1382,7 +1156,7 @@ test.describe("Admin login", () => {
     await page.click("#refreshBtn");
     await expect(note).toHaveText(/^Could not refresh — showing data from \d\d:\d\d\.$/);
     await expect(note).toBeVisible();
-    await expect(page.locator("#adminStats")).toContainText("2 location pings");
+    await expect(page.locator("#adminUserList")).toContainText("2 users");
     failing = false;
     await page.click("#refreshBtn");
     await expect(note).toHaveText("");
@@ -1396,19 +1170,18 @@ test.describe("Admin login", () => {
     await expect(page.locator("#loginError")).toHaveText("Admin session expired. Sign in again.");
   });
 
-  test("logging out closes the panels and wipes their content so nothing reappears at the next sign-in", async ({ page }) => {
+  test("logging out leaves the pages and wipes their content so nothing reappears at the next sign-in", async ({ page }) => {
     await signInOnPhone(page);
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
-    await page.fill("#adminAccessList", "private tester note");
+    await page.click("#betaBtn");
+    await page.locator("#adminBetaNote").fill("private tester note");
     await page.click("#logoutBtn");
     await expect(page.locator("#loginScreen")).toBeVisible();
     await expect(page.locator("#loginBtn")).toBeFocused();
     await logIn(page);
-    await expect(page.locator("#adminAccess")).toBeHidden();
+    await expect(page.locator("#adminBeta")).toBeHidden();
     await expect(page.locator("#adminCommunity")).toBeHidden();
-    await expect(page.locator("#adminAccessList")).toHaveValue("");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("");
+    await expect(page.locator("#adminBetaNote")).toHaveValue("");
+    await expect(page.locator("#adminBetaStatus")).toHaveText("");
     await page.click("#communityBtn");
     await page.click("#logoutBtn");
     await logIn(page);
@@ -1423,10 +1196,9 @@ test.describe("Admin login", () => {
 
   async function expectNothingLeftFromTheOldSession(page) {
     await settle(page);
-    await expect(page.locator("#adminAccess")).toBeHidden();
+    await expect(page.locator("#adminBeta")).toBeHidden();
     await expect(page.locator("#adminCommunity")).toBeHidden();
-    await expect(page.locator("#adminAccessList")).toHaveValue("");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("");
+    await expect(page.locator("#adminBetaNote")).toHaveValue("");
     await expect(page.locator("#adminCommunityStatus")).toHaveText("");
     await expect(page.locator("#adminCommunityBody")).toHaveText("");
     await expect(page.locator("#adminRefreshStatus")).toHaveText("");
@@ -1450,43 +1222,6 @@ test.describe("Admin login", () => {
     await expect.poll(() => calls).toBe(3);
     await expect(page.locator("#refreshBtn")).toBeEnabled();
     await expect(page.locator("#adminRefreshStatus")).toHaveText("");
-  });
-
-  test("logging out while the Access list loads leaves nothing from the old session at the next sign-in", async ({ page }) => {
-    await signInOnPhone(page);
-    const { gate, release } = gateOf();
-    let calls = 0;
-    await page.route(/\/api\/features/, async (route) => { calls++; if (calls === 1) await gate; await route.fulfill(json({ community: [{ id: "ffffffffff", note: "Late" }] })); });
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Loading…");
-    await page.click("#logoutBtn");
-    await logIn(page);
-    release();
-    await expectNothingLeftFromTheOldSession(page);
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toHaveValue("ffffffffff Late");
-    await expect(page.locator("#adminAccessSave")).toBeEnabled();
-  });
-
-  test("logging out while the Access list saves leaves nothing from the old session at the next sign-in", async ({ page }) => {
-    await signInOnPhone(page);
-    const { gate, release } = gateOf();
-    await page.route(/\/api\/features/, async (route) => {
-      if (route.request().method() === "POST") { await gate; return route.fulfill(json({ community: [{ id: "eeeeeeeeee", note: "Late save" }] })); }
-      return route.fulfill(json({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] }));
-    });
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessSave")).toBeEnabled();
-    await page.fill("#adminAccessList", "eeeeeeeeee Late save");
-    await page.click("#adminAccessSave");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Saving…");
-    await page.click("#logoutBtn");
-    await logIn(page);
-    release();
-    await expectNothingLeftFromTheOldSession(page);
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
-    await expect(page.locator("#adminAccessSave")).toBeEnabled();
   });
 
   test("logging out while Community loads leaves nothing from the old session at the next sign-in", async ({ page }) => {
@@ -1522,7 +1257,7 @@ test.describe("Admin login", () => {
     await expect(page.locator("#communityValidateResult")).toHaveText("");
   });
 
-  test("a Community action cannot be started twice by closing and reopening the panel while it runs", async ({ page }) => {
+  test("a Community action cannot be started twice by leaving the Community page and coming back while it runs", async ({ page }) => {
     await signInOnPhone(page);
     const { gate, release } = gateOf();
     let rebuilds = 0;
@@ -1530,7 +1265,7 @@ test.describe("Admin login", () => {
     await page.click("#communityBtn");
     await page.click("#communityRebuildBtn");
     await expect(page.locator("#communityValidateResult")).toHaveText("Rebuilding…");
-    await page.click("#adminCommunityClose");
+    await page.click("#tracksBtn");
     await page.click("#communityBtn");
     await expect(page.locator("#communityRebuildBtn")).toBeVisible();
     await expect(page.locator("#communityRebuildBtn")).toBeDisabled();
@@ -1561,124 +1296,6 @@ test.describe("Admin login", () => {
     await settle(page, 150);
     const written = await page.evaluate(() => window.__written);
     expect(written.filter((t) => t.startsWith("Rebuild:"))).toEqual([final]);
-  });
-
-  test("Escape stays armed only for the open Access panel: leaving and coming back needs two presses again", async ({ page }) => {
-    await signInOnPhone(page);
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
-    await page.fill("#adminAccessList", "typed but never saved");
-    await page.keyboard.press("Escape");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Unsaved changes — Save or press Esc again to discard.");
-    await page.click("#communityBtn");
-    await expect(page.locator("#adminAccess")).toBeHidden();
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessStatus")).toContainText("Unsaved changes kept");
-    await page.keyboard.press("Escape");
-    await expect(page.locator("#adminAccess")).toBeVisible();
-    await expect(page.locator("#adminAccessList")).toHaveValue("typed but never saved");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Unsaved changes — Save or press Esc again to discard.");
-    await page.keyboard.press("Escape");
-    await expect(page.locator("#adminAccess")).toBeHidden();
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
-  });
-
-  test("the Escape warning stays until the admin types or closes, with no timeout", async ({ page }) => {
-    await signInOnPhone(page);
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toBeEnabled();
-    await page.fill("#adminAccessList", "x");
-    await page.keyboard.press("Escape");
-    await settle(page, 1500);
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Unsaved changes — Save or press Esc again to discard.");
-    await page.keyboard.press("Escape");
-    await expect(page.locator("#adminAccess")).toBeHidden();
-  });
-
-  test("typing clears the 'Unsaved changes kept' note shown when Access is reopened", async ({ page }) => {
-    await signInOnPhone(page);
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessList")).toBeEnabled();
-    await page.fill("#adminAccessList", "draft");
-    await page.click("#communityBtn");
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessStatus")).toContainText("Unsaved changes kept");
-    await page.locator("#adminAccessList").pressSequentially("!");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("");
-    await expect(page.locator("#adminAccessList")).toHaveValue("draft!");
-  });
-
-  test("Access load problems are plain, tell network from server errors, and an expired session signs out", async ({ page }) => {
-    await signInOnPhone(page);
-    let mode = "abort";
-    await page.route(/\/api\/features/, (route) => {
-      if (mode === "abort") return route.abort("failed");
-      if (mode === "500") return route.fulfill({ status: 500, body: "x" });
-      if (mode === "401") return route.fulfill({ status: 401, body: "{}" });
-      return route.fulfill(json({ community: [] }));
-    });
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not load the list. Check your connection and try again.");
-    await expect(page.locator("#adminApp")).not.toContainText("Failed to fetch");
-    mode = "500";
-    await page.locator("#adminAccess").getByRole("button", { name: "Retry" }).click();
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not load the list (500). Try again.");
-    mode = "401";
-    await page.locator("#adminAccess").getByRole("button", { name: "Retry" }).click();
-    await expect(page.locator("#loginScreen")).toBeVisible();
-    await expect(page.locator("#loginError")).toHaveText("Admin session expired. Sign in again.");
-  });
-
-  test("Access save problems are plain, keep what was typed, and an expired session signs out", async ({ page }) => {
-    await signInOnPhone(page);
-    let mode = "abort";
-    await page.route(/\/api\/features/, (route) => {
-      if (route.request().method() !== "POST") return route.fulfill(json({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] }));
-      if (mode === "abort") return route.abort("failed");
-      if (mode === "500") return route.fulfill({ status: 500, body: "x" });
-      return route.fulfill({ status: 401, body: "{}" });
-    });
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessSave")).toBeEnabled();
-    await page.fill("#adminAccessList", "a1b2c3d4e5 Sam\nb2c3d4e5f6 Kim");
-    await page.click("#adminAccessSave");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not save. Check your connection and try again.");
-    await expect(page.locator("#adminApp")).not.toContainText("Failed to fetch");
-    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam\nb2c3d4e5f6 Kim");
-    await expect(page.locator("#adminAccessSave")).toBeEnabled();
-    mode = "500";
-    await page.click("#adminAccessSave");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not save (500). Try again.");
-    mode = "401";
-    await page.click("#adminAccessSave");
-    await expect(page.locator("#loginScreen")).toBeVisible();
-    await expect(page.locator("#loginError")).toHaveText("Admin session expired. Sign in again.");
-  });
-
-  test("Save does nothing after a failed Access load even if the disabled button is forced to fire", async ({ page }) => {
-    await signInOnPhone(page);
-    const posts = [];
-    await page.route(/\/api\/features/, (route) => {
-      if (route.request().method() === "POST") { posts.push(route.request().postData()); return route.fulfill(json({ community: [] })); }
-      return route.fulfill({ status: 500, body: "x" });
-    });
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not load the list (500). Try again.");
-    await page.evaluate(() => { const save = document.getElementById("adminAccessSave"); save.disabled = false; save.click(); });
-    await settle(page);
-    expect(posts).toEqual([]);
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not load the list (500). Try again.");
-  });
-
-  test("dropped Access lines are explained as invalid or repeated IDs, in the singular too", async ({ page }) => {
-    await signInOnPhone(page);
-    await page.route(/\/api\/features/, (route) => route.fulfill(json({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] })));
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessSave")).toBeEnabled();
-    await page.fill("#adminAccessList", "a1b2c3d4e5 Sam\na1b2c3d4e5 again");
-    await page.click("#adminAccessSave");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Saved 1 tester. 1 line was not a valid tester ID (10 characters, 0-9 and a-f) or was repeated, and was dropped.");
   });
 
   test("the reward check result is plain language and never passes a long raw error through", async ({ page }) => {
@@ -1764,29 +1381,18 @@ test.describe("Admin login", () => {
     page.on("console", (msg) => { if (msg.type() === "error") consoleErrors.push(msg.text()); });
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 503, contentType: "text/html", body: "<!doctype html><title>secret-upstream-page</title>" }));
     await page.goto("/admin");
-    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Try again.");
+    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page or sign in again.");
     await expect(page.locator("body")).not.toContainText("secret-upstream-page");
   });
 
-  test("the close buttons' accessible names contain their visible Esc cue", async ({ page }) => {
-    await signInOnPhone(page);
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.click("#communityBtn");
-    await expect(page.getByRole("button", { name: "Close Community stats (Esc)" })).toBeVisible();
-    await page.click("#accessBtn");
-    await expect(page.getByRole("button", { name: "Close Access list (Esc)" })).toBeVisible();
-    const cue = await page.evaluate(() => getComputedStyle(document.getElementById("adminAccessClose"), "::before").content);
-    expect(cue).toContain("Esc");
-  });
-
-  test("an open panel button has a non-colour cue, and hover and press still show on it", async ({ page }) => {
+  test("the page button for the open page has a non-colour cue, and hover and press still show on it", async ({ page }) => {
     await signInOnPhone(page);
     await page.setViewportSize({ width: 1280, height: 800 });
     const cue = (id) => page.evaluate((i) => { const cs = getComputedStyle(document.getElementById(i), "::after"); return cs.content !== "none" && cs.content !== "normal" && parseFloat(cs.height) > 0; }, id);
     expect(await cue("communityBtn")).toBe(false);
     await page.click("#communityBtn");
     expect(await cue("communityBtn")).toBe(true);
-    expect(await cue("accessBtn")).toBe(false);
+    expect(await cue("betaBtn")).toBe(false);
     const bg = () => page.evaluate(() => getComputedStyle(document.getElementById("communityBtn")).backgroundColor);
     await page.mouse.move(5, 400);
     await settle(page);
@@ -1801,40 +1407,6 @@ test.describe("Admin login", () => {
     expect(pressed).not.toBe(hovered);
     await page.mouse.up();
   });
-
-  test("disabled Access controls ignore hover", async ({ page }) => {
-    await signInOnPhone(page);
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.route(/\/api\/features/, (route) => route.fulfill({ status: 500, body: "x" }));
-    await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not load the list (500). Try again.");
-    const look = (sel) => page.evaluate((s) => { const cs = getComputedStyle(document.querySelector(s)); return [cs.backgroundColor, cs.borderColor, cs.cursor]; }, sel);
-    for (const sel of ["#adminAccessSave", "#adminAccessList"]) {
-      await page.mouse.move(5, 400);
-      await settle(page);
-      const resting = await look(sel);
-      await page.hover(sel, { force: true });
-      await settle(page);
-      expect(await look(sel), sel).toEqual(resting);
-      expect(resting[2]).toBe("not-allowed");
-    }
-  });
-
-  for (const width of [1280, 390]) {
-    test(`Community's status text and the Access help keep clear of the close button at ${width}px`, async ({ page }) => {
-      await signInOnPhone(page);
-      await page.setViewportSize({ width, height: 800 });
-      await page.route(/\/api\/community\/overlay\?admin=1/, (route) => route.fulfill({ status: 500, body: "x" }));
-      await page.click("#communityBtn");
-      await expect(page.locator("#adminCommunityStatus")).toHaveText("Could not load community stats (500).");
-      let [status, close] = await boxesOf(page, "#adminCommunityStatus, #adminCommunityClose");
-      expect(intersects(status, close), "status vs close").toBe(false);
-      await page.click("#accessBtn");
-      [close] = await boxesOf(page, "#adminAccessClose");
-      const [help] = await boxesOf(page, "#adminAccess .admin-panel-help");
-      expect(intersects(help, close), "help vs close").toBe(false);
-    });
-  }
 
   test("tabbing through the desktop sidebar does not scroll the page or the map area", async ({ page }) => {
     await signInOnPhone(page, MANY_USERS);
@@ -1887,9 +1459,9 @@ test.describe("Admin login", () => {
       await signInOnPhone(page);
       await page.setViewportSize({ width: 768, height: 900 });
       expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
-      const ids = "#tracksBtn, #heatmapBtn, #navigationBtn, #communityBtn, #accessBtn, #refreshBtn, #logoutBtn";
+      const ids = "#tracksBtn, #heatmapBtn, #navigationBtn, #statsBtn, #communityBtn, #betaBtn, #refreshBtn, #logoutBtn";
       const boxes = await page.evaluate((sel) => [...document.querySelectorAll(sel)].map((el) => { const r = el.getBoundingClientRect(); return { id: el.id, left: r.left, right: r.right, top: r.top, bottom: r.bottom, h: r.height }; }), ids);
-      expect(boxes).toHaveLength(7);
+      expect(boxes).toHaveLength(8);
       for (const b of boxes) expect(b.h, `${b.id} height`).toBeGreaterThanOrEqual(43.95);
       for (let i = 0; i < boxes.length; i++) {
         for (let j = i + 1; j < boxes.length; j++) {

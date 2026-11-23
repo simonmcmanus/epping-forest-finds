@@ -17305,7 +17305,7 @@ function loadAdminScriptForTests() {
 test("the admin community table shows hostile server labels and counts as text, not markup", () => {
   const admin = loadAdminScriptForTests();
   const html = admin.renderCommunityStats({ devices: HOSTILE_MARKUP, byStatus: { [HOSTILE_MARKUP]: 1 }, perDay: {} });
-  assert.ok(html.includes("<table>"), "the community table is still rendered");
+  assert.ok(html.includes("<table"), "the community table is still rendered");
   assertNoLiveErrorHandler(html, "the admin community table");
 });
 

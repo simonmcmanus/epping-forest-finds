@@ -127,6 +127,21 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .login-screen[hidden] { display: none; }
 
+/* While js/admin.js is still asking who is signed in (class set in admin.html's head), neither the card nor the dashboard
+   shows, only a quiet note. Without JavaScript the class is never set, so the card is simply there. */
+.admin-checking .login-screen { display: none; }
+.admin-checking-note { display: none; }
+.admin-checking .admin-checking-note {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  color: var(--text-low);
+  font-size: var(--fs-base);
+}
+
 .login-card {
   background: var(--card);
   border-radius: var(--radius-lg);
@@ -307,13 +322,13 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .admin-panel-btns { display: flex; gap: var(--sp-2); }
 
-/* A panel button stays lit while its panel is open, with a bar under its label so colour is not the only cue; hover and press still show. */
-.admin-panel-btns .admin-btn[aria-expanded="true"] {
+/* A page button stays lit while its page is shown, with a bar under its label so colour is not the only cue; hover and press still show. */
+.admin-panel-btns .admin-btn[aria-pressed="true"] {
   position: relative;
   background: var(--accent-soft);
   border-color: var(--accent);
 }
-.admin-panel-btns .admin-btn[aria-expanded="true"]::after {
+.admin-panel-btns .admin-btn[aria-pressed="true"]::after {
   content: "";
   position: absolute;
   left: 25%;
@@ -323,8 +338,8 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   border-radius: 2px;
   background: var(--accent);
 }
-.admin-panel-btns .admin-btn[aria-expanded="true"]:hover { background: var(--accent-soft-hover); }
-.admin-panel-btns .admin-btn[aria-expanded="true"]:active { background: var(--accent-soft-press); }
+.admin-panel-btns .admin-btn[aria-pressed="true"]:hover { background: var(--accent-soft-hover); }
+.admin-panel-btns .admin-btn[aria-pressed="true"]:active { background: var(--accent-soft-press); }
 .admin-actions { display: flex; gap: var(--sp-1); flex-shrink: 0; }
 
 .admin-btn {
@@ -516,8 +531,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .admin-map-control:active { background: rgba(255, 255, 255, 0.26); }
 .admin-map-control.reset { min-width: 56px; font-size: var(--fs-xs); }
 
-/* Stats and legend share one glass style. */
-.admin-stats,
+/* The legend uses the same glass style as the map controls. */
 .admin-legend {
   position: absolute;
   background: var(--surface-glass);
@@ -527,34 +541,6 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   backdrop-filter: blur(var(--glass-blur));
   color: var(--text-mid);
 }
-
-.admin-stats {
-  bottom: var(--sp-3);
-  right: var(--sp-3);
-  max-width: calc(100% - 24px);
-  padding: var(--sp-2) var(--sp-3);
-  font-size: var(--fs-base);
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.92);
-  line-height: 1.5;
-  pointer-events: none;
-}
-
-.admin-stats:empty { display: none; }
-.admin-stats strong { color: var(--text-hi); font-weight: 800; }
-.admin-stats em { font-style: normal; color: var(--warn-text); }
-
-.admin-stats-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px var(--sp-3);
-}
-
-.admin-stats-row + .admin-stats-row { margin-top: 2px; }
-.admin-stats-label { color: var(--text-low); font-weight: 700; text-transform: uppercase; font-size: var(--fs-xs); letter-spacing: 0.06em; }
-.admin-stat-chip { white-space: nowrap; }
-.admin-stat-chip.wrap { white-space: normal; }
 
 .admin-legend {
   top: var(--sp-3);
@@ -584,16 +570,16 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   color: var(--text-low);
 }
 
-/* --- Overlay panels (Community, Access, tap details): one sheet style over the dark map and the light Navigation view --- */
+/* --- Tap details: a sheet over the map --- */
 
 .admin-click-details {
   position: absolute;
   z-index: 5;
-  /* A bottom-left sheet: the controls and legend stay clear at the top, and --stats-clear (set from the stats bar's height) keeps it above the stats. */
+  /* A bottom-left sheet: the controls and legend stay clear at the top. */
   left: var(--sp-3);
-  bottom: var(--stats-clear, var(--sp-3));
+  bottom: var(--sp-3);
   width: min(400px, calc(100% - 24px));
-  max-height: max(160px, calc(100% - 112px - var(--stats-clear, var(--sp-3))));
+  max-height: max(160px, calc(100% - 112px));
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--surface-panel);
@@ -609,23 +595,6 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 
 .admin-click-details[hidden] { display: none; }
-
-.admin-panel-title {
-  margin: 0 40px var(--sp-3) 0;
-  color: var(--text-hi);
-  font-size: var(--fs-md);
-  font-weight: 800;
-  line-height: 1.3;
-}
-
-.admin-click-details h4 {
-  margin: var(--sp-4) 0 var(--sp-2);
-  color: var(--text-low);
-  font-size: var(--fs-xs);
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
 
 .admin-click-details p { margin: 0 0 var(--sp-3); }
 .admin-click-details a { color: var(--link); text-underline-offset: 2px; }
@@ -654,113 +623,56 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 @media (hover: hover) and (pointer: fine) and (min-width: 721px) {
   .admin-click-details-close { width: auto; min-width: 32px; padding: 0 var(--sp-2); display: inline-flex; align-items: center; gap: 6px; }
   .admin-click-details-close::before { content: "Esc"; color: var(--text-low); font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.04em; }
-  .admin-panel-title, .admin-click-title { margin-right: 84px; }
+  .admin-click-title { margin-right: 84px; }
 }
 
-.admin-panel-help { color: var(--text-low); font-size: var(--fs-xs); line-height: 1.5; }
 
-.admin-panel-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-2);
-}
+/* --- Light pages: Community and Beta (and Stats, Navigation) --- */
 
-.admin-panel-status {
-  display: block;
-  min-height: 1.4em;
-  margin: var(--sp-2) 0 var(--sp-3);
-  color: var(--text-hi);
-  font-size: var(--fs-sm);
-  overflow-wrap: anywhere;
-}
-
-/* Live regions stay rendered while empty (zero height, no margin) so screen readers reliably announce the first text written to them. */
-.admin-panel-status:empty { min-height: 0; margin: 0; }
-
-.admin-click-details .admin-community-status {
-  margin: 0;
-  color: var(--text-hi);
-  font-size: var(--fs-sm);
-  overflow-wrap: anywhere;
-}
-
-.admin-click-details .admin-community-status:not(:empty) { margin-bottom: var(--sp-2); }
-/* Keep status and help text clear of the close button (wider with its Esc cue on fine pointers, a 44px target on phones). */
-@media (hover: hover) and (pointer: fine) and (min-width: 721px) {
-  .admin-click-details .admin-community-status, .admin-click-details .admin-panel-help { margin-right: 84px; }
-}
+.admin-community-status { margin: 0; color: var(--ink); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.admin-community-status:not(:empty) { margin-bottom: var(--sp-2); }
 .admin-retry-btn { margin: 0 0 var(--sp-3); }
 .admin-retry-btn[hidden] { display: none; }
-
+.admin-panel-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.admin-panel-status { display: block; min-height: 1.4em; margin: var(--sp-2) 0 var(--sp-3); color: var(--ink); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+/* Live regions stay rendered while empty (zero height, no margin) so screen readers reliably announce the first text written to them. */
+.admin-panel-status:empty { min-height: 0; margin: 0; }
 .admin-panel-links { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); }
+.admin-page a { color: var(--tree-dark); text-underline-offset: 2px; }
+.admin-community-asof { color: var(--muted); font-size: var(--fs-xs); }
 
-.admin-community-asof { color: var(--text-low); font-size: var(--fs-xs); }
+/* Buttons on a light page: the dark shell's translucent white would vanish on paper. */
+.admin-page .admin-btn { background: var(--card); border-color: var(--line-strong); color: var(--ink); }
+.admin-page .admin-btn:hover { background: var(--paper); }
+.admin-page .admin-btn:active { background: var(--line); }
+.admin-page .admin-btn-primary { background: var(--tree); border-color: var(--tree); color: #fff; }
+.admin-page .admin-btn-primary:hover { background: var(--tree-dark); }
+.admin-page .admin-btn-primary:active { background: var(--tree-dark); }
+.admin-page .admin-btn:disabled:hover, .admin-page .admin-btn:disabled:active { background: var(--card); }
+.admin-page .admin-btn-primary:disabled:hover, .admin-page .admin-btn-primary:disabled:active { background: var(--tree); }
 
-.admin-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-2);
-  margin: 0 0 var(--sp-2);
-  padding: 0;
-  list-style: none;
-}
+.admin-stat-grid, .admin-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin: 0 0 var(--sp-3); padding: 0; list-style: none; }
+.admin-stat-card { display: flex; flex-direction: column; justify-content: center; gap: 2px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 10px var(--sp-3); }
+.admin-stat-value { color: var(--ink); font-size: 1.5rem; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.admin-stat-label { color: var(--muted); font-size: 0.72rem; line-height: 1.3; }
+.admin-page .nav-panel h3 { margin-bottom: var(--sp-2); }
+.admin-page .nav-trend-table th, .admin-page .nav-trend-table td { white-space: normal; }
 
-.admin-stat-card {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: var(--surface-raised);
-  border: 1px solid var(--border-dark-soft);
-  border-radius: var(--radius-md);
-  padding: var(--sp-2) var(--sp-3);
-}
-
-.admin-stat-value { color: var(--text-hi); font-size: var(--fs-lg); font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; }
-.admin-stat-label { color: var(--text-low); font-size: var(--fs-xs); line-height: 1.3; }
-
-.admin-click-details table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.admin-click-details table th,
-.admin-click-details table td { padding: 6px 0; border-bottom: 1px solid var(--border-dark-soft); font-size: var(--fs-sm); font-weight: 400; vertical-align: top; }
-.admin-click-details table th { text-align: left; color: var(--text-mid); padding-right: var(--sp-3); }
-.admin-click-details table td { text-align: right; color: var(--text-hi); font-weight: 700; }
-.admin-click-details table tr:last-child th,
-.admin-click-details table tr:last-child td { border-bottom: 0; }
-
-#adminAccessList {
-  display: block;
-  width: 100%;
-  min-height: 180px;
-  margin: 0 0 var(--sp-3);
-  padding: var(--sp-3);
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--border-dark);
-  border-radius: var(--radius-md);
-  color: var(--text-hi);
-  font: 0.8125rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  resize: vertical;
-  transition: border-color var(--ease);
-}
-
-#adminAccessList:disabled { opacity: 0.55; cursor: not-allowed; }
-#adminAccessList:hover { border-color: rgba(255, 255, 255, 0.3); }
-#adminAccessList:disabled:hover { border-color: var(--border-dark); }
-#adminAccessList:focus-visible { border-color: var(--accent); }
-#adminAccessList::placeholder { color: var(--text-low); }
-
-.admin-access-actions { display: flex; align-items: center; gap: var(--sp-3); margin: 0; }
-.admin-beta-create { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); margin: 0 0 var(--sp-3); color: var(--text-hi); font-size: var(--fs-sm); }
-#adminBetaNote { flex: 1; min-width: 140px; padding: var(--sp-2) var(--sp-3); background: rgba(0, 0, 0, 0.4); border: 1px solid var(--border-dark); border-radius: var(--radius-md); color: var(--text-hi); font: inherit; }
-#adminBetaNote::placeholder { color: var(--text-low); }
+.admin-beta-create { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); margin: 0 0 var(--sp-3); color: var(--ink); font-size: var(--fs-sm); font-weight: 600; }
+#adminBetaNote { flex: 1; min-width: 140px; max-width: 420px; min-height: 34px; padding: var(--sp-2) var(--sp-3); background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--radius-md); color: var(--ink); font: inherit; font-weight: 400; }
+#adminBetaNote::placeholder { color: var(--muted); }
 #adminBetaNote:disabled { opacity: 0.55; cursor: not-allowed; }
 #adminBeta button[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
-#adminBetaNote:focus-visible { border-color: var(--accent); }
-.admin-beta-status { margin: 0 0 var(--sp-3); min-height: 1.2em; color: var(--text-hi); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+#adminBetaNote:focus-visible { border-color: var(--tree); }
+.admin-beta-status { margin: 0 0 var(--sp-3); min-height: 1.2em; color: var(--ink); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.admin-beta-status:empty { min-height: 0; margin: 0; }
 .admin-beta-list { list-style: none; margin: 0; padding: 0; }
-.admin-beta-list li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: var(--sp-2) 0; border-bottom: 1px solid var(--border-dark-soft); color: var(--text-hi); font-size: var(--fs-sm); }
+.admin-beta-list li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: var(--sp-2) 0; border-bottom: 1px solid var(--line); color: var(--ink); font-size: var(--fs-sm); }
+.admin-beta-list li:last-child { border-bottom: 0; }
+.admin-beta-note { flex: 1 1 140px; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
+.admin-beta-noname { color: var(--muted); font-weight: 400; font-style: italic; }
 .admin-beta-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 700; }
-.admin-beta-note { flex: 1; min-width: 0; color: var(--text-mid); overflow-wrap: anywhere; }
-#adminAccessStatus { flex: 1; min-width: 0; color: var(--text-hi); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.admin-beta-state { color: var(--muted); }
 
 .admin-click-title {
   margin: 0 40px 4px 0;
@@ -820,9 +732,9 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   font-size: var(--fs-xs);
 }
 
-/* --- Narrow laptops, tablets, landscape phones: two-row top bar (brand and utility actions, then the views and panels) so nothing overlaps --- */
+/* --- Below 1280px (laptops, tablets, landscape phones): two-row top bar (brand and utility actions, then the views and panels) so nothing overlaps --- */
 
-@media (max-width: 1099px) {
+@media (max-width: 1279px) {
   .admin-topbar {
     flex-wrap: wrap;
     gap: var(--sp-1) var(--sp-2);
@@ -856,7 +768,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
   }
-  /* All five view and panel controls fit on one row at 390px, so nothing is hidden off to the side. */
+  /* All six view and page controls fit on one row at 390px, so nothing is hidden off to the side. */
   .admin-nav {
     gap: var(--sp-1);
     padding: 2px;
@@ -873,7 +785,9 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
   .admin-btn { min-height: var(--tap); min-width: var(--tap); padding: 6px 8px; font-size: var(--fs-sm); }
   .admin-nav .admin-btn { font-size: var(--fs-xs); }
-  .admin-tabs .admin-btn { padding: 6px 7px; }
+  .admin-tabs .admin-btn { padding: 6px 5px; }
+  .admin-panel-btns .admin-btn { padding: 6px 5px; }
+  .admin-tabs { padding: 2px; gap: 0; }
 
   .admin-body { flex-direction: column; }
 
@@ -925,27 +839,16 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
   .admin-legend { top: var(--sp-2); right: var(--sp-2); padding: 4px 8px; line-height: 1.5; }
 
-  .admin-stats {
-    left: var(--sp-2);
-    right: var(--sp-2);
-    bottom: var(--sp-2);
-    max-width: none;
-    padding: 6px 10px;
-    font-size: var(--fs-sm);
-    line-height: 1.4;
-  }
-
   .admin-click-details {
     left: var(--sp-2);
     right: var(--sp-2);
-    bottom: var(--stats-clear, var(--sp-2));
+    bottom: var(--sp-2);
     width: auto;
-    max-height: max(160px, calc(100% - 136px - var(--stats-clear, var(--sp-2))));
+    max-height: max(160px, calc(100% - 136px));
   }
 
   .admin-click-details-close { width: var(--tap); height: var(--tap); top: 4px; right: 4px; }
-  .admin-panel-title, .admin-click-title { margin-right: 52px; }
-  .admin-click-details .admin-community-status, .admin-click-details .admin-panel-help { margin-right: 52px; }
+  .admin-click-title { margin-right: 52px; }
 }
 
 /* Scroll cues: a soft fade at an edge of the nav row and user strip while more is hidden there (classes set from js/admin.js). Masks never intercept taps. */
@@ -988,7 +891,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .admin-nav-view[hidden] { display: none; }
 .admin-nav-view > * { max-width: 1400px; margin-left: auto; margin-right: auto; }
-.admin-map-area[hidden] { display: none; }
+.admin-map-area[hidden], .admin-sidebar[hidden] { display: none; }
 .admin-page-head { margin-bottom: var(--sp-4); }
 .admin-page-title { margin: 0 0 var(--sp-1); font-size: var(--fs-lg); font-weight: 800; letter-spacing: -0.01em; }
 .admin-page-title:focus { outline: none; }
@@ -1047,3 +950,10 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .nav-dest-name { display: block; }
 .nav-dest-bar { display: block; height: 6px; margin-top: 3px; background: var(--line); border-radius: 3px; }
 .nav-dest-bar > span { display: block; height: 100%; background: var(--nav-started); border-radius: 3px; }
+
+/* Stats cards: as many as fit, never a fixed seven-column row. */
+.nav-cards.admin-card-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+@media (max-width: 720px) {
+  .nav-cards.admin-card-grid, .admin-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nav-cards.admin-card-grid .nav-card:last-child:nth-child(odd) { grid-column: auto; }
+}

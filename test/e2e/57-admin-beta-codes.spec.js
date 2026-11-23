@@ -23,8 +23,8 @@ async function openBeta(page, handler) {
   });
   await page.goto("/admin");
   await expect(page.locator("#loginScreen")).toBeHidden();
-  await expect(page.locator("#adminStats")).toContainText("location pings");
-  await page.getByRole("button", { name: "Beta codes" }).click();
+  await expect(page.locator("#adminUserList")).toContainText("All users");
+  await page.getByRole("button", { name: "Beta", exact: true }).click();
   return calls;
 }
 
@@ -38,8 +38,8 @@ function okHandler(extra) {
   };
 }
 
-test.describe("Admin beta codes", () => {
-  test("opening Beta codes lists each code with its status", async ({ page }) => {
+test.describe("Admin beta page", () => {
+  test("opening Beta lists each code with its status", async ({ page }) => {
     const calls = await openBeta(page, okHandler());
     const panel = page.locator("#adminBeta");
     await expect(panel).toBeVisible();
@@ -67,8 +67,8 @@ test.describe("Admin beta codes", () => {
     await panel.getByLabel("Name").fill("For Bob");
     await panel.getByRole("button", { name: "Create code" }).click();
     await expect(panel.locator("li")).toHaveCount(4);
-    await expect(panel.locator("li").first()).toContainText("z999q");
-    await expect(panel.locator("li").first()).toContainText("For Bob");
+    await expect(panel.locator("#adminBetaOpen li").first()).toContainText("z999q");
+    await expect(panel.locator("#adminBetaOpen li").first()).toContainText("For Bob");
     await expect(panel.locator("#adminBetaStatus")).toContainText("/beta/z999q");
     expect(calls.find((c) => c.method === "POST").body).toEqual({ action: "create", note: "For Bob" });
   });
@@ -101,7 +101,7 @@ test.describe("Admin beta codes", () => {
   test("Revoke asks to confirm, then marks the row revoked and sends the code", async ({ page }) => {
     const calls = await openBeta(page, okHandler());
     const panel = page.locator("#adminBeta");
-    const row = panel.locator("li").nth(0);
+    const row = panel.locator("li", { hasText: "a234e" });
     await expect(panel.locator("li")).toHaveCount(3);
     await row.getByRole("button", { name: /^Revoke/ }).click();
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
@@ -285,7 +285,7 @@ test.describe("Admin beta codes", () => {
 
   test("a 401 on load returns to admin sign-in", async ({ page }) => {
     await openBeta(page, (route) => json(route, 401, { error: "Unauthorized" }));
-    await expect(page.getByRole("link", { name: "Sign in with Auth0" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
     await expect(page.locator("#adminBeta")).toBeHidden();
   });
 
@@ -307,11 +307,15 @@ test.describe("Admin beta codes", () => {
     await expect(panel.getByRole("button", { name: "Create code" })).toBeEnabled();
   });
 
-  test("Escape closes the Beta codes panel", async ({ page }) => {
+  test("Beta is a page: Back returns to the map and Escape does not close it", async ({ page }) => {
     await openBeta(page, okHandler());
     await expect(page.locator("#adminBeta")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Beta", level: 2 })).toBeFocused();
     await page.keyboard.press("Escape");
+    await expect(page.locator("#adminBeta")).toBeVisible();
+    await page.goBack();
     await expect(page.locator("#adminBeta")).toBeHidden();
+    await expect(page.locator("#adminCanvas")).toBeVisible();
   });
 
   test("Share link on a row shares the beta link without the note", async ({ page }) => {
