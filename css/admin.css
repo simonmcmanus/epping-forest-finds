@@ -861,7 +861,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   }
   .admin-nav::-webkit-scrollbar { display: none; }
   .admin-tabs, .admin-panel-btns { flex-shrink: 0; }
-  .admin-panel-btns { gap: var(--sp-1); }
+  .admin-panel-btns { gap: 2px; }
   /* The row scrolls, which would clip an outside ring, so the ring is drawn inside the button here. */
   .admin-nav .admin-btn:focus-visible { outline-offset: -3px; }
 
@@ -870,7 +870,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   .admin-track-btn { width: auto; flex-shrink: 0; border: 1px solid var(--accent); border-radius: 999px; padding: 6px 12px; }
   .admin-nav .admin-btn { font-size: var(--fs-xs); }
   .admin-tabs .admin-btn { padding: 6px 5px; }
-  .admin-panel-btns .admin-btn { padding: 6px 5px; }
+  .admin-panel-btns .admin-btn { padding: 6px 4px; }
   .admin-tabs { padding: 2px; gap: 0; }
 
   .admin-body { flex-direction: column; }

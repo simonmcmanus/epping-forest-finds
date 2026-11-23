@@ -122,6 +122,38 @@ test.describe("Admin top bar", () => {
     await expect(page.getByRole("button", { name: "Tracks", exact: true })).toHaveAttribute("aria-pressed", "false");
   });
 
+  test("Navigation, Stats, Community and Beta are one Pages group; Tracks and Heatmap are the only map views", async ({ page }) => {
+    await openAdmin(page);
+    await expect(page.getByRole("group", { name: "View" }).getByRole("button")).toHaveText(["Tracks", "Heatmap"]);
+    const pages = page.getByRole("group", { name: "Pages" });
+    await expect(pages.getByRole("button")).toHaveText(["Navigation", "Stats", "Community", "Beta"]);
+    for (const [name, hash] of [["Navigation", "navigation"], ["Stats", "stats"], ["Community", "community"], ["Beta", "beta"]]) {
+      await pages.getByRole("button", { name, exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`#${hash}$`));
+      await expect(pages.getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(pages.locator('button[aria-pressed="true"]')).toHaveCount(1);
+      await expect(page.getByRole("group", { name: "View" }).locator('button[aria-pressed="true"]')).toHaveCount(0);
+      // A page button is lit the same way whichever page it opens (the bar under the label).
+      expect(await pages.getByRole("button", { name, exact: true }).evaluate((el) => getComputedStyle(el, "::after").content)).toBe('""');
+    }
+    await page.getByRole("button", { name: "Heatmap", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Heatmap", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(pages.locator('button[aria-pressed="true"]')).toHaveCount(0);
+    await expect(page.locator("#adminCanvas")).toBeVisible();
+  });
+
+  test("a page opened from the #navigation or #stats address shows its Pages button pressed, and Tab runs Tracks, Heatmap, then the pages", async ({ page }) => {
+    for (const [hash, name] of [["#navigation", "Navigation"], ["#stats", "Stats"]]) {
+      await openAdmin(page, hash);
+      await expect(page.getByRole("group", { name: "Pages" }).getByRole("button", { name, exact: true })).toHaveAttribute("aria-pressed", "true");
+    }
+    await page.getByRole("button", { name: "Tracks", exact: true }).focus();
+    for (const name of ["Heatmap", "Navigation", "Stats", "Community", "Beta"]) {
+      await page.keyboard.press("Tab");
+      await expect(page.getByRole("button", { name, exact: true })).toBeFocused();
+    }
+  });
+
   test("on a phone all six buttons fit on one row at 390px without scrolling", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 780 });
     await openAdmin(page);
