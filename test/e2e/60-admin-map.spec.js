@@ -427,7 +427,8 @@ test.describe("Admin time frame and refresh", () => {
     await expect(page.locator("#adminRefreshStatus")).toContainText("Could not refresh");
     await expect(page.getByLabel("Time frame")).toHaveValue("30");
     await expect.poll(() => page.url()).not.toContain("days=90");
-    await expect(page.locator("#adminWindowNote")).toContainText("Still showing the last 30 days");
+    await expect(page.locator("#adminRefreshStatus")).toContainText("the last 30 days. The last 90 days could not be loaded");
+    await expect(page.locator("#adminWindowNote")).toHaveText(""); // one note, not two
     await expect(page.locator("#adminToolbar")).toHaveAttribute("aria-busy", "false");
     release();
   });
@@ -452,7 +453,7 @@ test.describe("Admin beta users filter", () => {
     await expect(page.locator(".nav-card", { hasText: "Location pings" })).toContainText("2");
     await expect(page.locator("#adminStatsSub")).toContainText("for beta users");
     await expect.poll(() => page.url()).toContain("beta=1");
-    await expect(page.locator("#adminFilterNote")).toHaveText("Beta users only: activity from before beta marking began isn't marked, so it isn't counted here.");
+    await expect(page.locator("#adminFilterNote")).toHaveText("Beta users only: activity from before beta users were marked isn't counted here.");
     await everyone.click();
     await expect(page.locator(".admin-user-item")).toHaveCount(3);
     await expect(page.locator(".nav-card", { hasText: "Location pings" })).toContainText("7");
@@ -471,12 +472,12 @@ test.describe("Admin beta users filter", () => {
   test("with no beta activity in the window the map says so instead of staying blank", async ({ page }) => {
     await openAdmin(page, { onTracks: (route) => json(route, 200, { locations: WALK.map(([lat, lng], i) => ping(A, i, lat, lng)), clicks: [], meta: { storeName: "t", context: "test", windowDays: 30 } }) });
     await page.getByRole("button", { name: "Beta users only" }).click();
-    await expect(page.locator("#adminFilterNote")).toHaveText("No beta user activity in this window yet — only activity from after beta tagging was released is marked.");
+    await expect(page.locator("#adminFilterNote")).toHaveText("No beta user activity in this window yet. Activity from before beta users were marked isn't counted here.");
     await page.getByRole("button", { name: "Everyone" }).click();
     await expect(page.locator("#adminFilterNote")).toHaveText("");
     await page.getByRole("button", { name: "Beta users only" }).click();
     await page.getByRole("button", { name: "Stats" }).click();
-    await expect(page.locator("#adminStatsBody .nav-empty-state")).toHaveText("No beta user activity in this window yet — only activity from after beta tagging was released is marked.");
+    await expect(page.locator("#adminStatsBody .nav-empty-state")).toHaveText("No beta user activity in this window yet. Activity from before beta users were marked isn't counted here.");
   });
 
   test("the packed beta index from the server marks events, so the filter works on real responses", async ({ page }) => {
@@ -508,7 +509,7 @@ test.describe("Admin sign-in check", () => {
     await expect(page.getByRole("link", { name: "Sign in" })).toBeHidden();
     await page.clock.fastForward(9000);
     await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
-    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page, then sign in.");
+    await expect(page.locator("#loginError")).toHaveText("Could not check your sign-in. Reload the page, then sign in.");
     await expect(page.getByText("Checking your sign-in")).toBeHidden();
   });
 
@@ -628,4 +629,127 @@ test.describe("Admin on the narrowest phone", () => {
       expect(await page.evaluate(() => document.documentElement.scrollWidth), name).toBeLessThanOrEqual(320);
     }
   });
+});
+
+test.describe("Admin walks: identity, announcement and drawing", () => {
+  const WALK2 = [[51.620, -0.060], [51.625, -0.050], [51.630, -0.040], [51.635, -0.030]];
+  const WALK3 = [[51.700, 0.100], [51.705, 0.110], [51.710, 0.120]];
+  const all = () => [
+    ...WALK.map(([lat, lng], i) => ping(A, i, lat, lng)),
+    ...WALK2.map(([lat, lng], i) => ping(A, 120 + i, lat, lng)),
+    ...WALK3.map(([lat, lng], i) => ping(A, 300 + i, lat, lng)),
+  ];
+  const threeWalks = (route) => {
+    const days = new URL(route.request().url()).searchParams.get("days");
+    // The shorter window only reaches the latest walk.
+    return json(route, 200, tracks({ locations: days === "7" ? all().filter((e) => Date.parse(e.ts) >= Date.parse(at(300))) : all() }));
+  };
+  const mid = async (page, list, i) => {
+    const a = await canvasPoint(page, ...list[i]);
+    const b = await canvasPoint(page, ...list[i + 1]);
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  };
+
+  test("the 'Walk N of M' status is one persistent live region that is updated in place when stepping", async ({ page }) => {
+    await openAdmin(page, { onTracks: threeWalks });
+    await page.locator(".admin-user-item", { hasText: "aaaaaaaa" }).click();
+    await page.getByRole("button", { name: "Track details for aaaaaaaa" }).click();
+    const status = page.locator("#adminTrackWalkStatus");
+    await expect(status).toHaveAttribute("role", "status");
+    await expect(status).toHaveText("Walk 3 of 3");
+    const before = await status.elementHandle();
+    await page.getByRole("button", { name: "Previous walk" }).click();
+    await expect(status).toHaveText("Walk 2 of 3");
+    expect(await page.evaluate((node) => node === document.getElementById("adminTrackWalkStatus") && document.contains(node), before)).toBe(true);
+  });
+
+  test("a walk that leaves the window is not silently swapped: the latest is shown and the status says so", async ({ page }) => {
+    await openAdmin(page, { onTracks: threeWalks });
+    const first = await mid(page, WALK, 1);
+    await page.mouse.click(first.x, first.y);
+    const sheet = page.getByRole("region", { name: "Track details" });
+    await expect(sheet).toContainText("Walk 1 of 3");
+    await page.getByLabel("Time frame").selectOption("7");
+    await expect(page.locator("#adminTrackWalkStatus")).toHaveText("Walk 1 of 1. That walk is no longer in this window. Showing the latest.");
+    await expect(sheet).toContainText("3 pings");
+  });
+
+  test("a walk that is still in the window stays the one shown after a refresh", async ({ page }) => {
+    await openAdmin(page, { onTracks: threeWalks });
+    const second = await mid(page, WALK2, 1);
+    await page.mouse.click(second.x, second.y);
+    const sheet = page.getByRole("region", { name: "Track details" });
+    await expect(sheet).toContainText("Walk 2 of 3");
+    await page.getByRole("button", { name: "Refresh" }).click();
+    await expect(page.getByRole("button", { name: "Refresh" })).toBeEnabled();
+    await expect(page.locator("#adminTrackWalkStatus")).toHaveText("Walk 2 of 3");
+  });
+
+  test("the empty ground between two walks is not a route line: no click there and no line is drawn across it", async ({ page }) => {
+    await openAdmin(page, { onTracks: threeWalks });
+    const end1 = await canvasPoint(page, ...WALK[4]);
+    const start2 = await canvasPoint(page, ...WALK2[0]);
+    const gap = { x: (end1.x + start2.x) / 2, y: (end1.y + start2.y) / 2 };
+    await page.mouse.click(gap.x, gap.y);
+    await expect(page.getByRole("region", { name: "Track details" })).toBeHidden();
+    // Pixel check: the canvas is clear of a track line at the centre of the gap (nothing but the map background).
+    const lit = await page.evaluate(([x, y]) => {
+      const c = document.getElementById("adminCanvas");
+      const r = c.getBoundingClientRect();
+      const d = c.getContext("2d").getImageData(Math.round((x - r.left) * c.width / r.width), Math.round((y - r.top) * c.height / r.height), 1, 1).data;
+      return d[1] > d[0] + 40 && d[1] > 120; // green track colour
+    }, [gap.x, gap.y]);
+    expect(lit).toBe(false);
+  });
+});
+
+test.describe("Admin load that never answers", () => {
+  test("a signed-in admin whose data load hangs sees what is happening, then a clear failure", async ({ page }) => {
+    await skipOnboarding(page);
+    await page.clock.install();
+    await page.route(/\/api\/admin\/me/, (route) => json(route, 200, { signedIn: true, name: "T" }));
+    let asked;
+    const seen = new Promise((resolve) => { asked = resolve; });
+    await page.route(/\/api\/admin\/tracks/, async () => { asked(); /* never answered */ });
+    await page.goto("/admin");
+    await seen;
+    await page.clock.fastForward(11000);
+    await expect(page.locator("#loginError")).toHaveText("Still checking your sign-in… If this stays, reload the page.");
+    await page.clock.fastForward(11000);
+    await expect(page.locator("#loginError")).toHaveText("Could not reach the server. Check your connection, then reload the page.");
+  });
+});
+
+test.describe("Admin track sheet and toolbar fit on small phones", () => {
+  for (const width of [320, 360, 390]) {
+    test(`at ${width}px the walk controls are 44px targets, nothing overflows, and the pressed toggle fits`, async ({ browser }) => {
+      const context = await browser.newContext({ viewport: { width, height: 700 }, hasTouch: true, isMobile: true });
+      const page = await context.newPage();
+      const WALK2 = [[51.620, -0.060], [51.625, -0.050]];
+      await openAdmin(page, { onTracks: (route) => json(route, 200, tracks({ locations: [...WALK.map(([lat, lng], i) => ping(A, i, lat, lng)), ...WALK2.map(([lat, lng], i) => ping(A, 120 + i, lat, lng))] })) });
+      await page.getByRole("button", { name: "Beta users only" }).click();
+      await page.getByRole("button", { name: "Everyone" }).click();
+      await page.locator(".admin-user-item", { hasText: "aaaaaaaa" }).click();
+      await page.getByRole("button", { name: "Track details for aaaaaaaa" }).click();
+      const sheet = await page.locator("#adminTrackDetails").boundingBox();
+      expect(sheet.x).toBeGreaterThanOrEqual(0);
+      expect(sheet.x + sheet.width).toBeLessThanOrEqual(width + 0.5);
+      const prev = await page.getByRole("button", { name: "Previous walk" }).boundingBox();
+      const next = await page.getByRole("button", { name: "Next walk" }).boundingBox();
+      for (const box of [prev, next]) {
+        expect(box.height).toBeGreaterThanOrEqual(43.5);
+        expect(box.width).toBeGreaterThanOrEqual(43.5);
+        expect(box.x + box.width).toBeLessThanOrEqual(sheet.x + sheet.width + 0.5);
+      }
+      if (Math.abs(prev.y - next.y) < 4) expect(next.x - (prev.x + prev.width)).toBeGreaterThanOrEqual(4);
+      const status = await page.locator("#adminTrackWalkStatus").boundingBox();
+      expect(status.x + status.width).toBeLessThanOrEqual(sheet.x + sheet.width + 0.5);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      for (const id of ["adminWindowSelect", "adminAudienceAll", "adminAudienceBeta"]) {
+        const box = await page.locator(`#${id}`).boundingBox();
+        expect(box.x + box.width, id).toBeLessThanOrEqual(width + 0.5);
+      }
+      await context.close();
+    });
+  }
 });

@@ -90,7 +90,7 @@ test.describe("Admin sign-in card", () => {
     await skipOnboarding(page);
     await page.route(/\/api\/admin\/me/, (route) => json(route, 500, { error: "boom" }));
     await page.goto("/admin");
-    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page, then sign in.");
+    await expect(page.locator("#loginError")).toHaveText("Could not check your sign-in. Reload the page, then sign in.");
     await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
   });

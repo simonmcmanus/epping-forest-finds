@@ -37,7 +37,7 @@
   }
 
   // tracks: [{ uid, points: [{x, y}, ...] }] in canvas pixels. Returns the closest track within tolerance as
-  // { uid, distance, index, t }: index is the segment's first point and t how far along it (0..1) the tap was nearest; or null.
+  // { uid, walk, distance, index, t } (walk is the track's own `walk` field, if any): index is the segment's first point and t how far along it (0..1) the tap was nearest; or null.
   function nearestTrackAt(tracks, x, y, tolerance) {
     let best = null;
     for (const track of tracks) {
@@ -46,7 +46,7 @@
         const a = pts[i];
         const b = pts[i + 1] || a;
         const { t, distance } = segmentProjection(x, y, a.x, a.y, b.x, b.y);
-        if (distance <= tolerance && (!best || distance < best.distance)) best = { uid: track.uid, distance, index: i, t };
+        if (distance <= tolerance && (!best || distance < best.distance)) best = { uid: track.uid, walk: track.walk, distance, index: i, t };
       }
     }
     return best;

@@ -19,7 +19,12 @@
   <!-- With JavaScript the sign-in card stays out of sight until js/admin.js knows the answer (no flash for a signed-in admin). Without JavaScript this never runs, so the card is simply shown. If admin.js never starts, the card appears after 10 seconds. -->
   <script>
     document.documentElement.classList.add("admin-checking");
-    document.documentElement.dataset.checkTimer = setTimeout(function () { document.documentElement.classList.remove("admin-checking"); }, 10000);
+    document.documentElement.dataset.checkTimer = setTimeout(function () {
+      document.documentElement.classList.remove("admin-checking");
+      // Still unanswered after 10 s: show the card with a plain explanation (admin.js replaces it when the check ends).
+      var note = document.getElementById("loginError");
+      if (note && !note.textContent) note.textContent = "Still checking your sign-in… If this stays, reload the page.";
+    }, 10000);
   </script>
 </head>
 <body>
@@ -34,7 +39,7 @@
       <p id="loginError" class="login-error" role="alert"></p>
     </div>
   </div>
-  <p class="admin-checking-note" role="status">Checking your sign-in…</p>
+  <p class="admin-checking-note">Checking your sign-in…</p>
 
   <!-- Admin app (hidden until authenticated) -->
   <div id="adminApp" class="admin-app" hidden>
@@ -109,6 +114,11 @@
 
         <section id="adminTrackDetails" class="admin-click-details" role="region" aria-label="Track details" hidden>
           <button id="adminTrackDetailsClose" class="admin-click-details-close" type="button" aria-label="Close track details (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
+          <p id="adminTrackWalkStatus" class="admin-walk-status" role="status"></p>
+          <div id="adminTrackWalkNav" class="admin-walk-nav" role="group" aria-label="Walks" hidden>
+            <button id="adminTrackPrev" class="admin-btn admin-walk-btn" type="button">Previous walk</button>
+            <button id="adminTrackNext" class="admin-btn admin-walk-btn" type="button">Next walk</button>
+          </div>
           <div id="adminTrackDetailsBody"></div>
         </section>
       </div>

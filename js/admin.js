@@ -23,9 +23,10 @@ const SIGNIN_MESSAGES = {
   unavailable: "Admin sign-in isn't set up on this site yet. The site owner needs to configure Auth0 and ADMIN_SUBJECTS.",
 };
 // Beta marking only began when the server started tagging events, so older activity is never counted under the beta filter.
-const BETA_EMPTY_TEXT = "No beta user activity in this window yet — only activity from after beta tagging was released is marked.";
-const BETA_CAVEAT_TEXT = "Beta users only: activity from before beta marking began isn't marked, so it isn't counted here.";
+const BETA_EMPTY_TEXT = "No beta user activity in this window yet. Activity from before beta users were marked isn't counted here.";
+const BETA_CAVEAT_TEXT = "Beta users only: activity from before beta users were marked isn't counted here.";
 const ME_CHECK_TIMEOUT_MS = 8000;
+const LOAD_TIMEOUT_MS = 20000; // a tracks load that never answers is a failed load (longer than a normal one)
 const ADMIN_VIEWPORT_KEY = "ff-admin-map-viewport";
 const BASE_MAP_OPACITY = 0.42;
 const MIN_MAP_ZOOM = 0.85;
@@ -210,7 +211,8 @@ let allData = rawData;
 let lastMeta = null;
 let selectedUid = null; // null = show all users
 let selectedTrackUid = null; // the user whose track sheet is open (start and stop markers show for it and for selectedUid)
-let trackWalkIndex = 0; // which of the user's walks (0 = oldest) the open track sheet shows
+let trackWalkStart = null; // start time (ms) of the walk the open track sheet shows: the walk's identity, so data changes never swap it silently
+let trackWalkNotice = ""; // said once when that walk left the window
 let trackSheetFromList = false; // opened with the Track details button in the Users list, so closing returns focus there
 // Time frame (`days` query value: 1, 7, 30, 90 or all) and beta filter, both kept in the page address (?days=7&beta=1).
 let requestedWindow = "30"; // set from the address when the dashboard boots
@@ -704,7 +706,7 @@ function setMapZoom(nextZoom, anchor) {
   invalidateMapFit();
   saveViewport();
 
-  render();
+  scheduleRender();
 }
 
 function zoomMapBy(factor, anchor) {
@@ -719,7 +721,7 @@ function resetMapView() {
   adminViewport.pointerId = null;
   invalidateMapFit();
   saveViewport();
-  render();
+  scheduleRender();
 }
 
 function eventCanvasPoint(canvas, event) {
@@ -1063,6 +1065,15 @@ function findClickMarkerAt(canvas, x, y) {
 // One time-sorted grouping of the pings by user, built once per load or filter change (not per frame, tap or list redraw):
 // uid -> { walks: [[ping, ...], ...] (split at gaps over 30 minutes), events: all the user's usable pings oldest first, count (all pings), last (latest ts) }.
 let _trackCache = { source: null, groups: null };
+function resetDataCaches() {
+  _trackCache = { source: null, groups: null };
+  _locationsByUidCacheSource = null;
+  _locationsByUidCache = null;
+  _adminClickEventsCacheSource = null;
+  _adminClickEventsCacheLocations = null;
+  _adminClickEventsCache = null;
+}
+
 function trackGroups() {
   if (_trackCache.source === allData.locations && _trackCache.groups) return _trackCache.groups;
   const raw = new Map();
@@ -1097,33 +1108,32 @@ function walksFor(uid) {
   return visibleTrackGroups().get(uid)?.walks || [];
 }
 
+const walkStartMs = (walk) => Date.parse(walk[0].ts);
+function walkIndexByStart(walks, start) {
+  return walks.findIndex((w) => walkStartMs(w) === start);
+}
+
 // The walk whose start and stop are shown for a user: the open sheet's walk, otherwise their most recent.
 function shownWalk(uid) {
   const walks = walksFor(uid);
   if (!walks.length) return null;
-  if (uid === selectedTrackUid) return walks[Math.min(trackWalkIndex, walks.length - 1)];
+  if (uid === selectedTrackUid) return walks[walkIndexByStart(walks, trackWalkStart)] || walks[walks.length - 1];
   return walks[walks.length - 1];
 }
 
 // Which user's route, and which of their walks, lies under a point (canvas css px); null when none is within tolerance.
+// Each walk is its own line (the same breaks the map draws), so the empty ground between two walks is never a hit.
 function findTrackAt(canvas, x, y, tolerance) {
   const { width, height } = canvasCssSize(canvas);
   if (!width || !height) return null;
   const tracks = [];
   for (const [uid, group] of visibleTrackGroups()) {
-    tracks.push({ uid, points: group.events.map((e) => latLngToCanvas(e.lat, e.lng, width, height)) });
+    group.walks.forEach((walk, index) => {
+      tracks.push({ uid, walk: index, points: walk.map((e) => latLngToCanvas(e.lat, e.lng, width, height)) });
+    });
   }
   const hit = AdminTools.nearestTrackAt(tracks, x, y, tolerance);
-  if (!hit) return null;
-  // The segment's nearer end decides the walk (a segment across a long gap belongs to whichever walk the tap is closer to).
-  const pointIndex = hit.t < 0.5 ? hit.index : Math.min(hit.index + 1, tracks.find((t) => t.uid === hit.uid).points.length - 1);
-  let walk = 0;
-  let seen = 0;
-  for (const [i, w] of walksFor(hit.uid).entries()) {
-    seen += w.length;
-    if (pointIndex < seen) { walk = i; break; }
-  }
-  return { uid: hit.uid, walk };
+  return hit ? { uid: hit.uid, walk: hit.walk } : null;
 }
 
 // The nearest named road or path within 80 m of a point, from the base map layers ("" when none is that close or the layers are not loaded).
@@ -1148,39 +1158,42 @@ function placeNameAt(lat, lng) {
 }
 
 function drawTracks(ctx, w, h) {
-  // Draw route lines (grouped and sorted once per load, see trackGroups)
-  for (const [uid, { events }] of visibleTrackGroups()) {
+  // One line per walk, so a long break never draws a false straight line between two walks (grouped and sorted once per load, see trackGroups).
+  for (const [uid, { walks }] of visibleTrackGroups()) {
     const colour = userColour(uid);
-    ctx.beginPath();
     ctx.strokeStyle = colour + "88";
     ctx.lineWidth = selectedUid === uid ? 2.5 : 1.5;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    let moved = false;
-    for (const e of events) {
-      const { x, y } = latLngToCanvas(e.lat, e.lng, w, h);
-      if (!moved) { ctx.moveTo(x, y); moved = true; } else { ctx.lineTo(x, y); }
+    ctx.beginPath();
+    for (const walk of walks) {
+      walk.forEach((e, i) => {
+        const { x, y } = latLngToCanvas(e.lat, e.lng, w, h);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
     }
     ctx.stroke();
 
-    // Direction arrows along route (every 5th point)
-    events.forEach((e, i) => {
-      if (i === 0 || i % 5 !== 0 || e.heading == null) return;
-      const { x, y } = latLngToCanvas(e.lat, e.lng, w, h);
-      const rad = (e.heading - 90) * Math.PI / 180;
-      const len = 6;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(rad);
-      ctx.beginPath();
-      ctx.moveTo(len, 0);
-      ctx.lineTo(-len * 0.6, -len * 0.4);
-      ctx.lineTo(-len * 0.6, len * 0.4);
-      ctx.closePath();
-      ctx.fillStyle = colour + "bb";
-      ctx.fill();
-      ctx.restore();
-    });
+    // Direction arrows along each walk (every 5th point)
+    for (const walk of walks) {
+      walk.forEach((e, i) => {
+        if (i === 0 || i % 5 !== 0 || e.heading == null) return;
+        const { x, y } = latLngToCanvas(e.lat, e.lng, w, h);
+        const rad = (e.heading - 90) * Math.PI / 180;
+        const len = 6;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(rad);
+        ctx.beginPath();
+        ctx.moveTo(len, 0);
+        ctx.lineTo(-len * 0.6, -len * 0.4);
+        ctx.lineTo(-len * 0.6, len * 0.4);
+        ctx.closePath();
+        ctx.fillStyle = colour + "bb";
+        ctx.fill();
+        ctx.restore();
+      });
+    }
   }
 }
 
@@ -1251,7 +1264,7 @@ let _trackColours = null;
 function trackMarkerColours() {
   if (!_trackColours) {
     const css = getComputedStyle(document.documentElement);
-    _trackColours = { start: css.getPropertyValue("--track-start").trim() || "#1fa855", stop: css.getPropertyValue("--track-stop").trim() || "#e5383b" };
+    _trackColours = { start: css.getPropertyValue("--track-start").trim() || "#1fa855", stop: css.getPropertyValue("--track-stop").trim() || "#e5383b", outline: css.getPropertyValue("--text-hi").trim() || "#ffffff" };
   }
   return _trackColours;
 }
@@ -1266,7 +1279,7 @@ function drawTrackEnds(ctx, w, h) {
     const stop = latLngToCanvas(summary.stop.lat, summary.stop.lng, w, h);
     ctx.save();
     ctx.lineWidth = 2.5;
-    ctx.strokeStyle = "#ffffff";
+    ctx.strokeStyle = trackMarkerColours().outline;
     ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
     ctx.shadowBlur = 4;
     ctx.fillStyle = trackMarkerColours().stop;
@@ -1516,6 +1529,11 @@ function syncTrackButton() {
   for (const btn of document.querySelectorAll(".admin-track-btn")) btn.setAttribute("aria-expanded", open && btn.dataset.uid === `track:${selectedTrackUid}` ? "true" : "false");
 }
 
+// Live-region text is only written when it changed, so a repeated refresh never re-announces the same words.
+function setStatusText(el, text) {
+  if (el && el.textContent !== text) el.textContent = text;
+}
+
 function trackPlaceHtml(point) {
   const name = placeNameAt(point.lat, point.lng);
   const coords = `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
@@ -1523,24 +1541,29 @@ function trackPlaceHtml(point) {
 }
 
 // Fills the sheet for selectedTrackUid. False when that user has no pings in the current view (the sheet is then closed).
+// The walk is found by its start time; if it is no longer in the window the latest walk is shown and the status says so.
+// The "Walk N of M" status and the Previous / Next buttons are persistent elements (in admin.html), updated in place, so the live region is announced and focus never drops.
 function renderTrackDetails() {
   const body = document.getElementById("adminTrackDetailsBody");
   const walks = selectedTrackUid ? walksFor(selectedTrackUid) : [];
-  if (!walks.length) return false;
-  trackWalkIndex = Math.min(Math.max(trackWalkIndex, 0), walks.length - 1);
-  const summary = AdminTools.summariseTrack(walks[trackWalkIndex]);
-  if (!body || !summary) return false;
-  const walkNav = `
-    <div class="admin-walk-nav" role="group" aria-label="Walks">
-      ${walks.length > 1 ? `<button id="adminTrackPrev" class="admin-walk-btn" type="button"${trackWalkIndex === 0 ? ' aria-disabled="true"' : ""}>Previous walk</button>` : ""}
-      <span id="adminTrackWalkLabel" class="admin-walk-label" role="status">Walk ${trackWalkIndex + 1} of ${walks.length}</span>
-      ${walks.length > 1 ? `<button id="adminTrackNext" class="admin-walk-btn" type="button"${trackWalkIndex === walks.length - 1 ? ' aria-disabled="true"' : ""}>Next walk</button>` : ""}
-    </div>`;
+  if (!walks.length || !body) return false;
+  let index = walkIndexByStart(walks, trackWalkStart);
+  if (index < 0) {
+    if (trackWalkStart !== null) trackWalkNotice = "That walk is no longer in this window. Showing the latest.";
+    index = walks.length - 1;
+    trackWalkStart = walkStartMs(walks[index]);
+  }
+  const summary = AdminTools.summariseTrack(walks[index]);
+  if (!summary) return false;
+  setStatusText(document.getElementById("adminTrackWalkStatus"), `Walk ${index + 1} of ${walks.length}${trackWalkNotice ? `. ${trackWalkNotice}` : ""}`);
+  const nav = document.getElementById("adminTrackWalkNav");
+  if (nav) nav.hidden = walks.length < 2;
+  document.getElementById("adminTrackPrev")?.setAttribute("aria-disabled", index === 0 ? "true" : "false");
+  document.getElementById("adminTrackNext")?.setAttribute("aria-disabled", index === walks.length - 1 ? "true" : "false");
   const when = (t) => escapeHtml(formatEventTime(new Date(t).toISOString()));
   body.innerHTML = `
     <h2 class="admin-click-title">Track details</h2>
     <p class="admin-click-subtitle"><span class="admin-user-dot" style="background:${userColour(selectedTrackUid)}"></span> User ${escapeHtml(shortUid(selectedTrackUid))}</p>
-    ${walkNav}
     <div class="admin-click-summary">
       <div class="admin-click-summary-item">
         <span class="admin-click-summary-value">${escapeHtml(AdminTools.formatDuration(summary.durationMs))}</span>
@@ -1565,7 +1588,7 @@ function renderTrackDetails() {
         <dd class="admin-click-meta-value">${when(summary.stop.t)}<br>${trackPlaceHtml(summary.stop)}</dd>
       </div>
     </dl>
-    <p class="admin-click-muted">A new walk starts after a gap of more than 30 minutes. Distance adds up straight lines between pings, skipping gaps of more than 3 minutes. On the map the start is the green circle and the stop the red square.</p>
+    <p class="admin-click-muted">A new walk starts after a 30-minute break. Distance is measured between recorded points, ignoring breaks over 3 minutes. On the map the start is the green circle and the stop the red square.</p>
   `;
   return true;
 }
@@ -1574,7 +1597,8 @@ function renderTrackDetails() {
 function openTrackDetails(uid, fromList, walk) {
   const walks = walksFor(uid);
   if (!walks.length) return;
-  trackWalkIndex = Number.isInteger(walk) ? walk : walks.length - 1;
+  trackWalkStart = walkStartMs(walks[Number.isInteger(walk) ? walk : walks.length - 1]);
+  trackWalkNotice = "";
   // One overlay at a time: the tap details give way (focus is not inside them, the pointer or list is where the user is).
   selectedClickKey = null;
   const tap = document.getElementById("adminClickDetails");
@@ -1606,15 +1630,15 @@ function closeTrackDetails() {
   render();
 }
 
-// Previous / Next walk: keep focus on the button that was pressed (it stays in the page, aria-disabled at either end).
+// Previous / Next walk. The buttons are persistent (aria-disabled at either end), so focus stays on the one pressed.
 function stepTrackWalk(delta) {
   const walks = selectedTrackUid ? walksFor(selectedTrackUid) : [];
-  const next = trackWalkIndex + delta;
+  const next = walkIndexByStart(walks, trackWalkStart) + delta;
   if (next < 0 || next >= walks.length) return;
-  trackWalkIndex = next;
+  trackWalkStart = walkStartMs(walks[next]);
+  trackWalkNotice = "";
   renderTrackDetails();
   render();
-  document.getElementById(delta < 0 ? "adminTrackPrev" : "adminTrackNext")?.focus();
 }
 
 // After a refresh or a filter change: redraw the open sheet from the current data, or close it when its user is gone.
@@ -1684,10 +1708,14 @@ const HTTP_STATUS_NAMES = { 400: "Bad Request", 403: "Forbidden", 404: "Not Foun
 async function loadData(requested = requestedWindow) {
   let resp;
   let loaded = null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LOAD_TIMEOUT_MS);
+  let data;
+  try {
   for (const days of AdminTools.windowAttempts(requested)) {
     loaded = days;
     try {
-      resp = await adminFetch(`/api/admin/tracks?days=${days}`);
+      resp = await adminFetch(`/api/admin/tracks?days=${days}`, { signal: controller.signal });
     } catch (cause) {
       const failure = new Error("network");
       failure.network = true;
@@ -1704,7 +1732,15 @@ async function loadData(requested = requestedWindow) {
     failure.detail = detail.slice(0, 160);
     throw failure;
   }
-  const data = await resp.json();
+  try {
+    data = await resp.json();
+  } catch (cause) {
+    if (controller.signal.aborted) throw Object.assign(new Error("network"), { network: true });
+    throw cause;
+  }
+  } finally {
+    clearTimeout(timer);
+  }
   data.locations = unpackTrackingEvents(data.locations);
   data.clicks = unpackTrackingEvents(data.clicks);
   data.navigation = unpackTrackingEvents(data.navigation);
@@ -1955,7 +1991,7 @@ function navPanel(cls, title, legend, svg, table, note) {
 
 function navigationViewHtml() {
   const journeys = navigationJourneysForView();
-  if (!journeys.length) return `<p class="nav-empty nav-empty-state">${betaOnly && !selectedUid ? `No beta user navigation journeys in this window yet — only activity from after beta tagging was released is marked.` : `No navigation journeys in this window${selectedUid ? " for the selected user" : ""}.`}</p>`;
+  if (!journeys.length) return `<p class="nav-empty nav-empty-state">${betaOnly && !selectedUid ? `No beta user navigation journeys in this window yet. Activity from before beta users were marked isn't counted here.` : `No navigation journeys in this window${selectedUid ? " for the selected user" : ""}.`}</p>`;
   const s = summariseNavJourneys(journeys);
   const rows = groupJourneysByDay(journeys);
   const pct = (v) => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
@@ -2190,7 +2226,7 @@ async function adminBoot() {
   // Beta users only, with nothing to show: say why (events are only marked from the release of beta tagging on).
   function updateFilterNote() {
     const empty = betaOnly && !allData.locations.length && !allData.clicks.length && !(allData.navigation || []).length;
-    filterNote.textContent = empty ? BETA_EMPTY_TEXT : betaOnly ? BETA_CAVEAT_TEXT : "";
+    setStatusText(filterNote, empty ? BETA_EMPTY_TEXT : betaOnly ? BETA_CAVEAT_TEXT : "");
   }
 
   // Redraw everything that depends on the data or the filters.
@@ -2209,15 +2245,16 @@ async function adminBoot() {
     setLoadedData(data);
     lastLoadedAt = new Date();
     setRefreshNote("");
-    windowNote.textContent = loadedWindow !== asked ? `Showing ${AdminTools.windowPhrase(loadedDays())}: ${AdminTools.windowPhrase(asked === "all" ? null : Number(asked))} was too much to load.` : "";
+    setStatusText(windowNote, loadedWindow !== asked ? `Showing ${AdminTools.windowPhrase(loadedDays())}: ${AdminTools.windowPhrase(asked === "all" ? null : Number(asked))} was too much to load.` : "");
     renderAll();
   }
 
   // A load for another window failed: go back to the window the data on screen was asked for, in the control, the address and a note.
-  function revertWindow(failed) {
+  function revertWindow(failed, { quiet = false } = {}) {
     requestedWindow = committedWindow;
     syncUrl();
     syncToolbar();
+    if (quiet) { windowNote.textContent = ""; return; }
     windowNote.textContent = `Could not load ${AdminTools.windowPhrase(failed === "all" ? null : Number(failed))}. Still showing ${AdminTools.windowPhrase(loadedDays())}.`;
   }
 
@@ -2289,6 +2326,7 @@ async function adminBoot() {
     communityResultStash = "";
     rawData = { locations: [], clicks: [], navigation: [] };
     allData = rawData;
+    resetDataCaches(); // location pings must not stay in memory after sign-out
     loadedWindow = null;
     loadSeq++;
     setToolbarBusy(false);
@@ -2333,7 +2371,7 @@ async function adminBoot() {
       console.error("[admin] could not restore the sign-in:", err, err.detail || "");
       if (err.message === "unauthorised") showLogin(signinMessage || "Admin session expired. Sign in again.");
       else {
-        showLogin(err.network || err instanceof TypeError ? "Cannot reach the server. Check your connection, then reload the page." : "Couldn't check your sign-in. Reload the page, then sign in.");
+        showLogin(err.network || err instanceof TypeError ? "Could not reach the server. Check your connection, then reload the page." : "Could not check your sign-in. Reload the page, then sign in.");
       }
     }
   }
@@ -2857,9 +2895,11 @@ async function adminBoot() {
         forgetSession("Admin session expired. Sign in again.");
       } else {
         // A Refresh that overtook a time frame change and failed: the data is still the old window, so the control must say so.
-        if (asked !== committedWindow) revertWindow(asked);
+        // One note, not two: the refresh note also says which window could not be loaded and which is still shown.
+        const reverted = asked !== committedWindow;
+        if (reverted) revertWindow(asked, { quiet: true });
         const again = refreshStatus.textContent.startsWith("Could not refresh");
-        const base = `Could not refresh — showing data from ${clockText(lastLoadedAt || new Date())}.`;
+        const base = `Could not refresh — showing data from ${clockText(lastLoadedAt || new Date())}${reverted ? `, ${AdminTools.windowPhrase(loadedDays())}. ${AdminTools.windowPhrase(asked === "all" ? null : Number(asked)).replace(/^the/, "The")} could not be loaded` : ""}.`;
         setRefreshNote(again ? `${base} Tried again at ${clockText(new Date())}.` : base, again);
       }
     } finally {
@@ -2880,7 +2920,7 @@ async function adminBoot() {
       // Clear the cookie on the server first. If that fails the admin is still signed in, so say so and keep the dashboard.
       let ok = false;
       try { const resp = await adminFetch("/api/admin/logout", { method: "POST" }); ok = resp.ok || resp.status === 401; } catch {}
-      if (!ok) { setRefreshNote("Couldn't log out. Check your connection and try again.", true); return; }
+      if (!ok) { setRefreshNote("Could not log out. Check your connection and try again.", true); return; }
       forgetSession("");
     });
   }
@@ -2889,17 +2929,15 @@ async function adminBoot() {
     clickDetailsClose.addEventListener("click", hideClickDetails);
   }
   if (trackDetailsClose) trackDetailsClose.addEventListener("click", closeTrackDetails);
-  document.getElementById("adminTrackDetailsBody")?.addEventListener("click", (event) => {
-    const button = event.target.closest("#adminTrackPrev, #adminTrackNext");
-    if (button) stepTrackWalk(button.id === "adminTrackPrev" ? -1 : 1);
-  });
+  document.getElementById("adminTrackPrev")?.addEventListener("click", () => stepTrackWalk(-1));
+  document.getElementById("adminTrackNext")?.addEventListener("click", () => stepTrackWalk(1));
 
   // Escape closes the tap details (the only overlay left).
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !adminApp.hidden) closeClickDetails();
   });
 
-  window.addEventListener("resize", () => { invalidateMapFit(); refreshScrollCues(); render(); });
+  window.addEventListener("resize", () => { invalidateMapFit(); refreshScrollCues(); scheduleRender(); });
 
   // Auto-refresh every 5 minutes
   // (skipped while the tab is hidden; coming back to a tab whose data is older than that refreshes it once)
@@ -2923,7 +2961,7 @@ async function adminBootSafely() {
     const loginError = document.getElementById("loginError");
     if (adminApp) adminApp.hidden = true;
     if (loginScreen) loginScreen.hidden = false;
-    if (loginError) loginError.textContent = "Couldn't check your sign-in. Reload the page, then sign in.";
+    if (loginError) loginError.textContent = "Could not check your sign-in. Reload the page, then sign in.";
   }
 }
 

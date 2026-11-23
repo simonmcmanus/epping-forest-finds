@@ -157,3 +157,13 @@ test("a tap reports which point of the route it was nearest, and how far along t
   assert.equal(hit.index, 1);
   assert.ok(Math.abs(hit.t - 0.7) < 1e-9);
 });
+
+test("a tap on the empty ground between two walks drawn as separate lines hits neither, and a hit names its walk", () => {
+  const tracks = [
+    { uid: "a", walk: 0, points: [{ x: 0, y: 0 }, { x: 50, y: 0 }] },
+    { uid: "a", walk: 1, points: [{ x: 300, y: 0 }, { x: 350, y: 0 }] },
+  ];
+  assert.equal(T.nearestTrackAt(tracks, 175, 0, 12), null);
+  assert.equal(T.nearestTrackAt(tracks, 320, 3, 12).walk, 1);
+  assert.equal(T.nearestTrackAt(tracks, 10, 3, 12).walk, 0);
+});

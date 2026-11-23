@@ -830,10 +830,9 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* --- Phone: compact top bar, user chips on top, map and views at full width --- */
 
-/* Touch screens get 44px tap targets whatever their width; fine-pointer desktops keep --control-h. */
-/* Any touch screen (coarse pointer), whatever its width, gets 44px targets; phone widths below get them too with a mouse. */
-@media (pointer: coarse) {
-  .admin-btn, .admin-select, .admin-seg-btn, .admin-track-btn, .admin-walk-btn, .admin-map-control { min-height: var(--tap); }
+/* Any touch screen (coarse pointer), whatever its width, gets 44px tap targets, and so does a phone-width window with a mouse; wide fine-pointer desktops keep --control-h. */
+@media (pointer: coarse), (max-width: 720px) {
+  .admin-btn, .admin-select, .admin-seg-btn, .admin-track-btn, .admin-map-control { min-height: var(--tap); }
   .admin-map-control { min-width: var(--tap); }
   .admin-click-details-close { width: var(--tap); height: var(--tap); top: 4px; right: 4px; }
   .admin-click-title { margin-right: 52px; }
@@ -868,7 +867,6 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
   .admin-btn { min-height: var(--tap); min-width: var(--tap); padding: 6px 8px; font-size: var(--fs-sm); }
   .admin-toolbar { padding: 4px var(--sp-2); gap: 4px var(--sp-2); }
-  .admin-select, .admin-seg-btn, .admin-track-btn, .admin-walk-btn { min-height: var(--tap); }
   .admin-track-btn { width: auto; flex-shrink: 0; border: 1px solid var(--accent); border-radius: 999px; padding: 6px 12px; }
   .admin-nav .admin-btn { font-size: var(--fs-xs); }
   .admin-tabs .admin-btn { padding: 6px 5px; }
@@ -919,7 +917,6 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   .admin-user-item.selected { border-color: var(--accent); background: var(--accent-soft); }
   .admin-user-meta { margin-left: 0; }
 
-  .admin-map-control { min-width: var(--tap); height: var(--tap); }
   .admin-map-control.reset { min-width: 64px; }
   .admin-map-controls { top: var(--sp-2); left: var(--sp-2); }
 
@@ -933,8 +930,6 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
     max-height: max(160px, calc(100% - 136px));
   }
 
-  .admin-click-details-close { width: var(--tap); height: var(--tap); top: 4px; right: 4px; }
-  .admin-click-title { margin-right: 52px; }
 }
 
 /* Scroll cues: a soft fade at an edge of the nav row and user strip while more is hidden there (classes set from js/admin.js). Masks never intercept taps. */
@@ -1040,20 +1035,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 
 /* --- Walks in the track sheet --- */
-.admin-walk-nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-3); }
-.admin-walk-label { font-size: var(--fs-sm); font-weight: 700; color: var(--text-hi); }
-.admin-walk-btn {
-  min-height: var(--control-h);
-  padding: 4px var(--sp-3);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-dark);
-  background: var(--surface-raised);
-  color: var(--text-hi);
-  font: inherit;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-.admin-walk-btn:hover { background: var(--surface-raised-hover); }
-.admin-walk-btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
-.admin-walk-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.admin-walk-status { margin: 0 52px var(--sp-2) 0; font-size: var(--fs-sm); font-weight: 700; color: var(--text-hi); overflow-wrap: anywhere; }
+.admin-walk-nav { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: 0 0 var(--sp-3); }
+.admin-walk-nav[hidden] { display: none; }
+.admin-walk-btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
