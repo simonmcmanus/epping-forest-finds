@@ -1039,3 +1039,22 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   .nav-cards.admin-card-grid, .admin-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .nav-cards.admin-card-grid .nav-card:last-child:nth-child(odd) { grid-column: auto; }
 }
+
+/* --- Walks in the track sheet --- */
+.admin-walk-nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-3); }
+.admin-walk-label { font-size: var(--fs-sm); font-weight: 700; color: var(--text-hi); }
+.admin-walk-btn {
+  min-height: 34px;
+  padding: 4px var(--sp-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-dark);
+  background: var(--surface-raised);
+  color: var(--text-hi);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-walk-btn:hover { background: var(--surface-raised-hover); }
+.admin-walk-btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.admin-walk-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }

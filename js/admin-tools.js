@@ -24,15 +24,20 @@
     };
   }
 
-  function pointSegmentDistance(px, py, ax, ay, bx, by) {
+  function segmentProjection(px, py, ax, ay, bx, by) {
     const dx = bx - ax;
     const dy = by - ay;
     const lengthSq = dx * dx + dy * dy;
     const t = lengthSq === 0 ? 0 : clampNumber(((px - ax) * dx + (py - ay) * dy) / lengthSq, 0, 1);
-    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    return { t, distance: Math.hypot(px - (ax + t * dx), py - (ay + t * dy)) };
   }
 
-  // tracks: [{ uid, points: [{x, y}, ...] }] in canvas pixels. Returns the closest track within tolerance, or null.
+  function pointSegmentDistance(px, py, ax, ay, bx, by) {
+    return segmentProjection(px, py, ax, ay, bx, by).distance;
+  }
+
+  // tracks: [{ uid, points: [{x, y}, ...] }] in canvas pixels. Returns the closest track within tolerance as
+  // { uid, distance, index, t }: index is the segment's first point and t how far along it (0..1) the tap was nearest; or null.
   function nearestTrackAt(tracks, x, y, tolerance) {
     let best = null;
     for (const track of tracks) {
@@ -40,11 +45,30 @@
       for (let i = 0; i < pts.length; i += 1) {
         const a = pts[i];
         const b = pts[i + 1] || a;
-        const distance = pointSegmentDistance(x, y, a.x, a.y, b.x, b.y);
-        if (distance <= tolerance && (!best || distance < best.distance)) best = { uid: track.uid, distance };
+        const { t, distance } = segmentProjection(x, y, a.x, a.y, b.x, b.y);
+        if (distance <= tolerance && (!best || distance < best.distance)) best = { uid: track.uid, distance, index: i, t };
       }
     }
     return best;
+  }
+
+  const WALK_GAP_MS = 30 * 60 * 1000; // a longer silence than this starts a new walk
+
+  // One user's pings (any order) split into walks: arrays of the original events, oldest first, a new walk after a gap of more
+  // than 30 minutes. Pings without a readable time or position are dropped.
+  function splitWalks(events, gapMs = WALK_GAP_MS) {
+    const pings = (events || [])
+      .filter((e) => e && e.lat != null && e.lng != null && Number.isFinite(Number(e.lat)) && Number.isFinite(Number(e.lng)) && Number.isFinite(Date.parse(e.ts)))
+      .map((e) => ({ e, t: Date.parse(e.ts) }))
+      .sort((a, b) => a.t - b.t);
+    const walks = [];
+    let last = null;
+    for (const p of pings) {
+      if (!last || p.t - last > gapMs) walks.push([]);
+      walks[walks.length - 1].push(p.e);
+      last = p.t;
+    }
+    return walks;
   }
 
   function metres(lat1, lng1, lat2, lng2) {
@@ -134,7 +158,7 @@
     return (events || []).filter((e) => e && e.beta === true);
   }
 
-  const api = { pinchViewport, pointSegmentDistance, nearestTrackAt, summariseTrack, formatDuration, formatDistance, WINDOW_OPTIONS, DEFAULT_WINDOW, normaliseWindow, windowPhrase, windowShort, windowAttempts, onlyBeta };
+  const api = { splitWalks, pinchViewport, pointSegmentDistance, nearestTrackAt, summariseTrack, formatDuration, formatDistance, WINDOW_OPTIONS, DEFAULT_WINDOW, normaliseWindow, windowPhrase, windowShort, windowAttempts, onlyBeta };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.AdminTools = api;
 })(typeof window !== "undefined" ? window : globalThis);

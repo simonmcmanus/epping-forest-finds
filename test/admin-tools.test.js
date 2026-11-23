@@ -122,3 +122,38 @@ test("the beta filter keeps only events marked beta and copes with old data that
   assert.deepEqual(T.onlyBeta(events).map((e) => e.uid), ["a"]);
   assert.deepEqual(T.onlyBeta(undefined), []);
 });
+
+test("pings are split into separate walks wherever there is a gap of more than 30 minutes", () => {
+  const walks = T.splitWalks([
+    ping(0, 51.65, 0.04), ping(2, 51.651, 0.04), ping(20, 51.652, 0.04), // 18 min gap: same walk
+    ping(60, 51.7, 0.1), ping(61, 51.701, 0.1), // 40 min gap: a new walk
+    ping(200, 51.6, 0.0),
+  ]);
+  assert.deepEqual(walks.map((w) => w.length), [3, 2, 1]);
+  assert.equal(walks[1][0].lat, 51.7);
+});
+
+test("splitting reads pings by time, drops unusable ones, and an empty track has no walks", () => {
+  const walks = T.splitWalks([ping(61, 51.701, 0.1), { ts: "nonsense", lat: 1, lng: 1 }, ping(0, 51.65, 0.04), { ts: ping(1).ts, lat: null, lng: 0 }]);
+  assert.deepEqual(walks.map((w) => w.length), [1, 1]);
+  assert.equal(walks[0][0].lat, 51.65);
+  assert.deepEqual(T.splitWalks([]), []);
+  assert.deepEqual(T.splitWalks(undefined), []);
+});
+
+test("a walk's summary covers only that walk, not the days around it", () => {
+  const [first, second] = T.splitWalks([ping(0, 51.65, 0.04), ping(1, 51.651, 0.04), ping(300, 51.7, 0.1), ping(302, 51.701, 0.1), ping(303, 51.702, 0.1)]);
+  const a = T.summariseTrack(first);
+  const b = T.summariseTrack(second);
+  assert.equal(a.count, 2);
+  assert.equal(a.durationMs, 60000);
+  assert.equal(b.count, 3);
+  assert.equal(b.durationMs, 3 * 60000);
+  assert.equal(b.start.lat, 51.7);
+});
+
+test("a tap reports which point of the route it was nearest, and how far along the segment", () => {
+  const hit = T.nearestTrackAt([{ uid: "a", points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 200, y: 0 }] }], 170, 5, 12);
+  assert.equal(hit.index, 1);
+  assert.ok(Math.abs(hit.t - 0.7) < 1e-9);
+});

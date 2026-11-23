@@ -207,6 +207,7 @@ let allData = rawData;
 let lastMeta = null;
 let selectedUid = null; // null = show all users
 let selectedTrackUid = null; // the user whose track sheet is open (start and stop markers show for it and for selectedUid)
+let trackWalkIndex = 0; // which of the user's walks (0 = oldest) the open track sheet shows
 let trackSheetFromList = false; // opened with the Track details button in the Users list, so closing returns focus there
 // Time frame (`days` query value: 1, 7, 30, 90 or all) and beta filter, both kept in the page address (?days=7&beta=1).
 let requestedWindow = "30"; // set from the address when the dashboard boots
@@ -830,7 +831,7 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
     if (viewMode !== "tracks" || activePage) return;
     const touch = event.pointerType === "touch" || event.pointerType === "pen";
     const hit = findTrackAt(canvas, point.x, point.y, touch ? TRACK_TOLERANCE_TOUCH : TRACK_TOLERANCE_MOUSE);
-    if (hit) openTrackDetails(hit.uid, false);
+    if (hit) openTrackDetails(hit.uid, false, hit.walk);
   });
 }
 
@@ -1039,28 +1040,70 @@ function findClickMarkerAt(canvas, x, y) {
   return best;
 }
 
-// One user's pings as drawn (current time frame, beta filter and user filter), oldest first.
-function trackEventsFor(uid) {
-  return filteredLocations()
-    .filter((e) => e.uid === uid && e.lat != null && e.lng != null)
-    .sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
+// One time-sorted grouping of the pings by user, built once per load or filter change (not per frame, tap or list redraw):
+// uid -> { walks: [[ping, ...], ...] (split at gaps over 30 minutes), events: all the user's usable pings oldest first, count (all pings), last (latest ts) }.
+let _trackCache = { source: null, groups: null };
+function trackGroups() {
+  if (_trackCache.source === allData.locations && _trackCache.groups) return _trackCache.groups;
+  const raw = new Map();
+  const stats = new Map();
+  for (const e of allData.locations) {
+    if (!e) continue;
+    if (!stats.has(e.uid)) stats.set(e.uid, { count: 0, last: e.ts });
+    const st = stats.get(e.uid);
+    st.count += 1;
+    if (e.ts > st.last) st.last = e.ts;
+    if (e.lat == null || e.lng == null) continue;
+    if (!raw.has(e.uid)) raw.set(e.uid, []);
+    raw.get(e.uid).push(e);
+  }
+  const groups = new Map();
+  for (const [uid, st] of stats) {
+    const walks = AdminTools.splitWalks(raw.get(uid) || []);
+    groups.set(uid, { walks, events: walks.flat(), count: st.count, last: st.last });
+  }
+  _trackCache = { source: allData.locations, groups };
+  return groups;
 }
 
+// The groups the map shows (the chosen user only, when one is chosen).
+function visibleTrackGroups() {
+  const groups = trackGroups();
+  if (!selectedUid) return groups;
+  return groups.has(selectedUid) ? new Map([[selectedUid, groups.get(selectedUid)]]) : new Map();
+}
+
+function walksFor(uid) {
+  return visibleTrackGroups().get(uid)?.walks || [];
+}
+
+// The walk whose start and stop are shown for a user: the open sheet's walk, otherwise their most recent.
+function shownWalk(uid) {
+  const walks = walksFor(uid);
+  if (!walks.length) return null;
+  if (uid === selectedTrackUid) return walks[Math.min(trackWalkIndex, walks.length - 1)];
+  return walks[walks.length - 1];
+}
+
+// Which user's route, and which of their walks, lies under a point (canvas css px); null when none is within tolerance.
 function findTrackAt(canvas, x, y, tolerance) {
   const { width, height } = canvasCssSize(canvas);
   if (!width || !height) return null;
-  const byUser = new Map();
-  for (const e of filteredLocations()) {
-    if (e.lat == null || e.lng == null) continue;
-    if (!byUser.has(e.uid)) byUser.set(e.uid, []);
-    byUser.get(e.uid).push(e);
-  }
   const tracks = [];
-  for (const [uid, events] of byUser) {
-    events.sort((a, b) => (a.ts < b.ts ? -1 : 1));
-    tracks.push({ uid, points: events.map((e) => latLngToCanvas(e.lat, e.lng, width, height)) });
+  for (const [uid, group] of visibleTrackGroups()) {
+    tracks.push({ uid, points: group.events.map((e) => latLngToCanvas(e.lat, e.lng, width, height)) });
   }
-  return AdminTools.nearestTrackAt(tracks, x, y, tolerance);
+  const hit = AdminTools.nearestTrackAt(tracks, x, y, tolerance);
+  if (!hit) return null;
+  // The segment's nearer end decides the walk (a segment across a long gap belongs to whichever walk the tap is closer to).
+  const pointIndex = hit.t < 0.5 ? hit.index : Math.min(hit.index + 1, tracks.find((t) => t.uid === hit.uid).points.length - 1);
+  let walk = 0;
+  let seen = 0;
+  for (const [i, w] of walksFor(hit.uid).entries()) {
+    seen += w.length;
+    if (pointIndex < seen) { walk = i; break; }
+  }
+  return { uid: hit.uid, walk };
 }
 
 // The nearest named road or path within 80 m of a point, from the base map layers ("" when none is that close or the layers are not loaded).
@@ -1085,21 +1128,8 @@ function placeNameAt(lat, lng) {
 }
 
 function drawTracks(ctx, w, h) {
-  const locs = filteredLocations();
-  if (!locs.length) return;
-
-  // Group by uid and sort by timestamp
-  const byUser = new Map();
-  for (const e of locs) {
-    if (!byUser.has(e.uid)) byUser.set(e.uid, []);
-    byUser.get(e.uid).push(e);
-  }
-  for (const events of byUser.values()) {
-    events.sort((a, b) => a.ts < b.ts ? -1 : 1);
-  }
-
-  // Draw route lines
-  for (const [uid, events] of byUser) {
+  // Draw route lines (grouped and sorted once per load, see trackGroups)
+  for (const [uid, { events }] of visibleTrackGroups()) {
     const colour = userColour(uid);
     ctx.beginPath();
     ctx.strokeStyle = colour + "88";
@@ -1108,7 +1138,6 @@ function drawTracks(ctx, w, h) {
     ctx.lineCap = "round";
     let moved = false;
     for (const e of events) {
-      if (e.lat == null || e.lng == null) continue;
       const { x, y } = latLngToCanvas(e.lat, e.lng, w, h);
       if (!moved) { ctx.moveTo(x, y); moved = true; } else { ctx.lineTo(x, y); }
     }
@@ -1201,7 +1230,7 @@ function drawClickMarkers(ctx, w, h) {
 function drawTrackEnds(ctx, w, h) {
   const uids = new Set([selectedUid, selectedTrackUid].filter(Boolean));
   for (const uid of uids) {
-    const summary = AdminTools.summariseTrack(trackEventsFor(uid));
+    const summary = AdminTools.summariseTrack(shownWalk(uid));
     if (!summary) continue;
     const start = latLngToCanvas(summary.start.lat, summary.start.lng, w, h);
     const stop = latLngToCanvas(summary.stop.lat, summary.stop.lng, w, h);
@@ -1256,12 +1285,7 @@ function buildUserList({ reveal = false } = {}) {
   if (!list) return;
 
   const byUser = new Map();
-  for (const e of allData.locations) {
-    if (!byUser.has(e.uid)) byUser.set(e.uid, { count: 0, clicks: 0, last: e.ts });
-    const u = byUser.get(e.uid);
-    u.count++;
-    if (e.ts > u.last) u.last = e.ts;
-  }
+  for (const [uid, g] of trackGroups()) byUser.set(uid, { count: g.count, clicks: 0, last: g.last });
   for (const e of adminClickEvents()) {
     if (!byUser.has(e.uid)) byUser.set(e.uid, { count: 0, clicks: 0, last: e.ts });
     const u = byUser.get(e.uid);
@@ -1314,7 +1338,7 @@ function buildUserList({ reveal = false } = {}) {
   items.forEach((el) => {
     list.appendChild(el);
     // Keyboard and screen-reader route to the track sheet (a canvas hit is not reachable that way): beside the chosen user, on the Tracks view.
-    if (selectedUid && el.dataset.uid === selectedUid && viewMode === "tracks" && !activePage && AdminTools.summariseTrack(trackEventsFor(selectedUid))) {
+    if (selectedUid && el.dataset.uid === selectedUid && viewMode === "tracks" && !activePage && walksFor(selectedUid).length) {
       const open = document.createElement("button");
       open.type = "button";
       open.className = "admin-track-btn";
@@ -1471,12 +1495,22 @@ function trackPlaceHtml(point) {
 // Fills the sheet for selectedTrackUid. False when that user has no pings in the current view (the sheet is then closed).
 function renderTrackDetails() {
   const body = document.getElementById("adminTrackDetailsBody");
-  const summary = selectedTrackUid ? AdminTools.summariseTrack(trackEventsFor(selectedTrackUid)) : null;
+  const walks = selectedTrackUid ? walksFor(selectedTrackUid) : [];
+  if (!walks.length) return false;
+  trackWalkIndex = Math.min(Math.max(trackWalkIndex, 0), walks.length - 1);
+  const summary = AdminTools.summariseTrack(walks[trackWalkIndex]);
   if (!body || !summary) return false;
+  const walkNav = `
+    <div class="admin-walk-nav" role="group" aria-label="Walks">
+      ${walks.length > 1 ? `<button id="adminTrackPrev" class="admin-walk-btn" type="button"${trackWalkIndex === 0 ? ' aria-disabled="true"' : ""}>Previous walk</button>` : ""}
+      <span id="adminTrackWalkLabel" class="admin-walk-label" role="status">Walk ${trackWalkIndex + 1} of ${walks.length}</span>
+      ${walks.length > 1 ? `<button id="adminTrackNext" class="admin-walk-btn" type="button"${trackWalkIndex === walks.length - 1 ? ' aria-disabled="true"' : ""}>Next walk</button>` : ""}
+    </div>`;
   const when = (t) => escapeHtml(formatEventTime(new Date(t).toISOString()));
   body.innerHTML = `
     <h2 class="admin-click-title">Track details</h2>
     <p class="admin-click-subtitle"><span class="admin-user-dot" style="background:${userColour(selectedTrackUid)}"></span> User ${escapeHtml(shortUid(selectedTrackUid))}</p>
+    ${walkNav}
     <div class="admin-click-summary">
       <div class="admin-click-summary-item">
         <span class="admin-click-summary-value">${escapeHtml(AdminTools.formatDuration(summary.durationMs))}</span>
@@ -1501,13 +1535,16 @@ function renderTrackDetails() {
         <dd class="admin-click-meta-value">${when(summary.stop.t)}<br>${trackPlaceHtml(summary.stop)}</dd>
       </div>
     </dl>
-    <p class="admin-click-muted">Distance adds up straight lines between pings, skipping gaps of more than 3 minutes. On the map the start is the green circle and the stop the red square.</p>
+    <p class="admin-click-muted">A new walk starts after a gap of more than 30 minutes. Distance adds up straight lines between pings, skipping gaps of more than 3 minutes. On the map the start is the green circle and the stop the red square.</p>
   `;
   return true;
 }
 
-function openTrackDetails(uid, fromList) {
-  if (!AdminTools.summariseTrack(trackEventsFor(uid))) return;
+// walk: which walk to show (0 = oldest); omitted, the user's most recent walk.
+function openTrackDetails(uid, fromList, walk) {
+  const walks = walksFor(uid);
+  if (!walks.length) return;
+  trackWalkIndex = Number.isInteger(walk) ? walk : walks.length - 1;
   // One overlay at a time: the tap details give way (focus is not inside them, the pointer or list is where the user is).
   selectedClickKey = null;
   const tap = document.getElementById("adminClickDetails");
@@ -1537,6 +1574,17 @@ function closeTrackDetails() {
   }
   syncTrackButton();
   render();
+}
+
+// Previous / Next walk: keep focus on the button that was pressed (it stays in the page, aria-disabled at either end).
+function stepTrackWalk(delta) {
+  const walks = selectedTrackUid ? walksFor(selectedTrackUid) : [];
+  const next = trackWalkIndex + delta;
+  if (next < 0 || next >= walks.length) return;
+  trackWalkIndex = next;
+  renderTrackDetails();
+  render();
+  document.getElementById(delta < 0 ? "adminTrackPrev" : "adminTrackNext")?.focus();
 }
 
 // After a refresh or a filter change: redraw the open sheet from the current data, or close it when its user is gone.
@@ -2811,6 +2859,10 @@ async function adminBoot() {
     clickDetailsClose.addEventListener("click", hideClickDetails);
   }
   if (trackDetailsClose) trackDetailsClose.addEventListener("click", closeTrackDetails);
+  document.getElementById("adminTrackDetailsBody")?.addEventListener("click", (event) => {
+    const button = event.target.closest("#adminTrackPrev, #adminTrackNext");
+    if (button) stepTrackWalk(button.id === "adminTrackPrev" ? -1 : 1);
+  });
 
   // Escape closes the tap details (the only overlay left).
   document.addEventListener("keydown", (event) => {

@@ -165,6 +165,57 @@ test.describe("Admin map: tapping a route line shows its start and stop", () => 
   });
 });
 
+test.describe("Admin map: a user's separate walks", () => {
+  // Walk 1 is WALK (minutes 0-4); walk 2 is an hour and a half later somewhere else.
+  const WALK2 = [[51.620, -0.060], [51.625, -0.050], [51.630, -0.040], [51.635, -0.030]];
+  const twoWalks = (route) => json(route, 200, tracks({ locations: [...WALK.map(([lat, lng], i) => ping(A, i, lat, lng)), ...WALK2.map(([lat, lng], i) => ping(A, 120 + i, lat, lng))] }));
+  const mid = async (page, list, i) => {
+    const a = await canvasPoint(page, ...list[i]);
+    const b = await canvasPoint(page, ...list[i + 1]);
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  };
+
+  test("clicking a route line shows the walk under the click, not the whole window", async ({ page }) => {
+    await openAdmin(page, { onTracks: twoWalks });
+    const sheet = page.getByRole("region", { name: "Track details" });
+    const first = await mid(page, WALK, 1);
+    await page.mouse.click(first.x, first.y);
+    await expect(sheet).toContainText("Walk 1 of 2");
+    await expect(sheet).toContainText("5 pings");
+    await expect(sheet).toContainText("4 min");
+    await page.keyboard.press("Escape");
+    const second = await mid(page, WALK2, 1);
+    await page.mouse.click(second.x, second.y);
+    await expect(sheet).toContainText("Walk 2 of 2");
+    await expect(sheet).toContainText("4 pings");
+    await expect(sheet).toContainText("3 min");
+    await expect(sheet).toContainText("51.62000, -0.06000");
+    await expect(sheet).toContainText("51.63500, -0.03000");
+  });
+
+  test("the Track details control opens the latest walk and Previous and Next walk step through them, keeping focus", async ({ page }) => {
+    await openAdmin(page, { onTracks: twoWalks });
+    await page.locator(".admin-user-item", { hasText: "aaaaaaaa" }).click();
+    await page.getByRole("button", { name: "Track details for aaaaaaaa" }).click();
+    const sheet = page.getByRole("region", { name: "Track details" });
+    await expect(sheet).toContainText("Walk 2 of 2");
+    await expect(sheet).toContainText("4 pings");
+    const prev = page.getByRole("button", { name: "Previous walk" });
+    const next = page.getByRole("button", { name: "Next walk" });
+    await expect(next).toHaveAttribute("aria-disabled", "true");
+    await prev.focus();
+    await page.keyboard.press("Enter");
+    await expect(sheet).toContainText("Walk 1 of 2");
+    await expect(sheet).toContainText("5 pings");
+    await expect(prev).toBeFocused();
+    await expect(prev).toHaveAttribute("aria-disabled", "true");
+    await next.focus();
+    await page.keyboard.press("Enter");
+    await expect(sheet).toContainText("Walk 2 of 2");
+    await expect(next).toBeFocused();
+  });
+});
+
 test.describe("Admin map: pinch to zoom on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
