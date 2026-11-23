@@ -214,7 +214,7 @@ test.describe("Admin Community and Beta pages", () => {
     await expect(page.locator("#adminCanvas")).toBeHidden();
     await expect(page.getByRole("heading", { name: "Community", level: 2 })).toBeFocused();
     const page_ = page.locator("#adminCommunity");
-    await expect(page_.locator("#adminCommunityBody .nav-card").filter({ hasText: "Reports" }).locator(".admin-stat-value")).toHaveText("40");
+    await expect(page_.locator("#adminCommunityBody .nav-card").filter({ hasText: "Reports" }).locator(".nav-card-value")).toHaveText("40");
     await expect(page.getByRole("button", { name: "Community", exact: true })).toHaveAttribute("aria-pressed", "true");
     await page.goBack();
     await expect(page.locator("#adminCanvas")).toBeVisible();
