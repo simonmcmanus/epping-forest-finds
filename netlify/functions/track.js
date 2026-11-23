@@ -248,7 +248,7 @@ exports.handler = async (event) => {
     const baseMeta = { storeName: getTrackingStoreName(), context: process.env.CONTEXT || "local", windowDays };
 
     try {
-      const result = await tracking.readWindow(openAdapter(), { windowDays: days });
+      const result = await tracking.readWindow(openAdapter(), { windowDays: days, calendar: windowDays == null });
       logTrack("read-ok", { windowDays, locations: result.locations.length, clicks: result.clicks.length, navigation: result.navigation.length, partial: result.partial, oldestDay: result.oldestDay });
       return response(200, adminBody(result.locations, result.clicks, result.navigation, {
         ...baseMeta,

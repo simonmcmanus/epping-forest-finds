@@ -309,9 +309,15 @@ function newestFirst(a, b) {
   return (eventMs(b) - eventMs(a)) || ((NAV_ORDER[b.type] ?? 0) - (NAV_ORDER[a.type] ?? 0));
 }
 
-async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 7000, maxBytes = 4_500_000, clock = Date.now, dayGroup = 3 } = {}) {
+async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 7000, maxBytes = 4_500_000, clock = Date.now, dayGroup = 3, calendar = false } = {}) {
   const deadline = clock() + budgetMs;
-  const days = Array.from({ length: windowDays }, (_, i) => dayOf(now - i * DAY_MS));
+  // A window of N days is the last N*24 hours, which reaches into N+1 UTC days: the oldest one is read
+  // only for its tail, and events before the cutoff are dropped. `calendar` (days=all) reads exactly the
+  // days given, untrimmed.
+  const rolling = Number.isFinite(windowDays) && !calendar;
+  const cutoff = rolling ? now - windowDays * DAY_MS : null;
+  const days = Array.from({ length: rolling ? windowDays + 1 : windowDays }, (_, i) => dayOf(now - i * DAY_MS));
+  const inWindowDays = rolling ? windowDays : days.length;
   const kept = { location: [], click: [], navigation: [] };
   let bytes = 0;
   let partial = false;
@@ -320,14 +326,16 @@ async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 70
 
   outer:
   for (let i = 0; i < days.length; i += dayGroup) {
-    if (clock() > deadline) { partial = true; break; }
+    if (clock() > deadline) { partial = i < inWindowDays; break; }
     const group = days.slice(i, i + dayGroup);
     const results = await Promise.all(group.map(async (day) => {
       const [location, click, navigation] = await Promise.all(TYPES.map((type) => readDay(adapter, type, day, deadline, clock)));
       return { day, location, click, navigation };
     }));
     for (const result of results) {
-      const events = [...result.location.events, ...result.click.events, ...result.navigation.events].sort(newestFirst);
+      const events = [...result.location.events, ...result.click.events, ...result.navigation.events]
+        .filter((event) => cutoff == null || eventMs(event) == null || eventMs(event) >= cutoff)
+        .sort(newestFirst);
       for (const event of events) {
         const size = packedSize(event);
         if (bytes + size > maxBytes) { partial = true; oldestDay = result.day; oldestDayIncomplete = true; break outer; }

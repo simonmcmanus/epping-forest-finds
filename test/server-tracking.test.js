@@ -52,3 +52,19 @@ test("locally, a posted batch is written to NDJSON files and read back through t
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("locally, a 24 hour window keeps an event 23 hours old and drops one 25 hours old", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ff-tracking-"));
+  const H = 60 * 60 * 1000;
+  const line = (uid, ago) => JSON.stringify({ type: "location", uid, ts: new Date(Date.now() - ago).toISOString(), lat: 51.65, lng: 0.04 });
+  fs.writeFileSync(path.join(dir, "location.ndjson"), `${line("recent", 23 * H)}\n${line("stale", 25 * H)}\n`);
+  const server = await startServer({ TRACKING_DIR: dir, ADMIN_PASSWORD: "local-pw", NETLIFY: "", AWS_LAMBDA_FUNCTION_NAME: "" });
+  try {
+    const read = await fetch(`${server.base}/api/admin/tracks?days=1`, { headers: { Authorization: "Bearer local-pw" } });
+    const body = await read.json();
+    assert.deepEqual(tracking.unpackEvents(body.locations).map((e) => e.uid), ["recent"]);
+  } finally {
+    server.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
