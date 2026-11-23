@@ -11,9 +11,10 @@ in the main session. Only skip it for read-only questions.
 - Delegate implementation to scoped `implementer` agents; place-fact corrections go to `data-curator`.
   The lead dispatches, reviews, pushes once and opens one PR. Agents never approve, merge, arm
   auto-merge, apply the `verified` label or force-push. The CI reviewer APPROVEs a clean head and otherwise REQUEST_CHANGES. Auto-merge
-  is armed only when the same head has both the owner's `verified` label (a human check, replacing
-  approval because GitHub forbids approving your own PR; a push removes it) and the agent approval
-  (`.github/workflows/auto-merge.yml`); merge happens once checks pass. If the PR is already mergeable,
+  is armed only when the PR has the owner's `verified` label (a human check, replacing approval
+  because GitHub forbids approving your own PR; it stays on the PR through pushes) and the current
+  head has the agent approval (`.github/workflows/auto-merge.yml`); merge happens once checks pass.
+  A new head therefore needs its own agent approval before it arms. If the PR is already mergeable,
   the workflow merges it directly under the same conditions.
 - Place facts are corrected in `data/**`, never documented in a spec.
 - CI owns `js/app-cache-version.js`, `js/data-cache-version.js` and screenshot baselines. Never edit them.
