@@ -123,7 +123,7 @@ test.describe("Admin login", () => {
       : route.fulfill({ status: 503, contentType: "text/plain", body: "<html>upstream-detail</html>" })));
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
     await page.goto("/admin");
-    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page or sign in again.");
+    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page, then sign in.");
     await expect(page.locator("body")).not.toContainText("upstream-detail");
     await expect(SIGN_IN_LINK(page)).toBeVisible();
     up = true;
@@ -196,7 +196,7 @@ test.describe("Admin login", () => {
     await page.unroute(/\/api\/admin\/tracks/);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 502, contentType: "text/plain", body: "Bad Gateway" }));
     await page.reload();
-    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page or sign in again.");
+    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page, then sign in.");
     await page.unroute(/\/api\/admin\/tracks/);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
     await page.reload();
@@ -235,7 +235,7 @@ test.describe("Admin login", () => {
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 502, contentType: "text/plain", body: "<html><body><h1>internal-proxy-detail</h1></body></html>" }));
     await page.goto("/admin");
     // The status code and its plain name, never the raw body (which may be a page of HTML).
-    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page or sign in again.");
+    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page, then sign in.");
     await expect(page.locator("body")).not.toContainText("internal-proxy-detail");
   });
 
@@ -1382,7 +1382,7 @@ test.describe("Admin login", () => {
     page.on("console", (msg) => { if (msg.type() === "error") consoleErrors.push(msg.text()); });
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 503, contentType: "text/html", body: "<!doctype html><title>secret-upstream-page</title>" }));
     await page.goto("/admin");
-    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page or sign in again.");
+    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page, then sign in.");
     await expect(page.locator("body")).not.toContainText("secret-upstream-page");
   });
 

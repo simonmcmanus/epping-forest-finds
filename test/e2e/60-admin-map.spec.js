@@ -410,3 +410,56 @@ test.describe("Admin beta users filter", () => {
     await expect(page.locator(".admin-user-item", { hasText: "bbbbbbbb" })).toContainText("2 pts");
   });
 });
+
+test.describe("Admin sign-in check", () => {
+  test("a sign-in check that never answers ends in the sign-in link instead of 'Checking your sign-in' forever", async ({ page }) => {
+    await skipOnboarding(page);
+    await page.clock.install();
+    let asked;
+    const seen = new Promise((resolve) => { asked = resolve; });
+    await page.route(/\/api\/admin\/me/, async () => { asked(); /* never answered */ });
+    await page.goto("/admin");
+    await seen;
+    await expect(page.getByText("Checking your sign-in")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in" })).toBeHidden();
+    await page.clock.fastForward(9000);
+    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+    await expect(page.locator("#loginError")).toHaveText("Couldn't check your sign-in. Reload the page, then sign in.");
+    await expect(page.getByText("Checking your sign-in")).toBeHidden();
+  });
+
+  test("a signed-in deep link to /admin#stats shows the checking note while pending, never the login card, and then the page", async ({ page }) => {
+    await skipOnboarding(page);
+    await page.addInitScript(() => {
+      window.__loginSeen = false;
+      const look = () => {
+        const link = document.getElementById("loginBtn");
+        if (link && link.getClientRects().length > 0) window.__loginSeen = true;
+        if (!window.__stop) requestAnimationFrame(look);
+      };
+      requestAnimationFrame(look);
+    });
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    let asked;
+    const seen = new Promise((resolve) => { asked = resolve; });
+    await page.route(/\/api\/admin\/me/, async (route) => { asked(); await held; return json(route, 200, { signedIn: true, name: "T" }); });
+    await page.route(/\/api\/admin\/tracks/, (route) => json(route, 200, tracks()));
+    await page.goto("/admin#stats");
+    await seen;
+    await expect(page.getByText("Checking your sign-in")).toBeVisible();
+    release();
+    await expect(page.getByRole("heading", { name: "Stats" })).toBeVisible();
+    await expect(page.getByText("Checking your sign-in")).toBeHidden();
+    expect(await page.evaluate(() => { window.__stop = true; return window.__loginSeen; })).toBe(false);
+  });
+
+  test.describe("without JavaScript", () => {
+    test.use({ javaScriptEnabled: false });
+    test("the sign-in card and its link are simply shown", async ({ page }) => {
+      await page.goto("/admin");
+      await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+      await expect(page.getByText("Checking your sign-in")).toBeHidden();
+    });
+  });
+});

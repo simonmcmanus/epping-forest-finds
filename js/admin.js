@@ -22,6 +22,7 @@ const SIGNIN_MESSAGES = {
   failed: "Sign-in didn't finish. Try again.",
   unavailable: "Admin sign-in isn't set up on this site yet. The site owner needs to configure Auth0 and ADMIN_SUBJECTS.",
 };
+const ME_CHECK_TIMEOUT_MS = 8000;
 const ADMIN_VIEWPORT_KEY = "ff-admin-map-viewport";
 const BASE_MAP_OPACITY = 0.42;
 const MIN_MAP_ZOOM = 0.85;
@@ -2035,8 +2036,11 @@ async function adminBoot() {
   const communityRetry = document.getElementById("adminCommunityRetry");
 
   // The sign-in card stays hidden (admin-checking, set before first paint in admin.html) until the check below resolves.
-  clearTimeout(Number(document.documentElement.dataset.checkTimer));
-  const endChecking = () => document.documentElement.classList.remove("admin-checking");
+  // The safety timer in admin.html is only cancelled once the check has resolved (endChecking), so a hung check or a throw before it can never leave the note up forever.
+  const endChecking = () => {
+    clearTimeout(Number(document.documentElement.dataset.checkTimer));
+    document.documentElement.classList.remove("admin-checking");
+  };
 
   let sessionId = 0; // bumped on sign-out so a late response cannot bring old data back
   let lastLoadedAt = null;
@@ -2229,7 +2233,11 @@ async function adminBoot() {
   if (signinResult !== null) history.replaceState(null, "", `/admin${location.hash}`);
   async function restoreSession() {
     try {
-      const me = await adminFetch("/api/admin/me");
+      // A check that never answers is a failed check: abort after 8 s.
+      const controller = new AbortController();
+      const abortTimer = setTimeout(() => controller.abort(), ME_CHECK_TIMEOUT_MS);
+      let me;
+      try { me = await adminFetch("/api/admin/me", { signal: controller.signal }); } finally { clearTimeout(abortTimer); }
       if (me.status === 401) { showLogin(signinMessage); return; }
       if (!me.ok) throw Object.assign(new Error(`Server error ${me.status}`), { status: me.status });
       const data = await loadData();
@@ -2240,7 +2248,7 @@ async function adminBoot() {
       console.error("[admin] could not restore the sign-in:", err, err.detail || "");
       if (err.message === "unauthorised") showLogin(signinMessage || "Admin session expired. Sign in again.");
       else {
-        showLogin(err.network || err instanceof TypeError ? "Cannot reach the server. Check your connection, then reload the page." : "Couldn't check your sign-in. Reload the page or sign in again.");
+        showLogin(err.network || err instanceof TypeError ? "Cannot reach the server. Check your connection, then reload the page." : "Couldn't check your sign-in. Reload the page, then sign in.");
       }
     }
   }
@@ -2806,4 +2814,21 @@ async function adminBoot() {
   setInterval(() => { if (signedIn) refreshData(); }, 5 * 60 * 1000);
 }
 
-document.addEventListener("DOMContentLoaded", adminBoot);
+// A throw anywhere in boot must still end the "Checking your sign-in…" note: show the card with its link.
+async function adminBootSafely() {
+  try {
+    await adminBoot();
+  } catch (error) {
+    console.error("[admin] boot failed:", error);
+    clearTimeout(Number(document.documentElement.dataset.checkTimer));
+    document.documentElement.classList.remove("admin-checking");
+    const adminApp = document.getElementById("adminApp");
+    const loginScreen = document.getElementById("loginScreen");
+    const loginError = document.getElementById("loginError");
+    if (adminApp) adminApp.hidden = true;
+    if (loginScreen) loginScreen.hidden = false;
+    if (loginError) loginError.textContent = "Couldn't check your sign-in. Reload the page, then sign in.";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", adminBootSafely);
