@@ -212,3 +212,18 @@ test("the local file fallback carries the beta mark too", async () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("a beta member's sign-in cookie is honoured whatever the casing of the Cookie header", async () => {
+  await withStores(communityStore(betaCommunity("auth0|a")), async () => {
+    for (const [i, name] of ["Cookie", "COOKIE", "cOOkie"].entries()) {
+      const res = await track.handler({
+        httpMethod: "POST",
+        headers: { "x-nf-client-connection-ip": `10.6.0.${i + 1}`, [name]: cookieFor("auth0|a") },
+        body: JSON.stringify({ events: [loc(`case${i}`)] }),
+      });
+      assert.equal(res.statusCode, 200);
+    }
+    const read = await adminRead();
+    assert.deepEqual(betaUids(read.locations), ["case0", "case1", "case2"]);
+  });
+});

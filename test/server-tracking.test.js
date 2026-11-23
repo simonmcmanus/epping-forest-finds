@@ -53,7 +53,7 @@ test("locally, a posted batch is written to NDJSON files and read back through t
   }
 });
 
-test("locally, a 24 hour window keeps an event 23 hours old and drops one 25 hours old", async () => {
+test("local file fallback path guard: a 24 hour window keeps an event 23 hours old and drops one 25 hours old", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ff-tracking-"));
   const H = 60 * 60 * 1000;
   const line = (uid, ago) => JSON.stringify({ type: "location", uid, ts: new Date(Date.now() - ago).toISOString(), lat: 51.65, lng: 0.04 });

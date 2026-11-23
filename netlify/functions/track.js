@@ -207,8 +207,10 @@ const BETA_CHECK_TIMEOUT_MS = 1000;
 const SESSION_COOKIE_NAME = "ff_session";
 function hasSessionCookie(event) {
   const headers = (event && event.headers) || {};
-  const cookie = headers.cookie || headers.Cookie;
-  return typeof cookie === "string" && cookie.includes(`${SESSION_COOKIE_NAME}=`);
+  for (const key in headers) {
+    if (key.toLowerCase() === "cookie" && typeof headers[key] === "string" && headers[key].includes(`${SESSION_COOKIE_NAME}=`)) return true;
+  }
+  return false;
 }
 async function betaRequest(event) {
   let timer;
