@@ -211,8 +211,8 @@ let allData = rawData;
 let lastMeta = null;
 let selectedUid = null; // null = show all users
 let selectedTrackUid = null; // the user whose track sheet is open (start and stop markers show for it and for selectedUid)
-let trackWalkStart = null; // start time (ms) of the walk the open track sheet shows: the walk's identity, so data changes never swap it silently
-let trackWalkNotice = ""; // said once when that walk left the window
+let trackWalkSpan = null; // { start, end } (ms) of the walk the user chose in the open track sheet: its identity, so data changes never swap it silently.
+// It is re-found by overlap (a rolling window can trim a walk's first pings); while it is not in the window the latest walk is shown with a notice, and the notice clears as soon as the walk is found again.
 let trackSheetFromList = false; // opened with the Track details button in the Users list, so closing returns focus there
 // Time frame (`days` query value: 1, 7, 30, 90 or all) and beta filter, both kept in the page address (?days=7&beta=1).
 let requestedWindow = "30"; // set from the address when the dashboard boots
@@ -1108,16 +1108,30 @@ function walksFor(uid) {
   return visibleTrackGroups().get(uid)?.walks || [];
 }
 
-const walkStartMs = (walk) => Date.parse(walk[0].ts);
-function walkIndexByStart(walks, start) {
-  return walks.findIndex((w) => walkStartMs(w) === start);
+const walkSpan = (walk) => ({ start: Date.parse(walk[0].ts), end: Date.parse(walk[walk.length - 1].ts) });
+// The walk overlapping the remembered span the most (a trimmed or extended walk still matches), or -1.
+function walkIndexBySpan(walks, span) {
+  if (!span) return -1;
+  let best = -1;
+  let bestOverlap = -1;
+  walks.forEach((w, i) => {
+    const s = walkSpan(w);
+    const overlap = Math.min(s.end, span.end) - Math.max(s.start, span.start);
+    if (overlap >= 0 && overlap > bestOverlap) { best = i; bestOverlap = overlap; }
+  });
+  return best;
+}
+// The walk the sheet shows: the remembered one, else the latest.
+function shownWalkIndex(walks) {
+  const found = walkIndexBySpan(walks, trackWalkSpan);
+  return found >= 0 ? found : walks.length - 1;
 }
 
 // The walk whose start and stop are shown for a user: the open sheet's walk, otherwise their most recent.
 function shownWalk(uid) {
   const walks = walksFor(uid);
   if (!walks.length) return null;
-  if (uid === selectedTrackUid) return walks[walkIndexByStart(walks, trackWalkStart)] || walks[walks.length - 1];
+  if (uid === selectedTrackUid) return walks[shownWalkIndex(walks)];
   return walks[walks.length - 1];
 }
 
@@ -1173,6 +1187,15 @@ function drawTracks(ctx, w, h) {
       });
     }
     ctx.stroke();
+    // A walk of one ping has no line: draw a small dot so it can be seen (and is what a tap on it hits).
+    ctx.fillStyle = colour + "cc";
+    for (const walk of walks) {
+      if (walk.length !== 1) continue;
+      const { x, y } = latLngToCanvas(walk[0].lat, walk[0].lng, w, h);
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // Direction arrows along each walk (every 5th point)
     for (const walk of walks) {
@@ -1282,11 +1305,13 @@ function drawTrackEnds(ctx, w, h) {
     ctx.strokeStyle = trackMarkerColours().outline;
     ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
     ctx.shadowBlur = 4;
-    ctx.fillStyle = trackMarkerColours().stop;
-    ctx.beginPath();
-    ctx.rect(stop.x - 7, stop.y - 7, 14, 14);
-    ctx.fill();
-    ctx.stroke();
+    if (summary.count > 1) { // a walk of one ping is only a start: the square would sit under the circle
+      ctx.fillStyle = trackMarkerColours().stop;
+      ctx.beginPath();
+      ctx.rect(stop.x - 7, stop.y - 7, 14, 14);
+      ctx.fill();
+      ctx.stroke();
+    }
     ctx.fillStyle = trackMarkerColours().start;
     ctx.beginPath();
     ctx.arc(start.x, start.y, 8, 0, Math.PI * 2);
@@ -1534,6 +1559,17 @@ function setStatusText(el, text) {
   if (el && el.textContent !== text) el.textContent = text;
 }
 
+// The walk status is a persistent live region. force (on opening the sheet) clears it first and writes the words a moment later, so a screen reader announces them even when they equal the last ones.
+let _walkStatusText = "";
+function setWalkStatus(text, force = false) {
+  const el = document.getElementById("adminTrackWalkStatus");
+  if (!el) return;
+  _walkStatusText = text;
+  if (!force) { setStatusText(el, text); return; }
+  el.textContent = "";
+  setTimeout(() => { if (!el.textContent) el.textContent = _walkStatusText; }, 0);
+}
+
 function trackPlaceHtml(point) {
   const name = placeNameAt(point.lat, point.lng);
   const coords = `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
@@ -1543,26 +1579,28 @@ function trackPlaceHtml(point) {
 // Fills the sheet for selectedTrackUid. False when that user has no pings in the current view (the sheet is then closed).
 // The walk is found by its start time; if it is no longer in the window the latest walk is shown and the status says so.
 // The "Walk N of M" status and the Previous / Next buttons are persistent elements (in admin.html), updated in place, so the live region is announced and focus never drops.
-function renderTrackDetails() {
+function renderTrackDetails({ force = false } = {}) {
   const body = document.getElementById("adminTrackDetailsBody");
   const walks = selectedTrackUid ? walksFor(selectedTrackUid) : [];
   if (!walks.length || !body) return false;
-  let index = walkIndexByStart(walks, trackWalkStart);
-  if (index < 0) {
-    if (trackWalkStart !== null) trackWalkNotice = "That walk is no longer in this window. Showing the latest.";
-    index = walks.length - 1;
-    trackWalkStart = walkStartMs(walks[index]);
-  }
+  const found = walkIndexBySpan(walks, trackWalkSpan);
+  const index = found >= 0 ? found : walks.length - 1;
+  if (found >= 0) trackWalkSpan = walkSpan(walks[found]); // follow the walk as its ends move
   const summary = AdminTools.summariseTrack(walks[index]);
   if (!summary) return false;
-  setStatusText(document.getElementById("adminTrackWalkStatus"), `Walk ${index + 1} of ${walks.length}${trackWalkNotice ? `. ${trackWalkNotice}` : ""}`);
+  const lost = found < 0 && trackWalkSpan !== null;
+  setWalkStatus(`Walk ${index + 1} of ${walks.length}${lost ? ". That walk is no longer in this window. Showing the latest." : ""}`, force);
   const nav = document.getElementById("adminTrackWalkNav");
-  if (nav) nav.hidden = walks.length < 2;
+  if (nav) {
+    const wasFocused = nav.contains(document.activeElement);
+    nav.hidden = walks.length < 2;
+    // The buttons are going away: keep focus in the sheet rather than dropping it to the page.
+    if (nav.hidden && wasFocused) document.getElementById("adminTrackDetailsClose")?.focus();
+  }
   document.getElementById("adminTrackPrev")?.setAttribute("aria-disabled", index === 0 ? "true" : "false");
   document.getElementById("adminTrackNext")?.setAttribute("aria-disabled", index === walks.length - 1 ? "true" : "false");
   const when = (t) => escapeHtml(formatEventTime(new Date(t).toISOString()));
   body.innerHTML = `
-    <h2 class="admin-click-title">Track details</h2>
     <p class="admin-click-subtitle"><span class="admin-user-dot" style="background:${userColour(selectedTrackUid)}"></span> User ${escapeHtml(shortUid(selectedTrackUid))}</p>
     <div class="admin-click-summary">
       <div class="admin-click-summary-item">
@@ -1597,17 +1635,16 @@ function renderTrackDetails() {
 function openTrackDetails(uid, fromList, walk) {
   const walks = walksFor(uid);
   if (!walks.length) return;
-  trackWalkStart = walkStartMs(walks[Number.isInteger(walk) ? walk : walks.length - 1]);
-  trackWalkNotice = "";
+  trackWalkSpan = walkSpan(walks[Number.isInteger(walk) ? walk : walks.length - 1]);
   // One overlay at a time: the tap details give way (focus is not inside them, the pointer or list is where the user is).
   selectedClickKey = null;
   const tap = document.getElementById("adminClickDetails");
   if (tap) tap.hidden = true;
   selectedTrackUid = uid;
   trackSheetFromList = !!fromList;
-  renderTrackDetails();
   const panel = document.getElementById("adminTrackDetails");
   if (panel) panel.hidden = false;
+  renderTrackDetails({ force: true }); // after the sheet is shown, so the status is announced
   syncTrackButton();
   render();
   document.getElementById("adminTrackDetailsClose")?.focus();
@@ -1633,10 +1670,9 @@ function closeTrackDetails() {
 // Previous / Next walk. The buttons are persistent (aria-disabled at either end), so focus stays on the one pressed.
 function stepTrackWalk(delta) {
   const walks = selectedTrackUid ? walksFor(selectedTrackUid) : [];
-  const next = walkIndexByStart(walks, trackWalkStart) + delta;
+  const next = shownWalkIndex(walks) + delta;
   if (next < 0 || next >= walks.length) return;
-  trackWalkStart = walkStartMs(walks[next]);
-  trackWalkNotice = "";
+  trackWalkSpan = walkSpan(walks[next]);
   renderTrackDetails();
   render();
 }
@@ -2079,7 +2115,7 @@ function statsViewHtml() {
     card("Users", uids.size),
     card("Location pings", locs.length),
     card("Taps", clicks.length),
-    card("Time window", AdminTools.windowShort(windowDays), windowDays ? `Last ${AdminTools.windowShort(windowDays)}` : "All loaded history"),
+    card("Time window", AdminTools.windowShort(windowDays), windowDays ? `Last ${AdminTools.windowShort(windowDays)}` : "All history"),
   ].join("");
   const partial = lastMeta?.partial
     ? `<p class="nav-note">Partial: too much data for one read, newest shown${lastMeta.oldestDay ? ` (back to ${escapeHtml(lastMeta.oldestDay)}${lastMeta.oldestDayIncomplete ? ", that day only in part" : ""})` : ""}.</p>`
@@ -2515,7 +2551,8 @@ async function adminBoot() {
         return;
       }
       communityBody.textContent = "";
-      communityStatus.textContent = error.status ? `Could not load community stats (${error.status}).` : "Could not load community stats. Check your connection.";
+      if (error.status) console.error("[admin] community stats failed:", error.status);
+      communityStatus.textContent = error.status ? "Could not load community stats." : "Could not load community stats. Check your connection.";
       communityRetry.hidden = false;
     }
   }
@@ -2899,7 +2936,10 @@ async function adminBoot() {
         const reverted = asked !== committedWindow;
         if (reverted) revertWindow(asked, { quiet: true });
         const again = refreshStatus.textContent.startsWith("Could not refresh");
-        const base = `Could not refresh — showing data from ${clockText(lastLoadedAt || new Date())}${reverted ? `, ${AdminTools.windowPhrase(loadedDays())}. ${AdminTools.windowPhrase(asked === "all" ? null : Number(asked)).replace(/^the/, "The")} could not be loaded` : ""}.`;
+        const clock = clockText(lastLoadedAt || new Date());
+        const base = reverted
+          ? `Could not refresh. Could not load ${AdminTools.windowPhrase(asked === "all" ? null : Number(asked))}; still showing ${AdminTools.windowPhrase(loadedDays())} (data from ${clock}).`
+          : `Could not refresh — showing data from ${clock}.`;
         setRefreshNote(again ? `${base} Tried again at ${clockText(new Date())}.` : base, again);
       }
     } finally {

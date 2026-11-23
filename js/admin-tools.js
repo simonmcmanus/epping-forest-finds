@@ -131,13 +131,18 @@
     return WINDOW_OPTIONS.some((o) => o.value === text) ? text : DEFAULT_WINDOW;
   }
 
-  // "the last 7 days", "the last 24 hours", "all loaded history"
+  // "the last 7 days", "the last 24 hours", "all history"
   function windowPhrase(days) {
-    if (!Number.isFinite(days)) return "all loaded history";
+    if (!Number.isFinite(days)) return "all history";
     return days === 1 ? "the last 24 hours" : `the last ${days} days`;
   }
 
   // Short form for the Stats card: "24 hours", "30 days".
+  // Capitalise the first letter, for a phrase that starts a sentence ("The last 90 days …", "All history …").
+  function capitalise(text) {
+    return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+  }
+
   function windowShort(days) {
     if (!Number.isFinite(days)) return "All history";
     return days === 1 ? "24 hours" : `${days} days`;
@@ -158,7 +163,7 @@
     return (events || []).filter((e) => e && e.beta === true);
   }
 
-  const api = { splitWalks, pinchViewport, pointSegmentDistance, nearestTrackAt, summariseTrack, formatDuration, formatDistance, WINDOW_OPTIONS, DEFAULT_WINDOW, normaliseWindow, windowPhrase, windowShort, windowAttempts, onlyBeta };
+  const api = { capitalise, splitWalks, pinchViewport, pointSegmentDistance, nearestTrackAt, summariseTrack, formatDuration, formatDistance, WINDOW_OPTIONS, DEFAULT_WINDOW, normaliseWindow, windowPhrase, windowShort, windowAttempts, onlyBeta };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.AdminTools = api;
 })(typeof window !== "undefined" ? window : globalThis);

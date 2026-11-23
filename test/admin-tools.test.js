@@ -112,7 +112,9 @@ test("a window that cannot load falls back to 7 then 1 days, never to a longer o
 test("window wording reads naturally for 24 hours, days and all history", () => {
   assert.equal(T.windowPhrase(1), "the last 24 hours");
   assert.equal(T.windowPhrase(30), "the last 30 days");
-  assert.equal(T.windowPhrase(null), "all loaded history");
+  assert.equal(T.windowPhrase(null), "all history");
+  assert.equal(T.capitalise(T.windowPhrase(null)), "All history");
+  assert.equal(T.capitalise(T.windowPhrase(90)), "The last 90 days");
   assert.equal(T.windowShort(1), "24 hours");
   assert.equal(T.windowShort(null), "All history");
 });

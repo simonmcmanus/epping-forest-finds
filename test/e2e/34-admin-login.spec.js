@@ -1034,7 +1034,7 @@ test.describe("Admin login", () => {
     let fail = true;
     await page.route(/\/api\/community\/overlay\?admin=1/, (route) => (fail ? route.fulfill({ status: 500, body: "x" }) : route.fulfill(json(COMMUNITY_STATS))));
     await page.click("#communityBtn");
-    await expect(page.locator("#adminCommunityStatus")).toHaveText("Could not load community stats (500).");
+    await expect(page.locator("#adminCommunityStatus")).toHaveText("Could not load community stats.");
     await expect(page.locator("#adminCommunityBody")).toHaveText("");
     await expect(page.locator("#adminCommunityBody .nav-card")).toHaveCount(0);
     const retry = page.locator("#adminCommunity").getByRole("button", { name: "Retry" });
