@@ -203,15 +203,21 @@ async function rateLimited(adapter, event) {
 // Is this request from a signed-in beta member? Only a valid ff_session cookie is looked at (anonymous and
 // cross-origin native requests carry none, so they cost nothing and are never beta). Any failure reads as
 // "not beta": the check must never fail or hold up a POST.
+const BETA_CHECK_TIMEOUT_MS = 1000;
 async function betaRequest(event) {
+  let timer;
   try {
     const session = auth.sessionFrom(event);
     if (!session || !session.sub) return false;
     const store = require("./lib/feature-gate").storeFor(event);
-    return (await require("./lib/beta-access").betaMember(store, session)) === true;
+    // A stalled community store costs one lost tag, not the POST: past the bound the request reads as "not beta".
+    const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(false), BETA_CHECK_TIMEOUT_MS); });
+    return (await Promise.race([require("./lib/beta-access").betaMember(store, session), timeout])) === true;
   } catch (error) {
     warnTrack("beta-check-failed", errorDetails(error));
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

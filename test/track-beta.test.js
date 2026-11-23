@@ -37,7 +37,7 @@ function trackingStore() {
   };
 }
 
-function communityStore(initial = {}, { failReads = false } = {}) {
+function communityStore(initial = {}, { failReads = false, hang = false } = {}) {
   const data = new Map(Object.entries(initial));
   const store = {
     reads: 0,
@@ -45,6 +45,7 @@ function communityStore(initial = {}, { failReads = false } = {}) {
     async getStrict(key) {
       store.reads += 1;
       if (failReads) throw new Error("store down");
+      if (hang) await new Promise(() => {}); // a stalled store: never answers
       return store.get(key);
     },
     async put(key, value) { data.set(key, JSON.parse(JSON.stringify(value))); },
@@ -140,6 +141,19 @@ test("a beta member's request still stores its events when the beta check cannot
     const res = await post([loc("dev2")], "auth0|a");
     assert.equal(res.statusCode, 200);
     assert.equal(JSON.parse(res.body).stored, 1);
+    const read = await adminRead();
+    assert.equal(read.locations.length, 1);
+    assert.deepEqual(betaUids(read.locations), []);
+  });
+});
+
+test("a stalled community store costs the beta tag, not the POST: the events are stored untagged within about a second", async () => {
+  await withStores(communityStore(betaCommunity("auth0|a"), { hang: true }), async () => {
+    const started = Date.now();
+    const res = await post([loc("slow")], "auth0|a");
+    assert.equal(res.statusCode, 200);
+    assert.equal(JSON.parse(res.body).stored, 1);
+    assert.ok(Date.now() - started < 3000, `the POST waited ${Date.now() - started} ms`);
     const read = await adminRead();
     assert.equal(read.locations.length, 1);
     assert.deepEqual(betaUids(read.locations), []);
