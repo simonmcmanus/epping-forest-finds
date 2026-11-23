@@ -27,6 +27,8 @@ const BASE_MAP_OPACITY = 0.42;
 const MIN_MAP_ZOOM = 0.85;
 const MAX_MAP_ZOOM = 14;
 const MAP_ZOOM_STEP = 1.35;
+const TRACK_TOLERANCE_TOUCH = 12; // css px: how near a tap must land to a route line to pick it
+const TRACK_TOLERANCE_MOUSE = 8;
 
 // Colour palette for distinguishing users (cycles)
 const USER_COLOURS = [
@@ -198,9 +200,17 @@ function shortUid(uid) {
 
 // ---- State ----
 
-let allData = { locations: [], clicks: [], navigation: [] };
+// rawData is what the server returned; allData is what the dashboard shows (rawData, or only beta members' events when the beta filter is on).
+let rawData = { locations: [], clicks: [], navigation: [] };
+let allData = rawData;
 let lastMeta = null;
 let selectedUid = null; // null = show all users
+let selectedTrackUid = null; // the user whose track sheet is open (start and stop markers show for it and for selectedUid)
+let trackSheetFromList = false; // opened with the Track details button in the Users list, so closing returns focus there
+// Time frame (`days` query value: 1, 7, 30, 90 or all) and beta filter, both kept in the page address (?days=7&beta=1).
+let requestedWindow = "30"; // set from the address when the dashboard boots
+let loadedWindow = null; // the window the data on screen actually covers (a 5xx can fall back to a shorter one)
+let betaOnly = false; // set from the address when the dashboard boots
 let selectedClickKey = null;
 let viewMode = "tracks"; // "tracks" | "heatmap" (the last map view; the Navigation page is a separate page-level view, not a map mode)
 const PAGE_VIEWS = ["navigation", "stats", "community", "beta"];
@@ -380,6 +390,7 @@ function render() {
     drawTracks(ctx, w, h);
   }
   drawCurrentPositions(ctx, w, h);
+  if (viewMode !== "heatmap") drawTrackEnds(ctx, w, h); // over the last-position dot, which would hide the stop marker
   drawClickMarkers(ctx, w, h);
 }
 
@@ -712,48 +723,90 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
     zoomMapBy(event.deltaY < 0 ? MAP_ZOOM_STEP : 1 / MAP_ZOOM_STEP, point);
   }, { passive: false });
 
-  canvas.addEventListener("pointerdown", (event) => {
-    if (event.button != null && event.button !== 0) return;
-    event.preventDefault();
+  // Every pointer on the canvas (a mouse, or up to two fingers). One pointer drags; two pinch (zoom about their midpoint and pan with it).
+  const pointers = new Map(); // pointerId -> { x, y } in client pixels
+  let pinch = null; // { zoom, panX, panY, mid, dist } at the start of the pinch
+
+  function pinchNow() {
+    const [a, b] = [...pointers.values()];
+    const rect = canvas.getBoundingClientRect();
+    return { mid: { x: (a.x + b.x) / 2 - rect.left, y: (a.y + b.y) / 2 - rect.top }, dist: Math.hypot(a.x - b.x, a.y - b.y) };
+  }
+
+  function beginDrag(id, point) {
     adminViewport.dragging = true;
-    adminViewport.dragMoved = false;
-    adminViewport.pointerId = event.pointerId;
-    adminViewport.startX = event.clientX;
-    adminViewport.startY = event.clientY;
+    adminViewport.pointerId = id;
+    adminViewport.startX = point.x;
+    adminViewport.startY = point.y;
     adminViewport.startPanX = adminViewport.panX;
     adminViewport.startPanY = adminViewport.panY;
     canvas.classList.add("dragging");
-    if (canvas.setPointerCapture) canvas.setPointerCapture(event.pointerId);
+  }
+
+  function endGesture() {
+    adminViewport.dragging = false;
+    adminViewport.pointerId = null;
+    pinch = null;
+    canvas.classList.remove("dragging");
+  }
+
+  canvas.addEventListener("pointerdown", (event) => {
+    if (event.button != null && event.button !== 0) return;
+    if (pointers.size >= 2 || pointers.has(event.pointerId)) return;
+    event.preventDefault();
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    try { canvas.setPointerCapture(event.pointerId); } catch {}
+    if (pointers.size === 1) {
+      adminViewport.dragMoved = false;
+      beginDrag(event.pointerId, { x: event.clientX, y: event.clientY });
+      return;
+    }
+    // Second finger: the drag turns into a pinch. It never counts as a tap.
+    adminViewport.dragMoved = true;
+    adminViewport.dragging = false;
+    const now = pinchNow();
+    pinch = { zoom: adminViewport.zoom, panX: adminViewport.panX, panY: adminViewport.panY, mid: now.mid, dist: now.dist };
+    canvas.classList.add("dragging");
   });
 
   canvas.addEventListener("pointermove", (event) => {
+    const known = pointers.get(event.pointerId);
+    if (!known) return;
+    known.x = event.clientX;
+    known.y = event.clientY;
+    if (pinch && pointers.size === 2) {
+      const size = canvasCssSize(canvas);
+      const next = AdminTools.pinchViewport(pinch, pinchNow(), size, { min: MIN_MAP_ZOOM, max: MAX_MAP_ZOOM });
+      adminViewport.zoom = next.zoom;
+      adminViewport.panX = next.panX;
+      adminViewport.panY = next.panY;
+      invalidateMapFit();
+      render();
+      return;
+    }
     if (!adminViewport.dragging || event.pointerId !== adminViewport.pointerId) return;
-    const deltaX = event.clientX - adminViewport.startX;
-    const deltaY = event.clientY - adminViewport.startY;
-    if (Math.hypot(deltaX, deltaY) > 4) adminViewport.dragMoved = true;
+    if (Math.hypot(event.clientX - adminViewport.startX, event.clientY - adminViewport.startY) > 4) adminViewport.dragMoved = true;
     adminViewport.panX = adminViewport.startPanX + (event.clientX - adminViewport.startX);
     adminViewport.panY = adminViewport.startPanY + (event.clientY - adminViewport.startY);
     invalidateMapFit();
     render();
   });
 
-  function endDrag(event) {
-    if (!adminViewport.dragging || event.pointerId !== adminViewport.pointerId) return;
-    adminViewport.dragging = false;
-    adminViewport.pointerId = null;
-    canvas.classList.remove("dragging");
-    if (canvas.releasePointerCapture) canvas.releasePointerCapture(event.pointerId);
+  // A finger lifted (or cancelled): lifting one of two continues as a pan from where the other finger is now, so the map does not jump.
+  function releasePointer(event) {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.delete(event.pointerId);
+    try { if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId); } catch {}
     saveViewport();
+    if (pointers.size === 0) { endGesture(); return; }
+    const [[id, point]] = [...pointers.entries()];
+    pinch = null;
+    beginDrag(id, point);
   }
 
-  canvas.addEventListener("pointerup", endDrag);
-  canvas.addEventListener("pointercancel", endDrag);
-  canvas.addEventListener("lostpointercapture", () => {
-    if (adminViewport.dragging) saveViewport();
-    adminViewport.dragging = false;
-    adminViewport.pointerId = null;
-    canvas.classList.remove("dragging");
-  });
+  canvas.addEventListener("pointerup", releasePointer);
+  canvas.addEventListener("pointercancel", releasePointer);
+  canvas.addEventListener("lostpointercapture", releasePointer);
 
   canvas.addEventListener("click", (event) => {
     if (adminViewport.dragMoved) {
@@ -762,12 +815,20 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
     }
     const point = eventCanvasPoint(canvas, event);
     const click = findClickMarkerAt(canvas, point.x, point.y);
-    if (!click) return;
-    selectedClickKey = clickTargetKey(click);
-    renderClickDetails(selectedClickKey);
-    render();
-    const detailsClose = document.getElementById("adminClickDetailsClose");
-    if (!document.getElementById("adminClickDetails")?.hidden) detailsClose?.focus();
+    if (click) {
+      // Tap markers win over a route line underneath them.
+      closeTrackDetails();
+      selectedClickKey = clickTargetKey(click);
+      renderClickDetails(selectedClickKey);
+      render();
+      const detailsClose = document.getElementById("adminClickDetailsClose");
+      if (!document.getElementById("adminClickDetails")?.hidden) detailsClose?.focus();
+      return;
+    }
+    if (viewMode !== "tracks" || activePage) return;
+    const touch = event.pointerType === "touch" || event.pointerType === "pen";
+    const hit = findTrackAt(canvas, point.x, point.y, touch ? TRACK_TOLERANCE_TOUCH : TRACK_TOLERANCE_MOUSE);
+    if (hit) openTrackDetails(hit.uid, false);
   });
 }
 
@@ -976,6 +1037,51 @@ function findClickMarkerAt(canvas, x, y) {
   return best;
 }
 
+// One user's pings as drawn (current time frame, beta filter and user filter), oldest first.
+function trackEventsFor(uid) {
+  return filteredLocations()
+    .filter((e) => e.uid === uid && e.lat != null && e.lng != null)
+    .sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
+}
+
+function findTrackAt(canvas, x, y, tolerance) {
+  const { width, height } = canvasCssSize(canvas);
+  if (!width || !height) return null;
+  const byUser = new Map();
+  for (const e of filteredLocations()) {
+    if (e.lat == null || e.lng == null) continue;
+    if (!byUser.has(e.uid)) byUser.set(e.uid, []);
+    byUser.get(e.uid).push(e);
+  }
+  const tracks = [];
+  for (const [uid, events] of byUser) {
+    events.sort((a, b) => (a.ts < b.ts ? -1 : 1));
+    tracks.push({ uid, points: events.map((e) => latLngToCanvas(e.lat, e.lng, width, height)) });
+  }
+  return AdminTools.nearestTrackAt(tracks, x, y, tolerance);
+}
+
+// The nearest named road or path within 80 m of a point, from the base map layers ("" when none is that close or the layers are not loaded).
+function placeNameAt(lat, lng) {
+  const p = projectLonLat(lng, lat);
+  const reach = 80 / (111320 * Math.cos(lat * Math.PI / 180)); // metres to map units (degrees)
+  let best = "";
+  let bestDistance = reach;
+  for (const features of [adminMap.roads, adminMap.paths]) {
+    for (const f of features || []) {
+      const box = f.bbox;
+      if (!f.name || !box || p.x < box.minX - reach || p.x > box.maxX + reach || p.y < box.minY - reach || p.y > box.maxY + reach) continue;
+      for (const segment of f.segments) {
+        for (let i = 0; i + 1 < segment.length; i += 1) {
+          const d = AdminTools.pointSegmentDistance(p.x, p.y, segment[i].x, segment[i].y, segment[i + 1].x, segment[i + 1].y);
+          if (d < bestDistance) { bestDistance = d; best = f.name; }
+        }
+      }
+    }
+  }
+  return best;
+}
+
 function drawTracks(ctx, w, h) {
   const locs = filteredLocations();
   if (!locs.length) return;
@@ -1089,6 +1195,33 @@ function drawClickMarkers(ctx, w, h) {
   ctx.restore();
 }
 
+// Start (green circle) and stop (red square) of the selected user's track and of the track whose sheet is open. Different shapes, so colour is not the only cue.
+function drawTrackEnds(ctx, w, h) {
+  const uids = new Set([selectedUid, selectedTrackUid].filter(Boolean));
+  for (const uid of uids) {
+    const summary = AdminTools.summariseTrack(trackEventsFor(uid));
+    if (!summary) continue;
+    const start = latLngToCanvas(summary.start.lat, summary.start.lng, w, h);
+    const stop = latLngToCanvas(summary.stop.lat, summary.stop.lng, w, h);
+    ctx.save();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = "#ffffff";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
+    ctx.shadowBlur = 4;
+    ctx.fillStyle = "#e5383b";
+    ctx.beginPath();
+    ctx.rect(stop.x - 7, stop.y - 7, 14, 14);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#1fa855";
+    ctx.beginPath();
+    ctx.arc(start.x, start.y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 function drawCurrentPositions(ctx, w, h) {
   // Show last known position for each user (or selected user)
   const byUser = new Map();
@@ -1153,6 +1286,7 @@ function buildUserList({ reveal = false } = {}) {
     div.title = `Last seen: ${lastSeen}`;
     div.addEventListener("click", () => {
       selectedUid = selectedUid === uid ? null : uid;
+      closeTrackDetails();
       buildUserList({ reveal: true });
       render();
     });
@@ -1172,10 +1306,25 @@ function buildUserList({ reveal = false } = {}) {
   allRow.className = "admin-user-item" + (!selectedUid ? " selected" : "");
   allRow.dataset.uid = "";
   allRow.setAttribute("aria-pressed", !selectedUid ? "true" : "false");
-  allRow.innerHTML = `<span class="admin-user-dot" style="background:#aaa"></span><span class="admin-user-label">All users</span><span class="admin-user-meta">${users.length} user${users.length === 1 ? "" : "s"}</span>`;
-  allRow.addEventListener("click", () => { selectedUid = null; buildUserList({ reveal: true }); render(); });
+  allRow.innerHTML = `<span class="admin-user-dot" style="background:#aaa"></span><span class="admin-user-label">${betaOnly ? "All beta users" : "All users"}</span><span class="admin-user-meta">${users.length} user${users.length === 1 ? "" : "s"}</span>`;
+  allRow.addEventListener("click", () => { selectedUid = null; closeTrackDetails(); buildUserList({ reveal: true }); render(); });
   list.appendChild(allRow);
-  items.forEach((el) => list.appendChild(el));
+  items.forEach((el) => {
+    list.appendChild(el);
+    // Keyboard and screen-reader route to the track sheet (a canvas hit is not reachable that way): beside the chosen user, on the Tracks view.
+    if (selectedUid && el.dataset.uid === selectedUid && viewMode === "tracks" && !activePage && AdminTools.summariseTrack(trackEventsFor(selectedUid))) {
+      const open = document.createElement("button");
+      open.type = "button";
+      open.className = "admin-track-btn";
+      open.dataset.uid = `track:${selectedUid}`;
+      open.textContent = "Track details";
+      open.setAttribute("aria-label", `Track details for ${shortUid(selectedUid)}`);
+      open.setAttribute("aria-controls", "adminTrackDetails");
+      open.setAttribute("aria-expanded", document.getElementById("adminTrackDetails")?.hidden === false && selectedTrackUid === selectedUid ? "true" : "false");
+      open.addEventListener("click", () => openTrackDetails(selectedUid, true));
+      list.appendChild(open);
+    }
+  });
   list.scrollLeft = scrollLeft;
   list.scrollTop = scrollTop;
   if (focusedUid !== null) {
@@ -1298,9 +1447,100 @@ function renderClickDetails(key) {
   panel.hidden = false;
 }
 
-// The tap details are the one overlay left, over the map. Closing it hands focus back to the map when focus was inside.
+// The tap details and the track details are the only overlays, over the map (one at a time). Closing one hands focus back when focus was inside.
 function closeClickDetails() {
   if (selectedClickKey || !document.getElementById("adminClickDetails")?.hidden) hideClickDetails();
+  closeTrackDetails();
+}
+
+// ---- Track details sheet (start and stop of one user's route) ----
+
+function syncTrackButton() {
+  const open = document.getElementById("adminTrackDetails")?.hidden === false;
+  for (const btn of document.querySelectorAll(".admin-track-btn")) btn.setAttribute("aria-expanded", open && btn.dataset.uid === `track:${selectedTrackUid}` ? "true" : "false");
+}
+
+function trackPlaceHtml(point) {
+  const name = placeNameAt(point.lat, point.lng);
+  const coords = `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+  return `${name ? `${escapeHtml(name)} <span class="admin-click-muted">(${coords})</span>` : coords}`;
+}
+
+// Fills the sheet for selectedTrackUid. False when that user has no pings in the current view (the sheet is then closed).
+function renderTrackDetails() {
+  const body = document.getElementById("adminTrackDetailsBody");
+  const summary = selectedTrackUid ? AdminTools.summariseTrack(trackEventsFor(selectedTrackUid)) : null;
+  if (!body || !summary) return false;
+  const when = (t) => escapeHtml(formatEventTime(new Date(t).toISOString()));
+  body.innerHTML = `
+    <h2 class="admin-click-title">Track details</h2>
+    <p class="admin-click-subtitle"><span class="admin-user-dot" style="background:${userColour(selectedTrackUid)}"></span> User ${escapeHtml(shortUid(selectedTrackUid))}</p>
+    <div class="admin-click-summary">
+      <div class="admin-click-summary-item">
+        <span class="admin-click-summary-value">${escapeHtml(AdminTools.formatDuration(summary.durationMs))}</span>
+        <span class="admin-click-summary-label">duration</span>
+      </div>
+      <div class="admin-click-summary-item">
+        <span class="admin-click-summary-value">${summary.count}</span>
+        <span class="admin-click-summary-label">ping${summary.count !== 1 ? "s" : ""}</span>
+      </div>
+      <div class="admin-click-summary-item">
+        <span class="admin-click-summary-value">${escapeHtml(AdminTools.formatDistance(summary.distanceM))}</span>
+        <span class="admin-click-summary-label">walked</span>
+      </div>
+    </div>
+    <dl class="admin-click-meta">
+      <div class="admin-click-meta-row">
+        <dt class="admin-click-meta-label"><span class="admin-track-key admin-track-key-start" aria-hidden="true"></span>Start</dt>
+        <dd class="admin-click-meta-value">${when(summary.start.t)}<br>${trackPlaceHtml(summary.start)}</dd>
+      </div>
+      <div class="admin-click-meta-row">
+        <dt class="admin-click-meta-label"><span class="admin-track-key admin-track-key-stop" aria-hidden="true"></span>Stop</dt>
+        <dd class="admin-click-meta-value">${when(summary.stop.t)}<br>${trackPlaceHtml(summary.stop)}</dd>
+      </div>
+    </dl>
+    <p class="admin-click-muted">Distance adds up straight lines between pings, skipping gaps of more than 3 minutes. On the map the start is the green circle and the stop the red square.</p>
+  `;
+  return true;
+}
+
+function openTrackDetails(uid, fromList) {
+  if (!AdminTools.summariseTrack(trackEventsFor(uid))) return;
+  // One overlay at a time: the tap details give way (focus is not inside them, the pointer or list is where the user is).
+  selectedClickKey = null;
+  const tap = document.getElementById("adminClickDetails");
+  if (tap) tap.hidden = true;
+  selectedTrackUid = uid;
+  trackSheetFromList = !!fromList;
+  renderTrackDetails();
+  const panel = document.getElementById("adminTrackDetails");
+  if (panel) panel.hidden = false;
+  syncTrackButton();
+  render();
+  document.getElementById("adminTrackDetailsClose")?.focus();
+}
+
+function closeTrackDetails() {
+  const panel = document.getElementById("adminTrackDetails");
+  if (!selectedTrackUid && (!panel || panel.hidden)) return;
+  const uid = selectedTrackUid;
+  const hadFocus = !!panel && panel.contains(document.activeElement);
+  const fromList = trackSheetFromList;
+  selectedTrackUid = null;
+  trackSheetFromList = false;
+  if (panel) panel.hidden = true;
+  if (hadFocus) {
+    const opener = fromList ? document.querySelector(`#adminUserList [data-uid="track:${CSS.escape(uid || "")}"]`) : null;
+    (opener || document.getElementById("adminCanvas"))?.focus();
+  }
+  syncTrackButton();
+  render();
+}
+
+// After a refresh or a filter change: redraw the open sheet from the current data, or close it when its user is gone.
+function refreshTrackDetails() {
+  if (!selectedTrackUid) return;
+  if (!renderTrackDetails()) closeTrackDetails();
 }
 
 // ---- Data loading ----
@@ -1341,7 +1581,9 @@ function unpackTrackingEvents(packed) {
   if (Array.isArray(packed)) return packed;
   if (!packed || !Array.isArray(packed.rows)) return [];
   const fields = PACKED_FIELDS[packed.type] || [];
-  return packed.rows.map((row) => {
+  // Rows the server marked as posted by a beta member (absent on old data and when no row is beta).
+  const beta = new Set(Array.isArray(packed.beta) ? packed.beta : []);
+  return packed.rows.map((row, index) => {
     const event = { type: packed.type, uid: packed.uids[row[0]], ts: new Date(row[1]).toISOString() };
     fields.forEach((field, i) => { event[field] = row[i + 2]; });
     // A navigation row ends with its kind (start, arrive or end); it becomes navigation_<kind>.
@@ -1350,23 +1592,22 @@ function unpackTrackingEvents(packed) {
       const target = row[fields.length + 2];
       event.navTarget = target >= 0 ? packed.targets[target] : null;
     }
+    if (beta.has(index)) event.beta = true;
     return event;
   });
 }
 
-// When a window still has too much for one response the function can fail with a 5xx. Fall back to shorter windows (7 days, then 1) so the dashboard still opens, and
-// say which window it ended up with (the stats bar shows it).
-const ADMIN_WINDOW_FALLBACKS = [null, 7, 1];
-
+// When a window still has too much for one response the function can fail with a 5xx. Fall back to shorter windows (7 days, then 1; see
+// AdminTools.windowAttempts) so the dashboard still opens, and say which window it ended up with (data.loadedWindow; the time frame control shows it).
 const HTTP_STATUS_NAMES = { 400: "Bad Request", 403: "Forbidden", 404: "Not Found", 500: "Internal Server Error", 502: "Bad Gateway", 503: "Service Unavailable", 504: "Gateway Timeout" };
 
-async function loadData() {
+async function loadData(requested = requestedWindow) {
   let resp;
-  let url;
-  for (const days of ADMIN_WINDOW_FALLBACKS) {
-    url = days ? `/api/admin/tracks?days=${days}` : "/api/admin/tracks";
+  let loaded = null;
+  for (const days of AdminTools.windowAttempts(requested)) {
+    loaded = days;
     try {
-      resp = await adminFetch(url);
+      resp = await adminFetch(`/api/admin/tracks?days=${days}`);
     } catch (cause) {
       const failure = new Error("network");
       failure.network = true;
@@ -1387,9 +1628,39 @@ async function loadData() {
   data.locations = unpackTrackingEvents(data.locations);
   data.clicks = unpackTrackingEvents(data.clicks);
   data.navigation = unpackTrackingEvents(data.navigation);
-  updateEnvBadge(data.meta);
-  lastMeta = data.meta;
+  data.loadedWindow = loaded;
   return data;
+}
+
+// Keep the loaded data and what it says about itself, then derive what is shown (the beta filter). Called only for the newest load, so a late answer never lands here.
+function setLoadedData(data) {
+  rawData = data;
+  loadedWindow = data.loadedWindow || loadedWindow;
+  lastMeta = data.meta || null;
+  updateEnvBadge(data.meta);
+  applyDataFilter();
+}
+
+function userHasData(uid) {
+  return allData.locations.some((e) => e.uid === uid) || allData.clicks.some((e) => e.uid === uid) || (allData.navigation || []).some((e) => e.uid === uid);
+}
+
+function applyDataFilter() {
+  allData = betaOnly
+    ? { ...rawData, locations: AdminTools.onlyBeta(rawData.locations), clicks: AdminTools.onlyBeta(rawData.clicks), navigation: AdminTools.onlyBeta(rawData.navigation) }
+    : rawData;
+  // A selected user the filter or the new window hides would leave an empty map with no way to see why: clear the selection.
+  if (selectedUid && !userHasData(selectedUid)) selectedUid = null;
+}
+
+// The days the data on screen covers, or null for all history.
+function loadedDays() {
+  if (loadedWindow) return loadedWindow === "all" ? null : Number(loadedWindow);
+  return Number.isFinite(lastMeta?.windowDays) ? lastMeta.windowDays : null;
+}
+
+function audienceText() {
+  return selectedUid ? `user ${shortUid(selectedUid)}` : betaOnly ? "beta users" : "all users";
 }
 
 // Community verification usage (netlify/functions/community-overlay.js ?admin=1).
@@ -1647,8 +1918,8 @@ function refreshNavigationView() {
   if (!el || !body || el.hidden) return;
   body.innerHTML = navigationViewHtml();
   const sub = document.getElementById("adminNavigationSub");
-  const windowText = Number.isFinite(lastMeta?.windowDays) ? `the last ${lastMeta.windowDays} days` : "all loaded history";
-  if (sub) sub.textContent = `Navigation journeys over ${windowText}, for ${selectedUid ? `user ${shortUid(selectedUid)}` : "all users"}.${selectedUid ? "" : " Choose a user in the Users list to filter these figures."}`;
+  const windowText = AdminTools.windowPhrase(loadedDays());
+  if (sub) sub.textContent = `Navigation journeys over ${windowText}, for ${audienceText()}.${selectedUid ? "" : " Choose a user in the Users list to filter these figures."}`;
 }
 
 // ---- Stats page (summary cards and daily trends) ----
@@ -1686,13 +1957,13 @@ function statsViewHtml() {
   const locs = filteredLocations();
   const clicks = filteredClicks();
   const uids = new Set([...locs, ...clicks].map((e) => e.uid));
-  const windowDays = Number.isFinite(lastMeta?.windowDays) ? lastMeta.windowDays : null;
+  const windowDays = loadedDays();
   const card = (label, value, title) => `<li class="nav-card"${title ? ` title="${escapeHtml(title)}"` : ""}><span class="nav-card-value">${escapeHtml(String(value))}</span><span class="nav-card-label">${escapeHtml(label)}</span></li>`;
   const cards = [
     card("Users", uids.size),
     card("Location pings", locs.length),
     card("Taps", clicks.length),
-    card("Time window", windowDays ? `${windowDays} days` : "All history", windowDays ? `Last ${windowDays} days` : "All loaded history"),
+    card("Time window", AdminTools.windowShort(windowDays), windowDays ? `Last ${AdminTools.windowShort(windowDays)}` : "All loaded history"),
   ].join("");
   const partial = lastMeta?.partial
     ? `<p class="nav-note">Partial: too much data for one read, newest shown${lastMeta.oldestDay ? ` (back to ${escapeHtml(lastMeta.oldestDay)}${lastMeta.oldestDayIncomplete ? ", that day only in part" : ""})` : ""}.</p>`
@@ -1722,8 +1993,8 @@ function refreshStatsView() {
   if (!el || !body || el.hidden) return;
   body.innerHTML = statsViewHtml();
   const sub = document.getElementById("adminStatsSub");
-  const windowText = Number.isFinite(lastMeta?.windowDays) ? `the last ${lastMeta.windowDays} days` : "all loaded history";
-  if (sub) sub.textContent = `Users, location pings and taps over ${windowText}, for ${selectedUid ? `user ${shortUid(selectedUid)}` : "all users"}.${selectedUid ? "" : " Choose a user in the Users list to filter these figures."}`;
+  const windowText = AdminTools.windowPhrase(loadedDays());
+  if (sub) sub.textContent = `Users, location pings and taps over ${windowText}, for ${audienceText()}.${selectedUid ? "" : " Choose a user in the Users list to filter these figures."}`;
 }
 
 // ---- Boot ----
@@ -1744,8 +2015,17 @@ async function adminBoot() {
   const clickDetailsClose = document.getElementById("adminClickDetailsClose");
   const communityBody = document.getElementById("adminCommunityBody");
   const communityStatus = document.getElementById("adminCommunityStatus");
+  const toolbar = document.getElementById("adminToolbar");
+  const windowSelect = document.getElementById("adminWindowSelect");
+  const windowNote = document.getElementById("adminWindowNote");
+  const filterNote = document.getElementById("adminFilterNote");
+  const audienceBtns = { all: document.getElementById("adminAudienceAll"), beta: document.getElementById("adminAudienceBeta") };
+  const trackDetailsClose = document.getElementById("adminTrackDetailsClose");
 
   let signedIn = false;
+  const initialQuery = new URLSearchParams(location.search);
+  requestedWindow = AdminTools.normaliseWindow(initialQuery.get("days"));
+  betaOnly = initialQuery.get("beta") === "1";
   clearLegacyStoredPassword();
   readSavedViewport();
   loadAdminBaseMap();
@@ -1794,14 +2074,112 @@ async function adminBoot() {
     else refreshBtn.removeAttribute("aria-busy");
   }
 
+  // ---- Time frame and beta filter (toolbar under the top bar) ----
+  windowSelect.replaceChildren(...AdminTools.WINDOW_OPTIONS.map((o) => {
+    const option = document.createElement("option");
+    option.value = o.value;
+    option.textContent = o.label;
+    return option;
+  }));
+  let loadSeq = 0; // newest load wins: a slower, older answer is dropped
+
+  function syncUrl() {
+    const query = new URLSearchParams(location.search);
+    if (requestedWindow === AdminTools.DEFAULT_WINDOW) query.delete("days"); else query.set("days", requestedWindow);
+    if (betaOnly) query.set("beta", "1"); else query.delete("beta");
+    const text = query.toString();
+    history.replaceState(null, "", `${location.pathname}${text ? `?${text}` : ""}${location.hash}`);
+  }
+
+  // The control shows the window actually loaded, which is shorter than the one asked for after a fallback.
+  function syncToolbar() {
+    windowSelect.value = loadedWindow && AdminTools.WINDOW_OPTIONS.some((o) => o.value === loadedWindow) ? loadedWindow : requestedWindow;
+    audienceBtns.all.setAttribute("aria-pressed", betaOnly ? "false" : "true");
+    audienceBtns.beta.setAttribute("aria-pressed", betaOnly ? "true" : "false");
+    audienceBtns.all.classList.toggle("active", !betaOnly);
+    audienceBtns.beta.classList.toggle("active", betaOnly);
+  }
+
+  function setToolbarBusy(busy) {
+    toolbar.setAttribute("aria-busy", busy ? "true" : "false");
+  }
+
+  // Beta users only, with nothing to show: say why (events are only marked from the release of beta tagging on).
+  function updateFilterNote() {
+    const empty = betaOnly && !allData.locations.length && !allData.clicks.length && !(allData.navigation || []).length;
+    filterNote.textContent = empty ? "No beta user activity in this window yet — only activity from after beta tagging was released is marked." : "";
+  }
+
+  // Redraw everything that depends on the data or the filters.
+  function renderAll() {
+    buildUserList();
+    refreshClickDetails();
+    refreshTrackDetails();
+    updateFilterNote();
+    syncToolbar();
+    render();
+  }
+
+  // One result of a load (first, Refresh, auto-refresh or a time frame change) landing on screen.
+  function applyLoaded(data, asked) {
+    setLoadedData(data);
+    lastLoadedAt = new Date();
+    setRefreshNote("");
+    windowNote.textContent = loadedWindow !== asked ? `Showing ${AdminTools.windowPhrase(loadedDays())}: ${AdminTools.windowPhrase(asked === "all" ? null : Number(asked))} was too much to load.` : "";
+    renderAll();
+  }
+
+  async function changeWindow(value) {
+    const asked = AdminTools.normaliseWindow(value);
+    const previous = requestedWindow;
+    requestedWindow = asked;
+    syncUrl();
+    const seq = ++loadSeq;
+    const sid = sessionId;
+    setToolbarBusy(true);
+    windowNote.textContent = `Loading ${AdminTools.windowPhrase(asked === "all" ? null : Number(asked))}…`;
+    try {
+      const data = await loadData(asked);
+      if (seq !== loadSeq || sid !== sessionId) return;
+      applyLoaded(data, asked);
+    } catch (err) {
+      if (seq !== loadSeq || sid !== sessionId) return;
+      if (err.message === "unauthorised") { forgetSession("Admin session expired. Sign in again."); return; }
+      // Keep the data (and the window it covers) on screen; the next Refresh uses the window that works.
+      requestedWindow = loadedWindow || previous;
+      syncUrl();
+      syncToolbar();
+      windowNote.textContent = `Could not load ${AdminTools.windowPhrase(asked === "all" ? null : Number(asked))}. Still showing ${AdminTools.windowPhrase(loadedDays())}.`;
+    } finally {
+      if (seq === loadSeq && sid === sessionId) setToolbarBusy(false);
+    }
+  }
+
+  function setAudience(onlyBeta) {
+    if (betaOnly === onlyBeta) return;
+    betaOnly = onlyBeta;
+    syncUrl();
+    closeTrackDetails();
+    applyDataFilter();
+    renderAll();
+  }
+
+  windowSelect.addEventListener("change", () => changeWindow(windowSelect.value));
+  audienceBtns.all.addEventListener("click", () => setAudience(false));
+  audienceBtns.beta.addEventListener("click", () => setAudience(true));
+
   function showAdminApp() {
     endChecking();
     loginScreen.hidden = true;
     adminApp.hidden = false;
     lastLoadedAt = new Date();
     setRefreshNote("");
+    windowNote.textContent = loadedWindow !== requestedWindow ? `Showing ${AdminTools.windowPhrase(loadedDays())}: ${AdminTools.windowPhrase(requestedWindow === "all" ? null : Number(requestedWindow))} was too much to load.` : "";
     buildUserList();
     refreshClickDetails();
+    refreshTrackDetails();
+    updateFilterNote();
+    syncToolbar();
     refreshScrollCues();
     applyView(hashView(), { focusHeading: PAGE_VIEWS.includes(hashView()) });
     requestAnimationFrame(render);
@@ -1820,9 +2198,16 @@ async function adminBoot() {
     setRefreshing(false); // an answer still on its way is ignored, so it can no longer re-enable the button
     communityAction = null;
     communityResultStash = "";
-    allData = { locations: [], clicks: [], navigation: [] };
+    rawData = { locations: [], clicks: [], navigation: [] };
+    allData = rawData;
+    loadedWindow = null;
+    loadSeq++;
+    setToolbarBusy(false);
+    windowNote.textContent = "";
+    filterNote.textContent = "";
     selectedUid = null;
     selectedClickKey = null;
+    selectedTrackUid = null;
     // Nothing from this session may reappear at the next sign-in: close the tap details, leave the pages and empty what they held.
     closeClickDetails();
     resetView();
@@ -1848,7 +2233,7 @@ async function adminBoot() {
       if (me.status === 401) { showLogin(signinMessage); return; }
       if (!me.ok) throw Object.assign(new Error(`Server error ${me.status}`), { status: me.status });
       const data = await loadData();
-      allData = data;
+      setLoadedData(data);
       signedIn = true;
       showAdminApp();
     } catch (err) {
@@ -1893,6 +2278,8 @@ async function adminBoot() {
       activePage = name;
       mapArea.hidden = true;
       sidebar.hidden = !PAGES[name].users;
+      toolbar.hidden = !PAGES[name].users;
+      if (PAGES[name].users) buildUserList(); // drops the Track details button, which belongs to the Tracks view
       setActiveView(name);
       if (name === "navigation") refreshNavigationView();
       else if (name === "stats") refreshStatsView();
@@ -1902,9 +2289,14 @@ async function adminBoot() {
     }
     activePage = null;
     viewMode = name;
+    mapArea.dataset.view = name;
     for (const page of Object.values(PAGES)) page.el.hidden = true;
     sidebar.hidden = false;
+    toolbar.hidden = false;
     mapArea.hidden = false;
+    // Start and stop markers and the track sheet are for the Tracks view only.
+    if (name === "heatmap") closeTrackDetails();
+    if (adminApp.hidden === false) buildUserList();
     setActiveView(name);
     if (lostFocus) (name === "heatmap" ? heatmapBtn : tracksBtn).focus();
     if (wasPage) invalidateMapFit();
@@ -2359,18 +2751,15 @@ async function adminBoot() {
   // A repeated failure adds the time of the latest attempt and is announced again.
   async function refreshData() {
     const sid = sessionId;
+    const seq = ++loadSeq;
+    const asked = requestedWindow; // Refresh and the auto-refresh keep the chosen time frame
     setRefreshing(true);
     try {
-      const data = await loadData();
-      if (sid !== sessionId) return;
-      allData = data;
-      lastLoadedAt = new Date();
-      setRefreshNote("");
-      buildUserList();
-      refreshClickDetails();
-      render();
+      const data = await loadData(asked);
+      if (sid !== sessionId || seq !== loadSeq) return; // signed out, or a newer load (a time frame change) took over
+      applyLoaded(data, asked);
     } catch (err) {
-      if (sid !== sessionId) return;
+      if (sid !== sessionId || seq !== loadSeq) return;
       if (err.message === "unauthorised") {
         forgetSession("Admin session expired. Sign in again.");
       } else {
@@ -2380,7 +2769,13 @@ async function adminBoot() {
       }
     } finally {
       // A late answer from a signed-out session must not touch the new session's button (forgetSession already reset it).
-      if (sid === sessionId) setRefreshing(false);
+      if (sid === sessionId) {
+        setRefreshing(false);
+        if (seq === loadSeq) {
+          setToolbarBusy(false);
+          if (windowNote.textContent.startsWith("Loading")) windowNote.textContent = "";
+        }
+      }
     }
   }
   refreshBtn.addEventListener("click", refreshData);
@@ -2398,6 +2793,7 @@ async function adminBoot() {
   if (clickDetailsClose) {
     clickDetailsClose.addEventListener("click", hideClickDetails);
   }
+  if (trackDetailsClose) trackDetailsClose.addEventListener("click", closeTrackDetails);
 
   // Escape closes the tap details (the only overlay left).
   document.addEventListener("keydown", (event) => {

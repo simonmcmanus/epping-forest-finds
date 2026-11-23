@@ -40,3 +40,19 @@ test("the admin dashboard unpacks packed navigation events into explicit journey
   assert.equal(journeys[0].walkedM, 1100);
   assert.equal(journeys[0].arrived, true);
 });
+
+test("unpacking marks beta events from the packed beta index and leaves old data without a beta key untouched", () => {
+  const clicks = [
+    { type: "click", uid: "u1", ts: new Date(T0).toISOString(), userLat: 51.65, userLng: 0.04, targetLat: 51.66, targetLng: 0.05, itemType: "tree", itemId: "T1", itemName: "Oak", source: "map" },
+    { type: "click", uid: "u2", ts: new Date(T0 + 60000).toISOString(), userLat: 51.65, userLng: 0.04, targetLat: 51.66, targetLng: 0.05, itemType: "tree", itemId: "T1", itemName: "Oak", source: "map" },
+  ];
+  const packed = JSON.parse(JSON.stringify(packEvents("click", clicks)));
+  const old = unpackTrackingEvents(packed);
+  assert.deepEqual(old.map((e) => e.beta), [undefined, undefined], "no beta key: nothing is marked");
+  packed.beta = [1];
+  const marked = unpackTrackingEvents(packed);
+  assert.deepEqual(marked.map((e) => e.beta === true), [false, true]);
+  assert.equal(marked[0].uid, "u1");
+  // A plain array (older server, fixture) passes through, including its own marks.
+  assert.deepEqual(unpackTrackingEvents([{ uid: "x", beta: true }]), [{ uid: "x", beta: true }]);
+});

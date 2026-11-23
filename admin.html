@@ -66,6 +66,19 @@
     <!-- Non-blocking notice when a refresh fails; collapsed (but still rendered) while empty so the first message is announced. -->
     <div id="adminRefreshStatus" class="admin-refresh-status" role="status"></div>
 
+    <!-- Time frame and beta filter: apply to the map, Users list, Navigation and Stats. Options are filled in by js/admin.js. -->
+    <div id="adminToolbar" class="admin-toolbar" role="group" aria-label="Data filters" aria-busy="false">
+      <label class="admin-toolbar-field" for="adminWindowSelect"><span>Time frame</span>
+        <select id="adminWindowSelect" class="admin-select"></select>
+      </label>
+      <div class="admin-segmented" role="group" aria-label="Users shown">
+        <button id="adminAudienceAll" class="admin-seg-btn active" type="button" aria-pressed="true">Everyone</button>
+        <button id="adminAudienceBeta" class="admin-seg-btn" type="button" aria-pressed="false">Beta users only</button>
+      </div>
+      <p id="adminWindowNote" class="admin-toolbar-note" role="status"></p>
+      <p id="adminFilterNote" class="admin-toolbar-note" role="status"></p>
+    </div>
+
     <div class="admin-body">
       <aside class="admin-sidebar">
         <div class="admin-sidebar-title">Users</div>
@@ -85,11 +98,18 @@
           <div><span class="admin-legend-dot" style="background:#4fc97e"></span>Location ping</div>
           <div><span class="admin-legend-dot" style="background:rgba(255,200,50,0.8)"></span>Tap / click</div>
           <div><span class="admin-legend-dot" style="background:rgba(47,111,78,0.4)"></span>Forest area</div>
+          <div class="admin-legend-track"><span class="admin-track-key admin-track-key-start" aria-hidden="true"></span>Track start</div>
+          <div class="admin-legend-track"><span class="admin-track-key admin-track-key-stop" aria-hidden="true"></span>Track stop</div>
         </div>
 
         <section id="adminClickDetails" class="admin-click-details" role="region" aria-label="Tap details" hidden>
           <button id="adminClickDetailsClose" class="admin-click-details-close" type="button" aria-label="Close tap details (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
           <div id="adminClickDetailsBody"></div>
+        </section>
+
+        <section id="adminTrackDetails" class="admin-click-details" role="region" aria-label="Track details" hidden>
+          <button id="adminTrackDetailsClose" class="admin-click-details-close" type="button" aria-label="Close track details (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
+          <div id="adminTrackDetailsBody"></div>
         </section>
       </div>
 
@@ -157,6 +177,7 @@
 
   <script src="js/shared.js"></script>
   <script src="js/navigation-metrics.js"></script>
+  <script src="js/admin-tools.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>

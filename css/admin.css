@@ -732,6 +732,84 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   font-size: var(--fs-xs);
 }
 
+/* --- Time frame and beta filter toolbar (under the top bar, above the map and pages) --- */
+
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-4);
+  padding: var(--sp-1) var(--sp-4);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-dark-soft);
+  color: var(--text-hi);
+  flex-shrink: 0;
+}
+.admin-toolbar[hidden] { display: none; }
+.admin-toolbar-field { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); font-weight: 600; color: var(--text-mid); }
+.admin-select {
+  min-height: 34px;
+  padding: 4px var(--sp-2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-dark);
+  background: var(--surface-raised);
+  color: var(--text-hi);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.admin-select option { color: var(--ink); background: var(--card); }
+.admin-select:focus-visible, .admin-seg-btn:focus-visible, .admin-track-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.admin-toolbar[aria-busy="true"] .admin-select { opacity: 0.7; cursor: progress; }
+.admin-segmented { display: inline-flex; border: 1px solid var(--border-dark); border-radius: var(--radius-md); overflow: hidden; }
+.admin-seg-btn {
+  min-height: 34px;
+  padding: 4px var(--sp-3);
+  border: 0;
+  background: var(--surface-raised);
+  color: var(--text-hi);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.admin-seg-btn + .admin-seg-btn { border-left: 1px solid var(--border-dark); }
+.admin-seg-btn:hover { background: var(--surface-raised-hover); }
+.admin-seg-btn.active, .admin-seg-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.admin-toolbar-note { flex: 1 0 100%; margin: 0; font-size: var(--fs-sm); font-weight: 600; color: var(--warn-text); overflow-wrap: anywhere; }
+.admin-toolbar-note:empty { display: none; }
+
+/* --- Track start and stop: a green circle and a red square (shape, not just colour) --- */
+
+.admin-track-key { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; border: 2px solid #fff; box-sizing: border-box; }
+.admin-track-key-start { border-radius: 50%; background: #1fa855; }
+.admin-track-key-stop { border-radius: 2px; background: #e5383b; }
+.admin-map-area[data-view="heatmap"] .admin-legend-track { display: none; }
+.admin-click-muted { color: var(--text-low); font-size: var(--fs-xs); font-weight: 500; }
+.admin-click-subtitle .admin-user-dot { vertical-align: -1px; }
+
+.admin-track-btn {
+  display: block;
+  width: 100%;
+  min-height: 34px;
+  margin: 0;
+  padding: 8px var(--sp-4);
+  border: 0;
+  border-bottom: 1px solid var(--border-dark-soft);
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-hi);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-track-btn:hover { background: var(--accent-soft-hover); }
+.admin-track-btn:active { background: var(--accent-soft-press); }
+.admin-track-btn[aria-expanded="true"] { background: var(--accent-soft-hover); }
+
 /* --- Below 1280px (laptops, tablets, landscape phones): two-row top bar (brand and utility actions, then the views and panels) so nothing overlaps --- */
 
 @media (max-width: 1279px) {
@@ -754,6 +832,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 /* Touch devices up to 1099px wide (tablets, landscape phones) get 44px tap targets in the top bar; fine-pointer desktops keep 34px. */
 @media (max-width: 1099px) and (pointer: coarse) {
   .admin-topbar .admin-btn { min-height: var(--tap); }
+  .admin-select, .admin-seg-btn, .admin-track-btn { min-height: var(--tap); }
 }
 
 @media (max-width: 720px) {
@@ -784,6 +863,9 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   .admin-nav .admin-btn:focus-visible { outline-offset: -3px; }
 
   .admin-btn { min-height: var(--tap); min-width: var(--tap); padding: 6px 8px; font-size: var(--fs-sm); }
+  .admin-toolbar { padding: 4px var(--sp-2); gap: 4px var(--sp-2); }
+  .admin-select, .admin-seg-btn, .admin-track-btn { min-height: var(--tap); }
+  .admin-track-btn { width: auto; flex-shrink: 0; border: 1px solid var(--accent); border-radius: 999px; padding: 6px 12px; }
   .admin-nav .admin-btn { font-size: var(--fs-xs); }
   .admin-tabs .admin-btn { padding: 6px 5px; }
   .admin-panel-btns .admin-btn { padding: 6px 5px; }

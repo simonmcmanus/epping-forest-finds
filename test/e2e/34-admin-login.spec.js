@@ -221,12 +221,13 @@ test.describe("Admin login", () => {
     await page.route(/\/api\/admin\/tracks/, (route) => {
       const url = new URL(route.request().url());
       asked.push(url.searchParams.get("days"));
-      if (!url.searchParams.get("days")) return route.fulfill({ status: 502, contentType: "text/plain", body: "Bad Gateway" });
+      if (url.searchParams.get("days") === "30") return route.fulfill({ status: 502, contentType: "text/plain", body: "Bad Gateway" });
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...TRACKS, meta: { ...TRACKS.meta, windowDays: Number(url.searchParams.get("days")) } }) });
     });
     await page.goto("/admin#stats");
     await expect(page.locator("#adminStatsPage .nav-card", { hasText: "Time window" })).toContainText("7 days");
-    expect(asked).toEqual([null, "7"]);
+    expect(asked).toEqual(["30", "7"]);
+    await expect(page.getByLabel("Time frame")).toHaveValue("7");
   });
 
   test("says what the server answered when every window fails", async ({ page }) => {
