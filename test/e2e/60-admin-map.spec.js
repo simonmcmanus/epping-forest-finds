@@ -353,6 +353,33 @@ test.describe("Admin time frame", () => {
   });
 });
 
+test.describe("Admin time frame and refresh", () => {
+  test("a failed Refresh that overtook a time frame change puts the control, address and note back on the data actually shown", async ({ page }) => {
+    let ninety = 0;
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    let firstAsked;
+    const firstSeen = new Promise((resolve) => { firstAsked = resolve; });
+    await openAdmin(page, {
+      onTracks: async (route) => {
+        if (new URL(route.request().url()).searchParams.get("days") !== "90") return json(route, 200, tracks());
+        ninety += 1;
+        if (ninety === 1) { firstAsked(); await held; return route.abort(); }
+        return route.abort(); // the Refresh fails
+      },
+    });
+    await page.getByLabel("Time frame").selectOption("90");
+    await firstSeen;
+    await page.getByRole("button", { name: "Refresh" }).click();
+    await expect(page.locator("#adminRefreshStatus")).toContainText("Could not refresh");
+    await expect(page.getByLabel("Time frame")).toHaveValue("30");
+    await expect.poll(() => page.url()).not.toContain("days=90");
+    await expect(page.locator("#adminWindowNote")).toContainText("Still showing the last 30 days");
+    await expect(page.locator("#adminToolbar")).toHaveAttribute("aria-busy", "false");
+    release();
+  });
+});
+
 test.describe("Admin beta users filter", () => {
   test("Beta users only narrows the Users list, the Stats page and its subtitle, and Everyone brings everyone back", async ({ page }) => {
     await openAdmin(page);

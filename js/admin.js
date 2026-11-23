@@ -210,6 +210,7 @@ let selectedTrackUid = null; // the user whose track sheet is open (start and st
 let trackSheetFromList = false; // opened with the Track details button in the Users list, so closing returns focus there
 // Time frame (`days` query value: 1, 7, 30, 90 or all) and beta filter, both kept in the page address (?days=7&beta=1).
 let requestedWindow = "30"; // set from the address when the dashboard boots
+let committedWindow = "30"; // the window asked for when the data on screen was loaded (differs from loadedWindow after a fallback)
 let loadedWindow = null; // the window the data on screen actually covers (a 5xx can fall back to a shorter one)
 let betaOnly = false; // set from the address when the dashboard boots
 let selectedClickKey = null;
@@ -2126,6 +2127,7 @@ async function adminBoot() {
 
   // One result of a load (first, Refresh, auto-refresh or a time frame change) landing on screen.
   function applyLoaded(data, asked) {
+    committedWindow = asked;
     setLoadedData(data);
     lastLoadedAt = new Date();
     setRefreshNote("");
@@ -2133,9 +2135,16 @@ async function adminBoot() {
     renderAll();
   }
 
+  // A load for another window failed: go back to the window the data on screen was asked for, in the control, the address and a note.
+  function revertWindow(failed) {
+    requestedWindow = committedWindow;
+    syncUrl();
+    syncToolbar();
+    windowNote.textContent = `Could not load ${AdminTools.windowPhrase(failed === "all" ? null : Number(failed))}. Still showing ${AdminTools.windowPhrase(loadedDays())}.`;
+  }
+
   async function changeWindow(value) {
     const asked = AdminTools.normaliseWindow(value);
-    const previous = requestedWindow;
     requestedWindow = asked;
     syncUrl();
     const seq = ++loadSeq;
@@ -2150,10 +2159,7 @@ async function adminBoot() {
       if (seq !== loadSeq || sid !== sessionId) return;
       if (err.message === "unauthorised") { forgetSession("Admin session expired. Sign in again."); return; }
       // Keep the data (and the window it covers) on screen; the next Refresh uses the window that works.
-      requestedWindow = loadedWindow || previous;
-      syncUrl();
-      syncToolbar();
-      windowNote.textContent = `Could not load ${AdminTools.windowPhrase(asked === "all" ? null : Number(asked))}. Still showing ${AdminTools.windowPhrase(loadedDays())}.`;
+      revertWindow(asked);
     } finally {
       if (seq === loadSeq && sid === sessionId) setToolbarBusy(false);
     }
@@ -2177,6 +2183,7 @@ async function adminBoot() {
     loginScreen.hidden = true;
     adminApp.hidden = false;
     lastLoadedAt = new Date();
+    committedWindow = requestedWindow;
     setRefreshNote("");
     windowNote.textContent = loadedWindow !== requestedWindow ? `Showing ${AdminTools.windowPhrase(loadedDays())}: ${AdminTools.windowPhrase(requestedWindow === "all" ? null : Number(requestedWindow))} was too much to load.` : "";
     buildUserList();
@@ -2771,6 +2778,8 @@ async function adminBoot() {
       if (err.message === "unauthorised") {
         forgetSession("Admin session expired. Sign in again.");
       } else {
+        // A Refresh that overtook a time frame change and failed: the data is still the old window, so the control must say so.
+        if (asked !== committedWindow) revertWindow(asked);
         const again = refreshStatus.textContent.startsWith("Could not refresh");
         const base = `Could not refresh — showing data from ${clockText(lastLoadedAt || new Date())}.`;
         setRefreshNote(again ? `${base} Tried again at ${clockText(new Date())}.` : base, again);
