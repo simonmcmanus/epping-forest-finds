@@ -208,10 +208,6 @@ jobs:
             exit 0
           fi
           actor="$VERIFIER"
-          if [ "$armed" = "true" ]; then
-            echo "Auto-merge is already enabled and the label gate passes."
-            exit 0
-          fi
 
           reviews=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/reviews" | jq -s 'add // []')
           # Each reviewer's latest decision on this head, ignoring plain comments.
@@ -226,7 +222,18 @@ jobs:
             '[.[] | select(.user.login == "github-actions[bot]" and .state == "APPROVED"
                and ((.body // "") | contains($marker)))] | length' <<<"$latest")
           if [ "$agent" -lt 1 ]; then
-            echo "Waiting on the agent approval for $HEAD_SHA. Not arming."
+            # An armed PR on a head without its own agent approval is stale (for
+            # example the synchronize disarm was lost): disarm it.
+            if [ "$armed" = "true" ]; then
+              echo "Auto-merge is enabled but $HEAD_SHA has no agent approval; disarming."
+              disarm "$(jq -r .node_id <<<"$pr")" || exit 1
+            else
+              echo "Waiting on the agent approval for $HEAD_SHA. Not arming."
+            fi
+            exit 0
+          fi
+          if [ "$armed" = "true" ]; then
+            echo "Auto-merge is already enabled and the label and agent approval pass."
             exit 0
           fi
 
