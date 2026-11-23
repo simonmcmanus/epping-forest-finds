@@ -214,37 +214,6 @@ function groupJourneysByDay(journeys) {
   });
 }
 
-// Daily activity rows for the Stats page: distinct users, location pings and taps per local calendar day, oldest first.
-// Unlike the journey rows, every day between the first and last active day is present (zeros included) so a trend reads
-// as a trend. Events without a readable time are ignored; a user counts once a day however much they did.
-function groupActivityByDay(locations, clicks) {
-  const dayKey = (d) => `${String(d.getFullYear()).padStart(4, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const byDay = new Map();
-  const slot = (event) => {
-    const t = Date.parse(event && event.ts);
-    if (!Number.isFinite(t)) return null;
-    const day = dayKey(new Date(t));
-    if (!byDay.has(day)) byDay.set(day, { uids: new Set(), pings: 0, taps: 0 });
-    const entry = byDay.get(day);
-    if (event.uid != null) entry.uids.add(event.uid);
-    return entry;
-  };
-  for (const e of locations || []) { const entry = slot(e); if (entry) entry.pings++; }
-  for (const e of clicks || []) { const entry = slot(e); if (entry) entry.taps++; }
-  if (!byDay.size) return [];
-  const days = [...byDay.keys()].sort();
-  const [y0, m0, d0] = days[0].split("-").map(Number);
-  const last = days[days.length - 1];
-  const rows = [];
-  for (let i = 0; i < 4000; i++) {
-    const day = dayKey(new Date(y0, m0 - 1, d0 + i));
-    const entry = byDay.get(day);
-    rows.push({ day, users: entry ? entry.uids.size : 0, pings: entry ? entry.pings : 0, taps: entry ? entry.taps : 0 });
-    if (day >= last) break;
-  }
-  return rows;
-}
-
 // Top destinations over the last `days` days counted back from `now` (ms): journeys are grouped by
 // destination (navId, else the target coordinates rounded to 5 dp). Sorted by started, then completed,
 // then name; `share` is started relative to the top destination (for a bar). The name comes from the
@@ -277,6 +246,6 @@ function topDestinationsThisWeek(journeys, { now, days = 7, limit = 5 } = {}) {
 
 if (typeof module !== "undefined") {
   module.exports = {
-    NAV_ARRIVAL_RADIUS_M, NAV_GAP_MS, haversineMetres, deriveNavJourneys, buildExplicitJourneys, combineNavJourneys, summariseNavJourneys, navTimeBucket, groupJourneysByDay, groupActivityByDay, topDestinationsThisWeek,
+    NAV_ARRIVAL_RADIUS_M, NAV_GAP_MS, haversineMetres, deriveNavJourneys, buildExplicitJourneys, combineNavJourneys, summariseNavJourneys, navTimeBucket, groupJourneysByDay, topDestinationsThisWeek,
   };
 }

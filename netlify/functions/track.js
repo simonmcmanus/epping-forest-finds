@@ -16,7 +16,6 @@ const { connectLambda, getStore } = require("@netlify/blobs");
 const tracking = require("./lib/tracking-store");
 const { checkRateLimit, clientIp } = require("./lib/report-rate-limit");
 const { isAdminRequest } = require("./lib/admin-auth");
-const auth = require("./lib/auth-session");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 // TRACKING_DIR lets a test point the local fallback at a scratch directory.
@@ -200,27 +199,6 @@ async function rateLimited(adapter, event) {
   return checkRateLimit(store, { ip, limits: { perIp, perDevice: perIp, global: Number.MAX_SAFE_INTEGER }, key: `track-rate/${shard}` });
 }
 
-// Is this request from a signed-in beta member? Only a valid ff_session cookie is looked at (anonymous and
-// cross-origin native requests carry none, so they cost nothing and are never beta). Any failure reads as
-// "not beta": the check must never fail or hold up a POST.
-const BETA_CHECK_TIMEOUT_MS = 1000;
-async function betaRequest(event) {
-  let timer;
-  try {
-    const session = auth.sessionFrom(event);
-    if (!session || !session.sub) return false;
-    const store = require("./lib/feature-gate").storeFor(event);
-    // A stalled community store costs one lost tag, not the POST: past the bound the request reads as "not beta".
-    const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(false), BETA_CHECK_TIMEOUT_MS); });
-    return (await Promise.race([require("./lib/beta-access").betaMember(store, session), timeout])) === true;
-  } catch (error) {
-    warnTrack("beta-check-failed", errorDetails(error));
-    return false;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 // ---- Handler ----
 
 exports.handler = async (event) => {
@@ -248,7 +226,7 @@ exports.handler = async (event) => {
     const baseMeta = { storeName: getTrackingStoreName(), context: process.env.CONTEXT || "local", windowDays };
 
     try {
-      const result = await tracking.readWindow(openAdapter(), { windowDays: days, calendar: windowDays == null });
+      const result = await tracking.readWindow(openAdapter(), { windowDays: days });
       logTrack("read-ok", { windowDays, locations: result.locations.length, clicks: result.clicks.length, navigation: result.navigation.length, partial: result.partial, oldestDay: result.oldestDay });
       return response(200, adminBody(result.locations, result.clicks, result.navigation, {
         ...baseMeta,
@@ -287,13 +265,7 @@ exports.handler = async (event) => {
     const incoming = Array.isArray(payload && payload.events) ? payload.events : [];
     if (incoming.length > MAX_EVENTS_PER_REQUEST) return response(413, { error: "Too many events in one batch" });
     const now = Date.now();
-    // sanitizeEvent keeps only known fields, so a client-sent `beta` never survives; the mark is set below.
     const events = incoming.map((e) => tracking.sanitizeEvent(e, { now })).filter(Boolean);
-    let betaChecked = null;
-    const markBeta = async () => {
-      betaChecked = betaChecked || betaRequest(event);
-      if (await betaChecked) for (const e of events) e.beta = true;
-    };
 
     if (events.length === 0) {
       return response(200, { ok: true, received: incoming.length, stored: 0, storage: "none" });
@@ -305,7 +277,6 @@ exports.handler = async (event) => {
       if (!limited.ok) {
         return response(429, { error: "Too many requests" }, { "Retry-After": String(limited.retryAfter) });
       }
-      await markBeta();
       await tracking.storeBatch(adapter, events, { now });
       return response(200, { ok: true, received: incoming.length, stored: events.length, storage: "blobs" });
     } catch (blobErr) {
@@ -315,7 +286,6 @@ exports.handler = async (event) => {
       }
 
       try {
-        await markBeta();
         const locationEvents = events.filter((e) => e.type === "location");
         const clickEvents = events.filter((e) => e.type === "click");
         if (locationEvents.length) fileAppend("location.ndjson", locationEvents);
