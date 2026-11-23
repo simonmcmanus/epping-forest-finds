@@ -101,13 +101,13 @@ checks out PR code). The head SHA is read from the live PR, not the event. Only
 same-repository, open, non-draft PRs are considered.
 
 The `verified` label replaces a human approving review, because PRs are opened
-from the owner's account and GitHub forbids approving your own PR. On
-`synchronize` the workflow removes the label (a new push invalidates the human
-check) and, if the live PR has native auto-merge enabled, disables it with the
-`disablePullRequestAutoMerge` mutation, because auto-merge is a PR-level setting
-that survives a push. A 404 on label removal is tolerated; any other failure of
-either step fails the job (fail closed). Disarming runs first and both steps
-always run, so a label-delete error cannot leave the PR armed. After a
+from the owner's account and GitHub forbids approving your own PR. The label
+stays on the PR across pushes, so the owner does not re-apply it after each
+repair push. The per-head check is the agent's APPROVE: each new head must earn
+it again before anything arms. On `synchronize` the workflow disables any armed
+auto-merge with the `disablePullRequestAutoMerge` mutation, because auto-merge
+is a PR-level setting that survives a push; the new head re-arms once its own
+agent approval is in. A failure of that step fails the job (fail closed). After a
 successful arming call the workflow re-fetches the PR and disarms again if the
 label is gone or the head changed (closes the race with a parallel `unlabeled`
 run). Removing the `verified` label
@@ -120,8 +120,8 @@ Arming conditions, all on the current head: auto-merge not already enabled (an
 armed PR is handled as above); the
 PR has the `verified` label; the most recent `labeled` event for `verified` was
 made by a person (user type User, not a bot) whose collaborator permission is
-admin, maintain or write, and is newer than the head commit's date (guards
-against a stale label); and a `github-actions[bot]` `APPROVED` review carrying
+admin, maintain or write, and the label is still on the PR (pushes do not remove
+it); and a `github-actions[bot]` `APPROVED` review carrying
 `CLAUDE_FINAL_REVIEW:<head>:<base>` with `<base>` equal to the PR's live base
 SHA. The latest review per reviewer wins, so a later change request or dismissal
 cancels the agent approval.
@@ -137,9 +137,8 @@ run and a newer pending run replaces an older one, so `synchronize` and
 `unlabeled` (of `verified`) runs use their own group, `auto-merge-disarm-<PR>`,
 where arming and CI runs cannot displace them; arming runs use `auto-merge-<PR>`.
 As a second guard, a `workflow_run` whose CI head differs from the live head
-exits without arming but, if the live PR has auto-merge enabled, removes the
-`verified` label and disables auto-merge first (same helper, fail closed on
-non-404 errors), in case the push-time run was lost. "Already enabled" from a racing event counts as success.
+exits without arming but, if the live PR has auto-merge enabled, disables
+auto-merge first (fail closed), in case the push-time run was lost. "Already enabled" from a racing event counts as success.
 Branch protection still gates every merge. Agents never approve, arm, merge or
 apply the `verified` label. Agent sessions act through the owner's token, so
 this cannot be technically enforced; it is a policy.

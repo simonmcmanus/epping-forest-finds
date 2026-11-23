@@ -1,15 +1,17 @@
 name: Merge after verified label and agent approval
 
 # The PR is armed (or merged) only when the CURRENT head has BOTH:
-#   1. the `verified` label, applied by a human (a non-bot user with admin,
-#      maintain or write permission) AFTER the head commit was made, and
+#   1. the `verified` label on the PR, applied by a human (a non-bot user with
+#      admin, maintain or write permission), and
 #   2. an approving review from the CI Claude reviewer (github-actions[bot])
 #      carrying its CLAUDE_FINAL_REVIEW:<head>:<base> marker, where <base> is
 #      the PR's live base SHA.
 # The `verified` label replaces a human approving review: PRs are opened from
 # the owner's account and GitHub forbids approving your own PR. The label
-# means "a person has tried the preview and accepts this head". A new push
-# (synchronize) removes the label, so the check never carries to a new head.
+# means "a person has tried the preview and accepts this PR". The label stays
+# on the PR across pushes, so the owner does not re-apply it after each repair
+# push. The per-head check is the agent's APPROVE: a new head must earn it again
+# before anything arms or merges, and a push disarms an armed PR.
 # The label must exist in the repository (create `verified` once under Issues
 # > Labels). Agents must never add the label. That cannot be enforced
 # technically, because agent sessions act through the owner's token, so it is
@@ -29,14 +31,16 @@ name: Merge after verified label and agent approval
 # requires the same head, the same base and the `verified` label still present.
 # The arming mutation also carries expectedHeadOid, so GitHub itself refuses
 # to arm if the head moved after the check.
-# A push (synchronize) removes the label AND disables native auto-merge, which
-# is a PR-level setting that otherwise survives a push. Removing the label (unlabeled) also disarms
-# an armed PR, as does any other event that finds an armed PR without a valid label. "Already enabled" (two events racing) counts as success.
+# A push (synchronize) disables native auto-merge, which is a PR-level setting
+# that otherwise survives a push. The label is left in place; the new head
+# re-arms only once its own agent APPROVE is in. Removing the label (unlabeled)
+# also disarms an armed PR, as does any other event that finds an armed PR
+# without a valid label. "Already enabled" (two events racing) counts as success.
 # Two mechanisms keep a stale arming from surviving a push: (1) synchronize and
 # unlabeled runs use their own concurrency group so they cannot be replaced by
 # a queued arming run; (2) a workflow_run for a stale CI head that finds the
-# live PR armed removes the label and disarms before exiting, in case the
-# synchronize run was lost anyway.
+# live PR armed disarms before exiting, in case the synchronize run was lost
+# anyway.
 #
 # Branch protection still gates every merge (required checks and approvals);
 # the settings below are repository configuration, not enforced by this file:
@@ -126,54 +130,13 @@ jobs:
             echo "Disabled auto-merge on PR #$PR_NUMBER."
           }
 
-          remove_label() {
-            # Read the PR's labels first and DELETE only when `verified` is
-            # present. A PR without the label is a no-op: GitHub answers that
-            # DELETE with 403 when the App token lacks issue write access, which
-            # would fail every push on a PR that was never verified. The read
-            # uses the same pull request endpoint as the rest of this job.
-            # Any real removal failure still fails the job (fail closed).
-            local labels out
-            labels=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '[.labels[].name] | join("\n")') || return 1
-            if ! grep -qx 'verified' <<<"$labels"; then
-              echo "No verified label to remove."
-              return 0
-            fi
-            if out=$(gh api -X DELETE "repos/$REPO/issues/$PR_NUMBER/labels/verified" 2>&1); then
-              echo "Removed the verified label."
-            elif grep -qiE '404|not found|label does not exist' <<<"$out"; then
-              # Removed between the read and the DELETE: nothing left to do.
-              echo "No verified label to remove."
-            else
-              echo "$out" >&2
-              return 1
-            fi
-          }
-
-          # Disarm FIRST, then remove the label; run both whatever the other
-          # returns and fail the job (visibly) if either failed, so a label
-          # delete error can never leave the PR armed.
-          invalidate() {
-            local id="$1" rc=0
-            if [ -n "$id" ] && ! disarm "$id"; then
-              echo "::error::Failed to disable auto-merge on PR #$PR_NUMBER."
-              rc=1
-            fi
-            if ! remove_label; then
-              echo "::error::Failed to remove the verified label on PR #$PR_NUMBER."
-              rc=1
-            fi
-            return "$rc"
-          }
-
           if [ "$EVENT_NAME" = "pull_request_target" ] && [ "$EVENT_ACTION" = "synchronize" ]; then
-            # A new push invalidates the human check and any armed auto-merge.
+            # A new push disarms any armed auto-merge. The label stays: the new
+            # head re-arms only once its own agent approval is in.
             live=$(gh api "repos/$REPO/pulls/$PR_NUMBER")
-            id=""
             if [ "$(jq -r '.auto_merge != null' <<<"$live")" = "true" ]; then
-              id=$(jq -r .node_id <<<"$live")
+              disarm "$(jq -r .node_id <<<"$live")" || exit 1
             fi
-            invalidate "$id" || exit 1
             exit 0
           fi
 
@@ -185,8 +148,8 @@ jobs:
             # The synchronize run that disarms may have been lost; an armed PR
             # here is stale for the new head, so disarm it (fail closed).
             if [ "$(jq -r '.auto_merge != null' <<<"$pr")" = "true" ]; then
-              echo "PR is armed on a head with stale CI; removing the label and disarming."
-              invalidate "$(jq -r .node_id <<<"$pr")" || exit 1
+              echo "PR is armed on a head with stale CI; disarming."
+              disarm "$(jq -r .node_id <<<"$pr")" || exit 1
             fi
             exit 0
           fi
@@ -208,10 +171,11 @@ jobs:
             exit 0
           fi
 
-          # Human check: the verified label, applied by a writer after the head
-          # commit. Any failure (including API errors) means the gate is not met.
+          # Human check: the verified label, applied by a writer and still on the
+          # PR (it is not removed by pushes). Any failure (including API errors)
+          # means the gate is not met.
           label_gate() {
-            local events label_event actor actor_type labeled_at permission head_date labeled_ts head_ts
+            local events label_event actor actor_type permission
             events=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/events" | jq -s 'add // []') || return 1
             label_event=$(jq '[.[] | select(.event == "labeled" and .label.name == "verified")] | sort_by(.id) | last // empty' <<<"$events") || return 1
             if [ -z "$label_event" ]; then
@@ -220,7 +184,6 @@ jobs:
             fi
             actor=$(jq -r '.actor.login // ""' <<<"$label_event") || return 1
             actor_type=$(jq -r '.actor.type // ""' <<<"$label_event") || return 1
-            labeled_at=$(jq -r .created_at <<<"$label_event") || return 1
             if [ "$actor_type" != "User" ] || [ -z "$actor" ]; then
               echo "verified was applied by $actor ($actor_type), not a person."
               return 1
@@ -233,13 +196,6 @@ jobs:
                 return 1
                 ;;
             esac
-            head_date=$(gh api "repos/$REPO/commits/$HEAD_SHA" --jq '.commit.committer.date') || return 1
-            labeled_ts=$(date -d "$labeled_at" +%s) || return 1
-            head_ts=$(date -d "$head_date" +%s) || return 1
-            if [ "$labeled_ts" -le "$head_ts" ]; then
-              echo "verified ($labeled_at) is not newer than the head commit ($head_date); stale."
-              return 1
-            fi
             VERIFIER="$actor"
           }
           if ! label_gate; then
@@ -252,10 +208,6 @@ jobs:
             exit 0
           fi
           actor="$VERIFIER"
-          if [ "$armed" = "true" ]; then
-            echo "Auto-merge is already enabled and the label gate passes."
-            exit 0
-          fi
 
           reviews=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/reviews" | jq -s 'add // []')
           # Each reviewer's latest decision on this head, ignoring plain comments.
@@ -270,7 +222,18 @@ jobs:
             '[.[] | select(.user.login == "github-actions[bot]" and .state == "APPROVED"
                and ((.body // "") | contains($marker)))] | length' <<<"$latest")
           if [ "$agent" -lt 1 ]; then
-            echo "Waiting on the agent approval for $HEAD_SHA. Not arming."
+            # An armed PR on a head without its own agent approval is stale (for
+            # example the synchronize disarm was lost): disarm it.
+            if [ "$armed" = "true" ]; then
+              echo "Auto-merge is enabled but $HEAD_SHA has no agent approval; disarming."
+              disarm "$(jq -r .node_id <<<"$pr")" || exit 1
+            else
+              echo "Waiting on the agent approval for $HEAD_SHA. Not arming."
+            fi
+            exit 0
+          fi
+          if [ "$armed" = "true" ]; then
+            echo "Auto-merge is already enabled and the label and agent approval pass."
             exit 0
           fi
 
