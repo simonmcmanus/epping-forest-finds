@@ -16,7 +16,6 @@ const { connectLambda, getStore } = require("@netlify/blobs");
 const tracking = require("./lib/tracking-store");
 const { checkRateLimit, clientIp } = require("./lib/report-rate-limit");
 const { isAdminRequest } = require("./lib/admin-auth");
-const auth = require("./lib/auth-session");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 // TRACKING_DIR lets a test point the local fallback at a scratch directory.
@@ -204,10 +203,17 @@ async function rateLimited(adapter, event) {
 // cross-origin native requests carry none, so they cost nothing and are never beta). Any failure reads as
 // "not beta": the check must never fail or hold up a POST.
 const BETA_CHECK_TIMEOUT_MS = 1000;
+// Must match SESSION_COOKIE in lib/auth-session.js. Kept local so a request without it loads nothing extra.
+const SESSION_COOKIE_NAME = "ff_session";
+function hasSessionCookie(event) {
+  const headers = (event && event.headers) || {};
+  const cookie = headers.cookie || headers.Cookie;
+  return typeof cookie === "string" && cookie.includes(`${SESSION_COOKIE_NAME}=`);
+}
 async function betaRequest(event) {
   let timer;
   try {
-    const session = auth.sessionFrom(event);
+    const session = require("./lib/auth-session").sessionFrom(event);
     if (!session || !session.sub) return false;
     const store = require("./lib/feature-gate").storeFor(event);
     // A stalled community store costs one lost tag, not the POST: past the bound the request reads as "not beta".
@@ -305,7 +311,7 @@ exports.handler = async (event) => {
       if (!limited.ok) {
         return response(429, { error: "Too many requests" }, { "Retry-After": String(limited.retryAfter) });
       }
-      await markBeta();
+      if (hasSessionCookie(event)) await markBeta();
       await tracking.storeBatch(adapter, events, { now });
       return response(200, { ok: true, received: incoming.length, stored: events.length, storage: "blobs" });
     } catch (blobErr) {
@@ -315,7 +321,7 @@ exports.handler = async (event) => {
       }
 
       try {
-        await markBeta();
+        if (hasSessionCookie(event)) await markBeta();
         const locationEvents = events.filter((e) => e.type === "location");
         const clickEvents = events.filter((e) => e.type === "click");
         if (locationEvents.length) fileAppend("location.ndjson", locationEvents);
