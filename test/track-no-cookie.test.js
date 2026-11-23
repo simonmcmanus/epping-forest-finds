@@ -1,10 +1,12 @@
 /**
  * An app POST /api/track with no sign-in cookie (every anonymous and native request) must stay on the
- * plain path: the beta modules are never loaded and the community store is never opened, and the events
- * are stored untagged. This file runs in its own process so the module cache starts clean.
+ * plain path: no session lookup, the beta modules are never loaded and the community store is never
+ * opened, and the events are stored untagged. This file runs in its own process so the module cache starts clean.
  */
 
 "use strict";
+
+process.env.ADMIN_PASSWORD = "no-cookie-admin";
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -12,6 +14,10 @@ const assert = require("node:assert/strict");
 const loaded = (name) => Object.keys(require.cache).some((k) => k.replace(/\\/g, "/").endsWith(`/netlify/functions/lib/${name}.js`));
 
 test("a POST with no sign-in cookie never loads the beta modules or opens the community store, and stores its events untagged", async () => {
+  const auth = require("../netlify/functions/lib/auth-session.js");
+  let sessionLookups = 0;
+  const realSessionFrom = auth.sessionFrom;
+  auth.sessionFrom = (...args) => { sessionLookups += 1; return realSessionFrom(...args); };
   const track = require("../netlify/functions/track.js");
   const tracking = require("../netlify/functions/lib/tracking-store.js");
   const blobs = new Map();
@@ -22,7 +28,6 @@ test("a POST with no sign-in cookie never loads the beta modules or opens the co
     async listKeys(prefix) { return [...blobs.keys()].filter((k) => k.startsWith(prefix)).sort(); },
     async firstPageKeys(prefix) { return [...blobs.keys()].filter((k) => k.startsWith(prefix)).sort(); },
   });
-  process.env.ADMIN_PASSWORD = "no-cookie-admin";
   const ts = new Date().toISOString();
   const res = await track.handler({
     httpMethod: "POST",
@@ -32,7 +37,8 @@ test("a POST with no sign-in cookie never loads the beta modules or opens the co
   assert.equal(res.statusCode, 200);
   assert.equal(JSON.parse(res.body).stored, 1);
 
-  for (const name of ["auth-session", "beta-access", "feature-gate"]) assert.equal(loaded(name), false, `${name} was loaded`);
+  for (const name of ["beta-access", "feature-gate"]) assert.equal(loaded(name), false, `${name} was loaded`);
+  assert.equal(sessionLookups, 0, "the request was checked for a session");
 
   const read = await track.handler({ httpMethod: "GET", headers: { authorization: "Bearer no-cookie-admin" }, queryStringParameters: { days: "2" } });
   const events = tracking.unpackEvents(JSON.parse(read.body).locations);
