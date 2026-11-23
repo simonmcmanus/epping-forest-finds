@@ -317,7 +317,6 @@ async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 70
   const rolling = Number.isFinite(windowDays) && !calendar;
   const cutoff = rolling ? now - windowDays * DAY_MS : null;
   const days = Array.from({ length: rolling ? windowDays + 1 : windowDays }, (_, i) => dayOf(now - i * DAY_MS));
-  const inWindowDays = rolling ? windowDays : days.length;
   const kept = { location: [], click: [], navigation: [] };
   let bytes = 0;
   let partial = false;
@@ -326,7 +325,7 @@ async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 70
 
   outer:
   for (let i = 0; i < days.length; i += dayGroup) {
-    if (clock() > deadline) { partial = i < inWindowDays; break; }
+    if (clock() > deadline) { partial = true; break; }
     const group = days.slice(i, i + dayGroup);
     const results = await Promise.all(group.map(async (day) => {
       const [location, click, navigation] = await Promise.all(TYPES.map((type) => readDay(adapter, type, day, deadline, clock)));
