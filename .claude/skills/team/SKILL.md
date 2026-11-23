@@ -121,7 +121,7 @@ not a post-ready step. Never mark ready while local reviews, local verification 
 "Ready" therefore means the local gate plus all draft-run CI green on the exact head; the human check
 is separate: the owner applies the `verified` label to the exact head, and that (with the agent's APPROVE
 on that head) arms auto-merge (`.github/workflows/auto-merge.yml`, which arms auto-merge or merges directly
-if already mergeable). A new push removes the label. Agents (lead, steward, sweep, implementers) never
+if already mergeable). A new push disarms auto-merge but leaves the label on the PR; the new head re-arms once its agent APPROVE is in, so the owner does not re-apply the label after a push. Agents (lead, steward, sweep, implementers) never
 approve, merge, arm auto-merge or apply the `verified` label (policy; agent sessions use the owner's token, so it is not
 technically enforced). The sweep marking a PR ready can lead to auto-merge only after the owner applies
 `verified`. When the rest of the gate is green, record in the sticky ready-gate comment (and the sweep in its
