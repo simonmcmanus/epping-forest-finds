@@ -77,12 +77,15 @@
         }
       ],
       "lastVerified": "2026-11-15",
-      "startTime": "17:00"
+      "startTime": "17:00",
+      "lat": 51.672584,
+      "lon": 0.095643,
+      "locationSource": "nominatim: Village Hall, Coppice Row, Theydon Bois"
     },
     {
       "id": "waltham-abbey-cavalcade-of-light-2026-11-27",
       "title": "Waltham Abbey Cavalcade of Light",
-      "place": "Waltham Abbey",
+      "place": "Market Square, Waltham Abbey",
       "date": "2026-11-27",
       "body": "The Cavalcade of Light takes place on Friday 27 November. Check the council listing for the route and timings.",
       "sources": [
@@ -91,7 +94,10 @@
           "url": "https://www.walthamabbey-tc.gov.uk/events"
         }
       ],
-      "lastVerified": "2026-11-15"
+      "lastVerified": "2026-11-15",
+      "lat": 51.686995,
+      "lon": -0.002539,
+      "locationSource": "nominatim: Market Square, Waltham Abbey"
     },
     {
       "id": "epping-christmas-market-2026-12-04",
@@ -106,7 +112,10 @@
         }
       ],
       "lastVerified": "2026-11-15",
-      "startTime": "12:00"
+      "startTime": "12:00",
+      "lat": 51.702768,
+      "lon": 0.116763,
+      "locationSource": "nominatim: Epping High Street"
     },
     {
       "id": "highams-park-christmas-fayre-2026-12-06",
@@ -121,7 +130,10 @@
         }
       ],
       "lastVerified": "2026-11-15",
-      "startTime": "11:00"
+      "startTime": "11:00",
+      "lat": 51.608066,
+      "lon": -0.000753,
+      "locationSource": "nominatim: Highams Park"
     },
     {
       "id": "loughton-staples-road-christmas-fair-2026-12-06",
@@ -136,12 +148,15 @@
         }
       ],
       "lastVerified": "2026-11-15",
-      "startTime": "12:00"
+      "startTime": "12:00",
+      "lat": 51.651264,
+      "lon": 0.053892,
+      "locationSource": "nominatim: Staples Road Primary School, Loughton, IG10 1HR"
     },
     {
       "id": "waltham-abbey-christmas-market-2026-12-12",
       "title": "Waltham Abbey Christmas Market",
-      "place": "Sun Street and Market Square, Waltham Abbey",
+      "place": "Market Square, Waltham Abbey",
       "date": "2026-12-12",
       "body": "Saturday 12 December, 9am to 3pm: Christmas market on Sun Street and Market Square.",
       "sources": [
@@ -151,12 +166,15 @@
         }
       ],
       "lastVerified": "2026-11-15",
-      "startTime": "09:00"
+      "startTime": "09:00",
+      "lat": 51.686995,
+      "lon": -0.002539,
+      "locationSource": "nominatim: Market Square, Waltham Abbey"
     },
     {
       "id": "north-chingford-christmas-market-2026-12-19",
       "title": "North Chingford Christmas Market",
-      "place": "Chingford Assembly Hall and The Green",
+      "place": "Chingford Assembly Hall, The Green, Chingford",
       "date": "2026-12-19",
       "body": "Saturday 19 December, 11am to 4pm: free-entry market with more than 30 stalls, live entertainment and community carols. Santa’s grotto supports The Dream Factory and requires a separate advance booking.",
       "sources": [
@@ -170,7 +188,46 @@
         }
       ],
       "lastVerified": "2026-11-15",
-      "startTime": "11:00"
+      "startTime": "11:00",
+      "lat": 51.631658,
+      "lon": 0.002581,
+      "locationSource": "nominatim: Chingford Assembly Hall, The Green, Chingford"
+    },
+    {
+      "id": "bull-christmas-market-2026-11-28",
+      "title": "The Bull Christmas Market",
+      "place": "The Bull, 129 High Street, Wanstead, E11 2RL",
+      "date": "2026-11-28",
+      "body": "Saturday 28 November from noon: festive stalls and live music at The Bull in Wanstead.",
+      "sources": [
+        {
+          "label": "Wanstead Village Directory",
+          "url": "https://wansteadvillagedirectory.com/event/the-bull-christmas-market/"
+        }
+      ],
+      "lastVerified": "2026-11-22",
+      "startTime": "12:00",
+      "lat": 51.57655,
+      "lon": 0.027882,
+      "locationSource": "nominatim: The Bull, 129 High Street, Wanstead, E11 2RL"
+    },
+    {
+      "id": "woodford-charity-christmas-bazaar-2026-11-28",
+      "title": "Charity Christmas Bazaar",
+      "place": "Woodford Memorial Hall, Woodford Green, E18 2PA",
+      "date": "2026-11-28",
+      "body": "Saturday 28 November from 10:30am: a charity Christmas bazaar at Woodford Memorial Hall, with tickets to visit Santa available at extra cost.",
+      "sources": [
+        {
+          "label": "Wanstead Village Directory",
+          "url": "https://wansteadvillagedirectory.com/event/charity-christmas-bazaar-3/"
+        }
+      ],
+      "lastVerified": "2026-11-22",
+      "startTime": "10:30",
+      "lat": 51.598253,
+      "lon": 0.020003,
+      "locationSource": "nominatim: Woodford Memorial Hall, Woodford Green, E18 2PA"
     }
   ],
   "sourceNotes": [
