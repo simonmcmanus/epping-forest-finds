@@ -26,6 +26,7 @@ const SIGNIN_MESSAGES = {
 const BETA_EMPTY_TEXT = "No beta user activity in this window yet. Activity from before beta users were marked isn't counted here.";
 const BETA_CAVEAT_TEXT = "Beta users only: activity from before beta users were marked isn't counted here.";
 const ME_CHECK_TIMEOUT_MS = 8000;
+const ADMIN_LAYER_TIMEOUT_MS = 30000; // a map layer request that never answers becomes a failed layer with Retry
 const LOAD_TIMEOUT_MS = 20000; // a tracks load that never answers is a failed load (longer than a normal one)
 const ADMIN_VIEWPORT_KEY = "ff-admin-map-viewport";
 const BASE_MAP_OPACITY = 0.42;
@@ -237,16 +238,33 @@ let adminMap = {
   roads: [],
   paths: [],
   bounds: null,
+  boundsFixed: false,
+  retryKeys: [],
   status: {},
 };
 
 // ---- Base map loading ----
 
 async function fetchGeojson(url) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
-  return response.json();
+  // A layer request that never answers ends as a failed layer (with Retry) instead of loading forever.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ADMIN_LAYER_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
 }
+
+// Draw order for lines: minor first, so a major road's stroke is never cut by a minor road's casing at a crossing. Sorted once at load, never per frame.
+const ROAD_DRAW_RANK = { alley: 0, service: 1, unclassified: 2, residential: 3, tertiary: 4, secondary: 5, primary: 6, trunk: 7, motorway: 8 };
+const PATH_DRAW_RANK = { trail: 0, permissive: 1, waymarked_trail: 2, byway: 3, bridleway: 4 };
+const sortedByRank = (items, ranks, field) => items
+  .map((item, index) => ({ item, index }))
+  .sort((x, y) => ((ranks[x.item[field]] || 0) - (ranks[y.item[field]] || 0)) || (x.index - y.index))
+  .map((entry) => entry.item);
 
 function applyAdminLayer(key, data) {
   const features = Array.isArray(data && data.features) ? data.features : [];
@@ -255,13 +273,12 @@ function applyAdminLayer(key, data) {
     layers.push({ key, data: { ...data, features } });
     layers.sort((x, y) => (x.key === "buffer" ? 0 : 1) - (y.key === "buffer" ? 0 : 1)); // buffer under forest
     adminMap.layers = layers;
-    adminMap.bounds = calculateBaseMapBounds(layers);
   } else if (key === "environment") {
     adminMap.environmentFeatures = features.filter((feature) => feature && feature.geometry && feature.properties);
   } else if (key === "roads") {
-    adminMap.roads = features.map(toAdminRoadFeature).filter(Boolean);
+    adminMap.roads = sortedByRank(features.map(toAdminRoadFeature).filter(Boolean), ROAD_DRAW_RANK, "roadType");
   } else if (key === "paths") {
-    adminMap.paths = features.map(toAdminPathFeature).filter(Boolean);
+    adminMap.paths = sortedByRank(features.map(toAdminPathFeature).filter(Boolean), PATH_DRAW_RANK, "pathType");
   }
 }
 
@@ -277,17 +294,26 @@ async function loadAdminLayer(key) {
     adminMap.status = { ...adminMap.status, [key]: "failed" };
   }
   const st = adminMap.status;
-  if (st.forest !== "loading" && st.buffer !== "loading") adminMap.loaded = true;
+  if (st.forest !== "loading" && st.buffer !== "loading") {
+    adminMap.loaded = true;
+    // Fit the view once, when forest and edge have both settled: a later Retry never moves the user's view.
+    if (!adminMap.boundsFixed && adminMap.layers.length) {
+      adminMap.bounds = calculateBaseMapBounds(adminMap.layers);
+      adminMap.boundsFixed = true;
+    }
+  }
   adminMap.loading = Object.values(st).some((v) => v === "loading");
+  if (!adminMap.loading) adminMap.retryKeys = [];
   render();
   updateAdminLayerNote();
 }
 
-function loadAdminLayers(keys) {
+function loadAdminLayers(keys, { retry = false } = {}) {
   const status = { ...adminMap.status };
   for (const key of keys) status[key] = "loading";
   adminMap.status = status;
   adminMap.loading = true;
+  adminMap.retryKeys = retry ? keys.slice() : [];
   updateAdminLayerNote();
   return Promise.all(keys.map(loadAdminLayer));
 }
@@ -297,7 +323,11 @@ function loadAdminBaseMap() {
   return loadAdminLayers(Object.keys(ADMIN_MAP_URLS));
 }
 
-// A plain-language note on the map while roads or paths are still arriving, or when a layer could not be loaded.
+const joinNames = (names) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]);
+
+// A plain-language note on the map while layers are arriving, or when a layer could not be loaded.
+// The note box holds a status line (always in the page, so announcements are reliable) and a Retry button.
+// Both keep their elements and only change when the message really changes, so focus on Retry survives and nothing is re-announced.
 function updateAdminLayerNote() {
   const area = document.querySelector(".admin-map-area");
   if (!area) return;
@@ -305,33 +335,62 @@ function updateAdminLayerNote() {
   if (!note) {
     note = document.createElement("div");
     note.id = "adminLayerNote";
-    note.className = "admin-layer-note";
-    note.setAttribute("role", "status");
-    note.hidden = true;
-    area.appendChild(note);
-  }
-  const st = adminMap.status;
-  const failed = Object.keys(st).filter((key) => st[key] === "failed");
-  const slow = ["roads", "paths"].filter((key) => st[key] === "loading");
-  note.textContent = "";
-  if (failed.length) {
-    const names = failed.map((key) => ADMIN_MAP_LAYER_NAMES[key] || key);
-    const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
+    note.className = "admin-layer-note is-idle";
     const text = document.createElement("span");
-    text.textContent = `Couldn't load the ${list} ${names.length > 1 ? "layers" : "layer"}.`;
+    text.id = "adminLayerStatus";
+    text.setAttribute("role", "status");
     const retry = document.createElement("button");
     retry.type = "button";
     retry.className = "admin-layer-retry";
-    retry.textContent = "Retry";
-    retry.addEventListener("click", () => loadAdminLayers(failed));
+    retry.hidden = true;
+    retry.addEventListener("click", () => {
+      if (retry.getAttribute("aria-disabled") === "true") return;
+      const failed = Object.keys(adminMap.status).filter((key) => adminMap.status[key] === "failed");
+      if (failed.length) loadAdminLayers(failed, { retry: true });
+    });
     note.append(text, retry);
-    note.hidden = false;
-  } else if (slow.length) {
-    note.textContent = `Loading ${slow.join(" and ")}...`;
-    note.hidden = false;
-  } else {
-    note.hidden = true;
+    area.appendChild(note);
+    const canvas = document.getElementById("adminCanvas");
+    if (canvas) canvas.setAttribute("aria-describedby", "adminLayerStatus");
   }
+  const text = note.querySelector("#adminLayerStatus");
+  const retry = note.querySelector(".admin-layer-retry");
+  const st = adminMap.status;
+  const nameOf = (key) => ADMIN_MAP_LAYER_NAMES[key] || key;
+  const keysIn = (state) => Object.keys(ADMIN_MAP_LAYER_NAMES).filter((key) => st[key] === state);
+  const failed = keysIn("failed");
+  const loading = keysIn("loading");
+  const retrying = (adminMap.retryKeys || []).filter((key) => st[key] === "loading");
+
+  let message = "";
+  let buttonLabel = "";
+  let busy = false;
+  if (retrying.length) {
+    message = `Loading ${joinNames(retrying.map(nameOf))}...`;
+    buttonLabel = "Retrying...";
+    busy = true;
+  } else if (failed.length) {
+    const names = failed.map(nameOf);
+    message = `Couldn't load the ${joinNames(names)} ${names.length > 1 ? "layers" : "layer"}.`;
+    buttonLabel = "Retry";
+  } else if (loading.length) {
+    message = `Loading ${loading.length > 2 ? "map layers" : joinNames(loading.map(nameOf))}...`;
+  }
+
+  if (text.textContent !== message) text.textContent = message;
+  if (retry.textContent !== buttonLabel) retry.textContent = buttonLabel;
+  retry.setAttribute("aria-disabled", busy ? "true" : "false");
+  if (busy) retry.setAttribute("aria-busy", "true"); else retry.removeAttribute("aria-busy");
+  const showRetry = Boolean(buttonLabel);
+  if (retry.hidden === showRetry) {
+    // Never drop focus to the page body: when Retry goes away while it has focus, move to the map.
+    if (!showRetry && document.activeElement === retry) {
+      const canvas = document.getElementById("adminCanvas");
+      if (canvas) { if (!canvas.hasAttribute("tabindex")) canvas.setAttribute("tabindex", "-1"); canvas.focus({ preventScroll: true }); }
+    }
+    retry.hidden = !showRetry;
+  }
+  note.classList.toggle("is-idle", !message);
 }
 
 function calculateBaseMapBounds(layers) {
@@ -500,15 +559,12 @@ function drawBaseMap(ctx, w, h) {
   if (!adminMap.loaded) {
     drawForestOutline(ctx, w, h);
     ctx.restore();
-    if (adminMap.loading) {
-      ctx.fillStyle = "rgba(36, 56, 47, 0.78)";
-      ctx.font = "600 12px system-ui";
-      ctx.fillText("Loading map context...", 16, 24);
-    }
-    return;
+    return; // the layer note says what is loading
   }
 
   // Land and environment stay soft so routes and markers dominate; roads and paths are drawn on top at full strength so streets read.
+  // If the forest itself could not be loaded the rough outline stays, so the map still shows where the forest is.
+  if (!adminMap.layers.some((layer) => layer.key === "forest")) drawForestOutline(ctx, w, h);
   for (const layer of adminMap.layers) drawAdminLayer(ctx, w, h, layer);
   drawAdminEnvironment(ctx, w, h);
   ctx.restore();
@@ -588,10 +644,13 @@ function drawAdminRoads(ctx, w, h) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  for (const road of adminMap.roads) {
-    if (!bboxIntersects(road.bbox, visible)) continue;
-    const style = roadStyle(road.roadType);
-    for (const segment of road.segments) drawProjectedSegment(ctx, w, h, segment, style);
+  // Two passes (every casing, then every stroke) over lines sorted minor to major, so crossings read cleanly.
+  for (const pass of ["casing", "stroke"]) {
+    for (const road of adminMap.roads) {
+      if (!bboxIntersects(road.bbox, visible)) continue;
+      const style = roadStyle(road.roadType);
+      for (const segment of road.segments) drawProjectedSegment(ctx, w, h, segment, style, pass);
+    }
   }
 
   ctx.restore();
@@ -605,10 +664,12 @@ function drawAdminPaths(ctx, w, h) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  for (const path of adminMap.paths) {
-    if (!bboxIntersects(path.bbox, visible)) continue;
-    const style = pathStyle(path.pathType);
-    for (const segment of path.segments) drawProjectedSegment(ctx, w, h, segment, style);
+  for (const pass of ["casing", "stroke"]) {
+    for (const path of adminMap.paths) {
+      if (!bboxIntersects(path.bbox, visible)) continue;
+      const style = pathStyle(path.pathType);
+      for (const segment of path.segments) drawProjectedSegment(ctx, w, h, segment, style, pass);
+    }
   }
 
   ctx.restore();
@@ -629,9 +690,9 @@ function roadStyle(roadType) {
     case "residential":
       return { stroke: "#ffffff", casing: "rgba(60,68,60,0.62)", width: 1.6, casingWidth: 2.8 };
     case "service":
-      return { stroke: "#fbfbfb", casing: "rgba(60,68,60,0.55)", width: 1.2, casingWidth: 2.2 };
+      return { stroke: "#fbfbfb", casing: "rgba(60,68,60,0.40)", width: 1.1, casingWidth: 1.9 };
     case "alley":
-      return { stroke: "#f4f4f4", casing: "rgba(60,68,60,0.48)", width: 0.9, casingWidth: 1.8 };
+      return { stroke: "#f4f4f4", casing: "rgba(60,68,60,0.30)", width: 0.8, casingWidth: 1.5 };
     default:
       return { stroke: "#ffffff", casing: "rgba(60,68,60,0.58)", width: 1.5, casingWidth: 2.6 };
   }
@@ -639,13 +700,13 @@ function roadStyle(roadType) {
 
 function pathStyle(pathType) {
   const stroke = pathType === "bridleway"
-    ? "rgba(113, 77, 35, 0.95)"
+    ? "rgba(113, 77, 35, 0.88)"
     : pathType === "byway"
-      ? "rgba(72, 61, 139, 0.95)"
+      ? "rgba(72, 61, 139, 0.88)"
       : pathType === "permissive"
-        ? "rgba(57, 90, 138, 0.95)"
+        ? "rgba(57, 90, 138, 0.88)"
         : pathType === "waymarked_trail"
-          ? "rgba(109, 68, 140, 0.95)"
+          ? "rgba(109, 68, 140, 0.88)"
           : "rgba(41, 82, 59, 0.92)";
   const dash = pathType === "bridleway"
     ? [7, 4.5]
@@ -656,7 +717,7 @@ function pathStyle(pathType) {
         : pathType === "waymarked_trail"
           ? [9, 5]
           : [];
-  return { stroke, casing: "rgba(255,255,255,0.80)", width: 1.5, casingWidth: 3, dash };
+  return { stroke, casing: "rgba(255,255,255,0.70)", width: 1.2, casingWidth: 2.4, dash };
 }
 
 function drawAdminPolygon(ctx, w, h, geometry, style) {
@@ -690,7 +751,7 @@ function drawAdminLines(ctx, w, h, geometry, style) {
   }
 }
 
-function drawProjectedSegment(ctx, w, h, segment, style) {
+function drawProjectedSegment(ctx, w, h, segment, style, pass) {
   if (!Array.isArray(segment) || segment.length < 2) return;
   ctx.beginPath();
   for (let i = 0; i < segment.length; i += 1) {
@@ -699,17 +760,19 @@ function drawProjectedSegment(ctx, w, h, segment, style) {
     else ctx.lineTo(point.x, point.y);
   }
 
-  if (style.casing) {
+  if (style.casing && pass !== "stroke") {
     ctx.setLineDash(style.dash || []);
     ctx.strokeStyle = style.casing;
     ctx.lineWidth = style.casingWidth;
     ctx.stroke();
   }
 
-  ctx.setLineDash(style.dash || []);
-  ctx.strokeStyle = style.stroke;
-  ctx.lineWidth = style.width;
-  ctx.stroke();
+  if (pass !== "casing") {
+    ctx.setLineDash(style.dash || []);
+    ctx.strokeStyle = style.stroke;
+    ctx.lineWidth = style.width;
+    ctx.stroke();
+  }
   ctx.setLineDash([]);
 }
 
@@ -1320,14 +1383,14 @@ function drawClickMarkers(ctx, w, h) {
     ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
     ctx.shadowBlur = selected ? 8 : 5;
     ctx.lineWidth = selected ? 3 : 2;
-    ctx.strokeStyle = selected ? "rgba(255, 255, 255, 0.96)" : "rgba(255, 224, 94, 0.95)";
+    ctx.strokeStyle = selected ? "rgba(255, 255, 255, 0.96)" : "rgba(255, 224, 94, 0.88)";
     ctx.beginPath();
     ctx.arc(x, y, selected ? 10 : 7, 0, Math.PI * 2);
     ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.beginPath();
     ctx.arc(x, y, selected ? 4.2 : 3.2, 0, Math.PI * 2);
-    ctx.fillStyle = selected ? "rgba(255, 244, 146, 1)" : "rgba(255, 210, 50, 0.95)";
+    ctx.fillStyle = selected ? "rgba(255, 244, 146, 1)" : "rgba(255, 210, 50, 0.88)";
     ctx.fill();
   }
   ctx.restore();

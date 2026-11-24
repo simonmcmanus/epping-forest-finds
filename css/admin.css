@@ -1060,9 +1060,26 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   font-size: var(--fs-xs);
   line-height: 1.4;
 }
-.admin-layer-note[hidden] { display: none; }
+/* With nothing to say the note stays in the page (so its status line announces reliably) but is visually hidden. */
+.admin-layer-note.is-idle {
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* An open sheet stops short of a showing note, so the note and its Retry button stay usable. */
+.admin-map-area:has(.admin-layer-note:not(.is-idle)) .admin-click-details { max-height: max(160px, calc(100% - 200px)); }
+.admin-layer-retry[hidden] { display: none; }
+.admin-layer-retry[aria-disabled="true"] { opacity: 0.65; cursor: progress; }
 .admin-layer-retry {
-  min-height: 28px;
+  min-height: 44px;
+  min-width: 44px;
   padding: 0 10px;
   border: 1px solid var(--border-dark);
   border-radius: var(--radius-sm);
@@ -1073,3 +1090,9 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   cursor: pointer;
 }
 .admin-layer-retry:hover { background: var(--surface-raised-hover); }
+
+/* On a phone the controls are taller (touch-sized): sit below them and left of the legend. */
+@media (max-width: 720px) {
+  .admin-layer-note { top: 76px; left: var(--sp-2); max-width: calc(100% - 140px); }
+  .admin-map-area:has(.admin-layer-note:not(.is-idle)) .admin-click-details { max-height: max(160px, calc(100% - 260px)); }
+}
