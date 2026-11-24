@@ -137,7 +137,7 @@ jobs:
             --json-schema '{"type":"object","additionalProperties":false,"required":["head_sha","base_sha","complete","findings"],"properties":{"head_sha":{"type":"string","pattern":"^[0-9a-f]{40}$"},"base_sha":{"type":"string","pattern":"^[0-9a-f]{40}$"},"complete":{"type":"boolean"},"findings":{"type":"array","maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["axis","priority","path","line","side","title","body"],"properties":{"axis":{"type":"string","enum":["Standards","Spec"]},"priority":{"type":"integer","minimum":0,"maximum":2},"path":{"type":"string","minLength":1,"maxLength":500},"line":{"type":"integer","minimum":1},"side":{"type":"string","enum":["LEFT","RIGHT"]},"title":{"type":"string","minLength":1,"maxLength":120},"body":{"type":"string","minLength":1,"maxLength":1600}}}}}}'
 
       - name: Diagnose failed or incomplete Claude inspection without exposing its transcript
-        if: always() && steps.claude.outcome != 'skipped'
+        if: always() && (steps.claude.outcome == 'success' || steps.claude.outcome == 'failure')
         uses: actions/github-script@v8
         env:
           CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
@@ -146,7 +146,7 @@ jobs:
         with:
           script: |
             const fs = require('node:fs');
-            const emit = category => core.notice('Claude failure diagnostic: ' + JSON.stringify(category));
+            const emitRaw = body => core.notice('Claude inspection diagnostic: ' + JSON.stringify(body));
             // A step that succeeded is only diagnosed when its structured result
             // is missing, invalid or not complete:true (the publisher then fails).
             let incomplete = false;
@@ -157,6 +157,10 @@ jobs:
               } catch { incomplete = true; }
               if (!incomplete) return;
             }
+            // An incomplete result keeps its own category; a file problem is then
+            // only a fixed-allowlist detail.
+            const emit = body => emitRaw(incomplete && body.category !== 'incomplete-result'
+              ? {category: 'incomplete-result', detail: body.category} : body);
             const file = process.env.CLAUDE_DIAGNOSTIC_FILE;
             try {
               if (!file || !fs.existsSync(file)) { emit({category: 'execution-file-unavailable'}); return; }

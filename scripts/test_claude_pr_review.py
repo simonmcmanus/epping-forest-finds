@@ -469,6 +469,27 @@ class ClaudeReviewDiagnosticsTests(unittest.TestCase):
                 self.assertEqual(body.get("num_turns"), expected)
                 self.assertNotIn("SENTINEL", json.dumps(output))
 
+    def test_incomplete_result_with_unusable_execution_file_keeps_incomplete_category(self):
+        for overrides, detail in (({"missing": True}, "execution-file-unavailable"),
+                                  ({"size": 17000000}, "execution-file-too-large"),
+                                  ({"raw": "SENTINEL_BAD_JSON"}, "unreadable-execution-file"),
+                                  ({"messages": {}}, "invalid-execution-file"),
+                                  ({"messages": [{"type": "assistant"}]}, "no-final-result")):
+            with self.subTest(detail=detail):
+                output = self.diagnose(env={"CLAUDE_OUTCOME": "success", "CLAUDE_STRUCTURED_OUTPUT": ""}, **overrides)
+                body = self.notice_body(output)
+                self.assertEqual((body["category"], body.get("detail")), ("incomplete-result", detail))
+                self.assertIn("Claude inspection diagnostic", output["notices"][0])
+
+    def test_failure_with_missing_execution_file_still_reports_file_category(self):
+        output = self.diagnose(env={"CLAUDE_OUTCOME": "failure"}, missing=True)
+        body = self.notice_body(output)
+        self.assertEqual(body, {"category": "execution-file-unavailable"})
+
+    def test_step_is_not_run_for_cancelled_outcome(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        self.assertIn("always() && (steps.claude.outcome == 'success' || steps.claude.outcome == 'failure')", workflow)
+
     def test_successful_complete_result_emits_no_diagnostic(self):
         complete = json.dumps({"head_sha": HEAD, "base_sha": BASE, "complete": True, "findings": []})
         output = self.diagnose(env={"CLAUDE_OUTCOME": "success", "CLAUDE_STRUCTURED_OUTPUT": complete})

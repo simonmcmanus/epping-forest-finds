@@ -62,18 +62,21 @@ starting another workflow. A failed model or invalid output fails the final
 required review check rather than silently treating missing output as clean.
 The action's session ID and a compact validated-result summary are recorded in
 the job summary for usage correlation; no execution transcript or credentials
-are published. A diagnostic step runs when the action failed, and also when it
-succeeded but its structured result is missing, invalid or `complete` is not
-`true` (category `incomplete-result`). It reads only the bounded final-result
-  error fields from the action execution file and logs a fixed error category plus the final `subtype` and a clamped
-  integer `num_turns` (so a turn limit is distinguishable from the model choosing
-  incomplete);
-  it never prints error text, assistant turns or tool output. This distinguishes
-  authentication, model/configuration, schema, rate-limit and network failures
-  without enabling full output. The publisher names the failed condition: head/base mismatch,
-  `complete:false` (points to the model job's diagnostic notice) or invalid
-  findings. All still fail the check without publishing an approval.
-  Actual input/output/cache token usage comes from Claude's usage
+are published. A diagnostic step runs when the action step failed (not when the
+run was cancelled or skipped), and also when it succeeded but its structured
+result is missing, invalid or `complete` is not `true` (category
+`incomplete-result`; if the execution file is then unusable the category stays
+`incomplete-result` with a `detail` of the file problem). It reads only the
+bounded final-result error fields from the action execution file and logs a
+`Claude inspection diagnostic` notice with a fixed error category plus the final
+`subtype` and a clamped integer `num_turns` (so a turn limit is distinguishable
+from the model choosing incomplete); it never prints error text, assistant turns
+or tool output. This distinguishes authentication, model/configuration, schema,
+rate-limit and network failures without enabling full output. The publisher
+names the failed condition: head/base mismatch, `complete:false` (points to the
+model job's diagnostic notice) or invalid findings. All still fail the check
+without publishing an approval.
+Actual input/output/cache token usage comes from Claude's usage
 records, not an estimate inferred from file size.
 
 ## One remediation owner
