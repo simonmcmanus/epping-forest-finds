@@ -60,3 +60,28 @@ test("a warmed app restarts from its cached shell and map data without a network
   await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
   expect(await page.evaluate(() => state.trees.length)).toBeGreaterThan(0);
 });
+
+test("a returning device with an old feature-gate answer still opens Community offline and drops the old answer", async ({ page, context }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("forest-finds-onboarding-v1", "done");
+    localStorage.setItem("ff-cookie-consent", "granted");
+  });
+  await page.goto("/nearby");
+  await page.waitForFunction(() => state.dataLoaded === true && state.trees.length > 0, null, { timeout: 60_000 });
+  await page.waitForFunction(() => navigator.serviceWorker?.controller, null, { timeout: 30_000 });
+  await page.reload();
+  await page.waitForFunction(() => state.dataLoaded === true && state.trees.length > 0, null, { timeout: 60_000 });
+
+  // An older build saved "Community is off" on this device.
+  await page.evaluate(() => localStorage.setItem("ff-features-v1", JSON.stringify({ community: false })));
+
+  await context.setOffline(true);
+  await page.reload();
+  await page.waitForFunction(() => state.dataLoaded === true, null, { timeout: 30_000 });
+  await page.waitForFunction(() => document.getElementById("loadingOverlay")?.hidden === true, null, { timeout: 30_000 });
+
+  await expect(page.locator("#reportToggle .nav-label")).toHaveText("Community");
+  await page.locator("#reportToggle").click();
+  await expect(page.locator("#inspectorTitle").last()).toContainText("Community");
+  expect(await page.evaluate(() => localStorage.getItem("ff-features-v1"))).toBeNull();
+});
