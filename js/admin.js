@@ -26,6 +26,9 @@ const SIGNIN_MESSAGES = {
 const BETA_EMPTY_TEXT = "No beta user activity in this window yet. Activity from before beta users were marked isn't counted here.";
 const BETA_CAVEAT_TEXT = "Beta users only: activity from before beta users were marked isn't counted here.";
 const ME_CHECK_TIMEOUT_MS = 8000;
+const ADMIN_LAYER_RECOVERED_MS = 4000; // how long "Roads loaded." stays after a successful Retry
+let adminLayerRecoveredTimer = null;
+const ADMIN_LAYER_TIMEOUT_MS = 30000; // a map layer request that never answers becomes a failed layer with Retry
 const LOAD_TIMEOUT_MS = 20000; // a tracks load that never answers is a failed load (longer than a normal one)
 const ADMIN_VIEWPORT_KEY = "ff-admin-map-viewport";
 const BASE_MAP_OPACITY = 0.42;
@@ -224,6 +227,11 @@ let viewMode = "tracks"; // "tracks" | "heatmap" (the last map view; the Navigat
 const PAGE_VIEWS = ["navigation", "stats", "community", "beta"];
 let activePage = null; // "navigation" | "stats" | "community" | "beta" while that page is shown instead of the map
 
+const ADMIN_MAP_LAYER_NAMES = { forest: "forest", buffer: "forest edge", environment: "water and railways", roads: "roads", paths: "paths" };
+
+// `loaded` marks forest and forest edge as settled. It gates only the one-time fit and the loadAdminBaseMap re-entry guard;
+// the fallback outline depends on whether a forest layer exists, not on this flag.
+// Each layer loads on its own and paints as soon as it arrives; `status` holds "loading" | "loaded" | "failed" per layer.
 let adminMap = {
   loaded: false,
   loading: false,
@@ -233,55 +241,182 @@ let adminMap = {
   roads: [],
   paths: [],
   bounds: null,
+  boundsFixed: false,
+  retryKeys: [],
+  status: {},
+  recovered: "",
 };
 
 // ---- Base map loading ----
 
 async function fetchGeojson(url) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
-  return response.json();
+  // A layer request that never answers ends as a failed layer (with Retry) instead of loading forever.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ADMIN_LAYER_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-async function loadAdminBaseMap() {
-  if (adminMap.loaded || adminMap.loading) return;
-  adminMap.loading = true;
+// Draw order for lines: minor first, so a major road's stroke is never cut by a minor road's casing at a crossing. Sorted once at load, never per frame.
+const ROAD_DRAW_RANK = { alley: 0, service: 1, unclassified: 2, residential: 3, tertiary: 4, secondary: 5, primary: 6, trunk: 7, motorway: 8 };
+const PATH_DRAW_RANK = { trail: 0, permissive: 1, waymarked_trail: 2, byway: 3, bridleway: 4 };
+const sortedByRank = (items, ranks, field) => items
+  .map((item, index) => ({ item, index }))
+  .sort((x, y) => ((ranks[x.item[field]] || 0) - (ranks[y.item[field]] || 0)) || (x.index - y.index))
+  .map((entry) => entry.item);
 
-  const safeLoad = (url) => fetchGeojson(url).catch((error) => {
-    console.warn("[admin] map layer failed", url, error);
-    return { type: "FeatureCollection", features: [] };
-  });
+function applyAdminLayer(key, data) {
+  const features = Array.isArray(data && data.features) ? data.features : [];
+  if (key === "forest" || key === "buffer") {
+    const layers = adminMap.layers.filter((layer) => layer.key !== key);
+    layers.push({ key, data: { ...data, features } });
+    layers.sort((x, y) => (x.key === "buffer" ? 0 : 1) - (y.key === "buffer" ? 0 : 1)); // buffer under forest
+    adminMap.layers = layers;
+  } else if (key === "environment") {
+    adminMap.environmentFeatures = features.filter((feature) => feature && feature.geometry && feature.properties);
+  } else if (key === "roads") {
+    adminMap.roads = sortedByRank(features.map(toAdminRoadFeature).filter(Boolean), ROAD_DRAW_RANK, "roadType");
+  } else if (key === "paths") {
+    adminMap.paths = sortedByRank(features.map(toAdminPathFeature).filter(Boolean), PATH_DRAW_RANK, "pathType");
+  }
+}
 
+async function loadAdminLayer(key) {
+  adminMap.status = { ...adminMap.status, [key]: "loading" };
   try {
-    const [forest, buffer, environment, roads, paths] = await Promise.all([
-      safeLoad(ADMIN_MAP_URLS.forest),
-      safeLoad(ADMIN_MAP_URLS.buffer),
-      safeLoad(ADMIN_MAP_URLS.environment),
-      safeLoad(ADMIN_MAP_URLS.roads),
-      safeLoad(ADMIN_MAP_URLS.paths),
-    ]);
-
-    const layers = [
-      { key: "buffer", data: buffer },
-      { key: "forest", data: forest },
-    ];
-
-    adminMap = {
-      loaded: true,
-      loading: false,
-      error: null,
-      layers,
-      environmentFeatures: (environment.features || []).filter((feature) => feature && feature.geometry && feature.properties),
-      roads: (roads.features || []).map(toAdminRoadFeature).filter(Boolean),
-      paths: (paths.features || []).map(toAdminPathFeature).filter(Boolean),
-      bounds: calculateBaseMapBounds(layers),
-    };
+    const data = await fetchGeojson(ADMIN_MAP_URLS[key]);
+    if (!data || typeof data !== "object") throw new Error(`${ADMIN_MAP_URLS[key]} gave no data`);
+    applyAdminLayer(key, data);
+    adminMap.status = { ...adminMap.status, [key]: "loaded" };
   } catch (error) {
-    adminMap = { ...adminMap, loaded: false, loading: false, error };
-    console.warn("[admin] base map failed", error);
+    console.warn("[admin] map layer failed", ADMIN_MAP_URLS[key], error);
+    adminMap.status = { ...adminMap.status, [key]: "failed" };
+  }
+  const st = adminMap.status;
+  if (st.forest !== "loading" && st.buffer !== "loading") {
+    adminMap.loaded = true;
+    // Fit the view once, when forest and edge have both settled: a later Retry never moves the user's view.
+    if (!adminMap.boundsFixed && adminMap.layers.length) {
+      adminMap.bounds = calculateBaseMapBounds(adminMap.layers);
+      adminMap.boundsFixed = true;
+    }
+  }
+  adminMap.loading = Object.values(st).some((v) => v === "loading");
+  if (!adminMap.loading) {
+    // A Retry that fixed everything is announced briefly ("Roads loaded."), then the note clears itself.
+    const fixed = (adminMap.retryKeys || []).filter((k) => st[k] === "loaded");
+    if (fixed.length && !Object.values(st).includes("failed")) {
+      const names = joinNames(fixed.map((k) => ADMIN_MAP_LAYER_NAMES[k] || k));
+      adminMap.recovered = `${names.charAt(0).toUpperCase()}${names.slice(1)} loaded.`;
+      clearTimeout(adminLayerRecoveredTimer);
+      adminLayerRecoveredTimer = setTimeout(() => { adminMap.recovered = ""; updateAdminLayerNote(); }, ADMIN_LAYER_RECOVERED_MS);
+    }
+    adminMap.retryKeys = [];
+  }
+  render();
+  updateAdminLayerNote();
+}
+
+function loadAdminLayers(keys, { retry = false } = {}) {
+  const status = { ...adminMap.status };
+  for (const key of keys) status[key] = "loading";
+  adminMap.status = status;
+  adminMap.loading = true;
+  adminMap.retryKeys = retry ? keys.slice() : [];
+  adminMap.recovered = "";
+  clearTimeout(adminLayerRecoveredTimer);
+  updateAdminLayerNote();
+  return Promise.all(keys.map(loadAdminLayer));
+}
+
+function loadAdminBaseMap() {
+  if (adminMap.loaded || adminMap.loading) return Promise.resolve();
+  return loadAdminLayers(Object.keys(ADMIN_MAP_URLS));
+}
+
+const joinNames = (names) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]);
+
+// A plain-language note on the map while layers are arriving, or when a layer could not be loaded.
+// The note box holds a status line (always in the page, so announcements are reliable) and a Retry button.
+// Both keep their elements and only change when the message really changes, so focus on Retry survives and nothing is re-announced.
+function ensureAdminLayerNote() {
+  const area = document.querySelector(".admin-map-area");
+  if (!area) return null;
+  let note = document.getElementById("adminLayerNote");
+  if (note) return note;
+  note = document.createElement("div");
+  note.id = "adminLayerNote";
+  note.className = "admin-layer-note is-idle";
+  const text = document.createElement("span");
+  text.id = "adminLayerStatus";
+  text.setAttribute("role", "status");
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "admin-layer-retry";
+  retry.hidden = true;
+  retry.addEventListener("click", () => {
+    if (retry.getAttribute("aria-disabled") === "true") return;
+    const failed = Object.keys(adminMap.status).filter((key) => adminMap.status[key] === "failed");
+    if (failed.length) loadAdminLayers(failed, { retry: true });
+  });
+  note.append(text, retry);
+  area.appendChild(note);
+  const canvas = document.getElementById("adminCanvas");
+  if (canvas) {
+    canvas.setAttribute("aria-label", "Admin map");
+    canvas.setAttribute("aria-describedby", "adminLayerStatus");
+  }
+  return note;
+}
+
+function updateAdminLayerNote() {
+  const note = ensureAdminLayerNote();
+  if (!note) return;
+  const text = note.querySelector("#adminLayerStatus");
+  const retry = note.querySelector(".admin-layer-retry");
+  const st = adminMap.status;
+  const nameOf = (key) => ADMIN_MAP_LAYER_NAMES[key] || key;
+  const keysIn = (state) => Object.keys(ADMIN_MAP_LAYER_NAMES).filter((key) => st[key] === state);
+  const failed = keysIn("failed");
+  const loading = keysIn("loading");
+  const retrying = (adminMap.retryKeys || []).filter((key) => st[key] === "loading");
+
+  let message = "";
+  let buttonLabel = "";
+  let busy = false;
+  if (retrying.length) {
+    message = `Loading ${joinNames(retrying.map(nameOf))}...`;
+    buttonLabel = "Retrying...";
+    busy = true;
+  } else if (failed.length) {
+    const names = failed.map(nameOf);
+    message = `Couldn't load the ${joinNames(names)} ${names.length > 1 ? "layers" : "layer"}.`;
+    buttonLabel = "Retry";
+  } else if (loading.length) {
+    message = `Loading ${loading.length > 2 ? "map layers" : joinNames(loading.map(nameOf))}...`;
+  } else if (adminMap.recovered) {
+    message = adminMap.recovered;
   }
 
-  render();
+  if (text.textContent !== message) text.textContent = message;
+  if (retry.textContent !== buttonLabel) retry.textContent = buttonLabel;
+  retry.setAttribute("aria-disabled", busy ? "true" : "false");
+  if (busy) retry.setAttribute("aria-busy", "true"); else retry.removeAttribute("aria-busy");
+  const showRetry = Boolean(buttonLabel);
+  if (retry.hidden === showRetry) {
+    // Never drop focus to the page body: when Retry goes away while it has focus, move to the map.
+    if (!showRetry && document.activeElement === retry) {
+      const canvas = document.getElementById("adminCanvas");
+      if (canvas) { if (!canvas.hasAttribute("tabindex")) canvas.setAttribute("tabindex", "-1"); canvas.focus({ preventScroll: true }); }
+    }
+    retry.hidden = !showRetry;
+  }
+  note.classList.toggle("is-idle", !message);
 }
 
 function calculateBaseMapBounds(layers) {
@@ -447,22 +582,15 @@ function drawBaseMap(ctx, w, h) {
   ctx.save();
   ctx.globalAlpha = BASE_MAP_OPACITY;
 
-  if (!adminMap.loaded) {
-    drawForestOutline(ctx, w, h);
-    ctx.restore();
-    if (adminMap.loading) {
-      ctx.fillStyle = "rgba(36, 56, 47, 0.78)";
-      ctx.font = "600 12px system-ui";
-      ctx.fillText("Loading map context...", 16, 24);
-    }
-    return;
-  }
-
+  // Every layer paints as soon as it has arrived (an unarrived layer holds no data, so drawing it is a no-op); the layer note says what is still loading.
+  // Land and environment stay soft so routes and markers dominate; roads and paths are drawn on top at full strength so streets read.
+  // Until the forest arrives, or if it could not be loaded, the rough outline stays, so the map still shows where the forest is.
+  if (!adminMap.layers.some((layer) => layer.key === "forest")) drawForestOutline(ctx, w, h);
   for (const layer of adminMap.layers) drawAdminLayer(ctx, w, h, layer);
   drawAdminEnvironment(ctx, w, h);
+  ctx.restore();
   drawAdminRoads(ctx, w, h);
   drawAdminPaths(ctx, w, h);
-  ctx.restore();
 }
 
 function drawAdminLayer(ctx, w, h, layer) {
@@ -537,10 +665,13 @@ function drawAdminRoads(ctx, w, h) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  for (const road of adminMap.roads) {
-    if (!bboxIntersects(road.bbox, visible)) continue;
-    const style = roadStyle(road.roadType);
-    for (const segment of road.segments) drawProjectedSegment(ctx, w, h, segment, style);
+  // Two passes (every casing, then every stroke) over lines sorted minor to major, so crossings read cleanly.
+  for (const pass of ["casing", "stroke"]) {
+    for (const road of adminMap.roads) {
+      if (!bboxIntersects(road.bbox, visible)) continue;
+      const style = roadStyle(road.roadType);
+      for (const segment of road.segments) drawProjectedSegment(ctx, w, h, segment, style, pass);
+    }
   }
 
   ctx.restore();
@@ -554,10 +685,12 @@ function drawAdminPaths(ctx, w, h) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  for (const path of adminMap.paths) {
-    if (!bboxIntersects(path.bbox, visible)) continue;
-    const style = pathStyle(path.pathType);
-    for (const segment of path.segments) drawProjectedSegment(ctx, w, h, segment, style);
+  for (const pass of ["casing", "stroke"]) {
+    for (const path of adminMap.paths) {
+      if (!bboxIntersects(path.bbox, visible)) continue;
+      const style = pathStyle(path.pathType);
+      for (const segment of path.segments) drawProjectedSegment(ctx, w, h, segment, style, pass);
+    }
   }
 
   ctx.restore();
@@ -566,46 +699,47 @@ function drawAdminPaths(ctx, w, h) {
 function roadStyle(roadType) {
   switch (roadType) {
     case "motorway":
-      return { stroke: "rgba(229, 105, 82, 0.68)", casing: "rgba(0,0,0,0.12)", width: 3.3, casingWidth: 4.8 };
+      return { stroke: "#e0614a", casing: "rgba(90,30,20,0.75)", width: 3.6, casingWidth: 5.4 };
     case "trunk":
-      return { stroke: "rgba(245, 161, 80, 0.66)", casing: "rgba(0,0,0,0.10)", width: 3, casingWidth: 4.3 };
+      return { stroke: "#f09a45", casing: "rgba(100,55,15,0.72)", width: 3.3, casingWidth: 5 };
     case "primary":
-      return { stroke: "rgba(232, 190, 77, 0.66)", casing: "rgba(255,255,255,0.45)", width: 2.4, casingWidth: 3.7 };
+      return { stroke: "#f2c94c", casing: "rgba(100,80,10,0.70)", width: 2.9, casingWidth: 4.4 };
     case "secondary":
-      return { stroke: "rgba(244, 250, 191, 0.72)", casing: "rgba(110,110,90,0.18)", width: 2, casingWidth: 3 };
+      return { stroke: "#f6efa0", casing: "rgba(90,85,40,0.68)", width: 2.5, casingWidth: 3.9 };
     case "tertiary":
-      return { stroke: "rgba(255, 255, 255, 0.66)", casing: "rgba(90,90,90,0.16)", width: 1.7, casingWidth: 2.5 };
+      return { stroke: "#ffffff", casing: "rgba(70,75,70,0.66)", width: 2.1, casingWidth: 3.4 };
     case "residential":
-      return { stroke: "rgba(255, 255, 255, 0.56)", casing: "rgba(90,90,90,0.14)", width: 1.35, casingWidth: 2.1 };
+      return { stroke: "#ffffff", casing: "rgba(60,68,60,0.62)", width: 1.6, casingWidth: 2.8 };
     case "service":
-      return { stroke: "rgba(255, 255, 255, 0.44)", casing: "rgba(90,90,90,0.12)", width: 1, casingWidth: 1.7 };
+      return { stroke: "#fbfbfb", casing: "rgba(60,68,60,0.40)", width: 1.1, casingWidth: 1.9 };
     case "alley":
-      return { stroke: "rgba(255, 255, 255, 0.32)", casing: "rgba(90,90,90,0.10)", width: 0.8, casingWidth: 1.3 };
+      return { stroke: "#f4f4f4", casing: "rgba(60,68,60,0.30)", width: 0.8, casingWidth: 1.5 };
     default:
-      return { stroke: "rgba(255, 255, 255, 0.48)", casing: "rgba(90,90,90,0.12)", width: 1.2, casingWidth: 1.9 };
+      return { stroke: "#ffffff", casing: "rgba(60,68,60,0.58)", width: 1.5, casingWidth: 2.6 };
   }
 }
 
 function pathStyle(pathType) {
+  // Paths sit under the tracks, so they are thin and soft (kinds told apart by hue and dash); roads stay the strongest line.
   const stroke = pathType === "bridleway"
-    ? "rgba(113, 77, 35, 0.78)"
+    ? "rgba(140, 100, 55, 0.68)"
     : pathType === "byway"
-      ? "rgba(72, 61, 139, 0.80)"
+      ? "rgba(100, 88, 165, 0.68)"
       : pathType === "permissive"
-        ? "rgba(57, 90, 138, 0.76)"
+        ? "rgba(80, 118, 168, 0.68)"
         : pathType === "waymarked_trail"
-          ? "rgba(109, 68, 140, 0.80)"
-          : "rgba(41, 82, 59, 0.74)";
+          ? "rgba(135, 95, 165, 0.68)"
+          : "rgba(86, 128, 100, 0.62)";
   const dash = pathType === "bridleway"
     ? [7, 4.5]
     : pathType === "byway"
-      ? [2, 3]
+      ? [10, 4, 2, 4]
       : pathType === "permissive"
-        ? [4, 3]
+        ? [2.5, 3.5]
         : pathType === "waymarked_trail"
           ? [9, 5]
           : [];
-  return { stroke, casing: "rgba(255,255,255,0.70)", width: 1.15, casingWidth: 2.7, dash };
+  return { stroke, casing: "rgba(255,255,255,0.42)", width: 1, casingWidth: 2, dash };
 }
 
 function drawAdminPolygon(ctx, w, h, geometry, style) {
@@ -639,7 +773,7 @@ function drawAdminLines(ctx, w, h, geometry, style) {
   }
 }
 
-function drawProjectedSegment(ctx, w, h, segment, style) {
+function drawProjectedSegment(ctx, w, h, segment, style, pass) {
   if (!Array.isArray(segment) || segment.length < 2) return;
   ctx.beginPath();
   for (let i = 0; i < segment.length; i += 1) {
@@ -648,17 +782,19 @@ function drawProjectedSegment(ctx, w, h, segment, style) {
     else ctx.lineTo(point.x, point.y);
   }
 
-  if (style.casing) {
+  if (style.casing && pass !== "stroke") {
     ctx.setLineDash(style.dash || []);
     ctx.strokeStyle = style.casing;
     ctx.lineWidth = style.casingWidth;
     ctx.stroke();
   }
 
-  ctx.setLineDash(style.dash || []);
-  ctx.strokeStyle = style.stroke;
-  ctx.lineWidth = style.width;
-  ctx.stroke();
+  if (pass !== "casing") {
+    ctx.setLineDash(style.dash || []);
+    ctx.strokeStyle = style.stroke;
+    ctx.lineWidth = style.width;
+    ctx.stroke();
+  }
   ctx.setLineDash([]);
 }
 
@@ -2180,6 +2316,7 @@ async function adminBoot() {
   betaOnly = initialQuery.get("beta") === "1";
   clearLegacyStoredPassword();
   readSavedViewport();
+  ensureAdminLayerNote(); // in the page and empty before the first message, so screen readers announce it
   loadAdminBaseMap();
   setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn);
 
