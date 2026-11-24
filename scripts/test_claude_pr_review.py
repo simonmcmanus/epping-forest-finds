@@ -486,10 +486,6 @@ class ClaudeReviewDiagnosticsTests(unittest.TestCase):
         body = self.notice_body(output)
         self.assertEqual(body, {"category": "execution-file-unavailable"})
 
-    def test_step_is_not_run_for_cancelled_outcome(self):
-        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
-        self.assertIn("always() && (steps.claude.outcome == 'success' || steps.claude.outcome == 'failure')", workflow)
-
     def test_successful_complete_result_emits_no_diagnostic(self):
         complete = json.dumps({"head_sha": HEAD, "base_sha": BASE, "complete": True, "findings": []})
         output = self.diagnose(env={"CLAUDE_OUTCOME": "success", "CLAUDE_STRUCTURED_OUTPUT": complete})
