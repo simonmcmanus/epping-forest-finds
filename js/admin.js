@@ -581,14 +581,9 @@ function drawBaseMap(ctx, w, h) {
   ctx.save();
   ctx.globalAlpha = BASE_MAP_OPACITY;
 
-  if (!adminMap.loaded) {
-    drawForestOutline(ctx, w, h);
-    ctx.restore();
-    return; // the layer note says what is loading
-  }
-
+  // Every layer paints as soon as it has arrived (an unarrived layer holds no data, so drawing it is a no-op); the layer note says what is still loading.
   // Land and environment stay soft so routes and markers dominate; roads and paths are drawn on top at full strength so streets read.
-  // If the forest itself could not be loaded the rough outline stays, so the map still shows where the forest is.
+  // Until the forest arrives, or if it could not be loaded, the rough outline stays, so the map still shows where the forest is.
   if (!adminMap.layers.some((layer) => layer.key === "forest")) drawForestOutline(ctx, w, h);
   for (const layer of adminMap.layers) drawAdminLayer(ctx, w, h, layer);
   drawAdminEnvironment(ctx, w, h);

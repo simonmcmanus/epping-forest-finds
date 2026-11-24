@@ -105,6 +105,21 @@ test.describe("Admin map: layers load on their own", () => {
   });
 });
 
+test.describe("Admin map: fast layers do not wait for the forest", () => {
+  test("roads already drawn while the forest is still downloading, and the map settles once it arrives", async ({ page }) => {
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    await openAdmin(page, { forest: async (route) => { await gate; await json(route, 200, FOREST); } });
+    await expect(page.locator("#adminLayerStatus")).toHaveText("Loading forest...");
+    await expect.poll(async () => strongestContrast(page, ...await acrossRoad(page, 51.700, 0.03))).toBeGreaterThanOrEqual(40);
+    await expect(page.locator("#adminLayerStatus")).toHaveText("Loading forest...");
+    release();
+    await expect(page.locator("#adminLayerStatus")).not.toHaveText("Loading forest...");
+    await expect(page.locator("#adminLayerNote")).toHaveClass(/is-idle/);
+    await expect.poll(async () => strongestContrast(page, ...await acrossRoad(page, 51.700, 0.03))).toBeGreaterThanOrEqual(40);
+  });
+});
+
 const status = (page) => page.locator("#adminLayerStatus");
 const pixel = (page, p) => page.evaluate(({ x, y }) => {
   const c = document.getElementById("adminCanvas");
