@@ -33,7 +33,7 @@ the existing Haiku execution task handles lead-specified mechanical checks. The 
 changed risk for each specialist and briefs repair reviews with previous/current SHAs, the delta,
 affected findings and dependencies. Uncertain impact still requires the full applicable review.
 
-- The model uses Sonnet with a 30-turn limit and returns structured JSON with
+- The model uses Sonnet with a 60-turn limit and returns structured JSON with
   the reviewed head/base SHAs, a completeness flag and at most 20 P0–P2 findings. A
   finding names its Standards/Spec axis and a changed line (RIGHT addition or LEFT deletion), and states
   the concrete triggering state, wrong result and expected correction. A review

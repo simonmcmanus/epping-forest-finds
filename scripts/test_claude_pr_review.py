@@ -250,7 +250,7 @@ class ClaudeReviewPublicationTests(unittest.TestCase):
         output = self.run_publisher(session="<script>unsafe</script>")
         self.assertIsNone(output["error"])
         summary = output["summaries"][0]
-        self.assertIn("Model: sonnet; turn limit: 30", summary)
+        self.assertIn("Model: sonnet; turn limit: 60", summary)
         self.assertIn("Session: unavailable", summary)
         self.assertNotIn("<script>", summary)
 

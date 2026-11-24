@@ -132,7 +132,7 @@ jobs:
             unfinished review is never a clean approval. Inspect source for a
             missing patch when needed; do not guess about binary rendering.
           claude_args: >-
-            --model sonnet --max-turns 30 --setting-sources user
+            --model sonnet --max-turns 60 --setting-sources user
             --tools "Read,Glob,Grep" --allowedTools "Read,Glob,Grep"
             --json-schema '{"type":"object","additionalProperties":false,"required":["head_sha","base_sha","complete","findings"],"properties":{"head_sha":{"type":"string","pattern":"^[0-9a-f]{40}$"},"base_sha":{"type":"string","pattern":"^[0-9a-f]{40}$"},"complete":{"type":"boolean"},"findings":{"type":"array","maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["axis","priority","path","line","side","title","body"],"properties":{"axis":{"type":"string","enum":["Standards","Spec"]},"priority":{"type":"integer","minimum":0,"maximum":2},"path":{"type":"string","minLength":1,"maxLength":500},"line":{"type":"integer","minimum":1},"side":{"type":"string","enum":["LEFT","RIGHT"]},"title":{"type":"string","minLength":1,"maxLength":120},"body":{"type":"string","minLength":1,"maxLength":1600}}}}}}'
 
@@ -289,7 +289,7 @@ jobs:
               body: marker + (comments.length ? `\n${index}\nSee inline comments for details.` : ''), comments});
             const session = /^[a-zA-Z0-9_-]{1,100}$/.test(process.env.REVIEW_SESSION || '')
               ? process.env.REVIEW_SESSION : 'unavailable';
-            await core.summary.addRaw(`Claude review: ${expected}\nBase: ${base}\nModel: sonnet; turn limit: 30\n${index}\nSession: ${session}\n`).write();
+            await core.summary.addRaw(`Claude review: ${expected}\nBase: ${base}\nModel: sonnet; turn limit: 60\n${index}\nSession: ${session}\n`).write();
 
   unit:
     name: Unit tests
