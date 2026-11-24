@@ -153,6 +153,17 @@ class ClaudeReviewPublicationTests(unittest.TestCase):
         self.assertEqual(len(output["reviews"]), 1)
         self.assertEqual(output["reviews"][0]["commit_id"], HEAD)
 
+    def test_rejection_message_names_which_condition_failed(self):
+        cases = ((self.result(complete=False), "reported the review incomplete"),
+                 (self.result(head_sha=OTHER), "head or base"),
+                 (self.result(findings="x"), "invalid findings"))
+        for result, text in cases:
+            with self.subTest(text=text):
+                output = self.run_publisher(result=result)
+                self.assert_rejected(output)
+                self.assertIn(text, output["error"])
+        self.assertIn("diagnostic notice", self.run_publisher(result=self.result(complete=False))["error"])
+
     def test_missing_or_failed_model_does_not_approve(self):
         for result in ("failure", "cancelled", "skipped"):
             with self.subTest(result=result):
@@ -343,11 +354,14 @@ class ClaudeReviewPreparationTests(unittest.TestCase):
         self.assertIn("Incomplete PR file list", output["error"])
         self.assertEqual(output["writes"], [])
 
+DIAGNOSTIC_STEP = "Diagnose failed or incomplete Claude inspection without exposing its transcript"
+
 DIAGNOSTIC_HARNESS = r"""
 const fs = require('node:fs');
 const input = JSON.parse(fs.readFileSync(0, 'utf8'));
 process.env.CLAUDE_DIAGNOSTIC_FILE = '/runner-temp/claude-execution-output.json';
 process.env.CLAUDE_CODE_OAUTH_TOKEN = 'SENTINEL_ENV_CREDENTIAL_DO_NOT_LOG';
+Object.assign(process.env, input.env || {});
 const notices = [], reads = [];
 const fakeRequire = name => {
   if (name !== 'node:fs') throw new Error('Unexpected module');
@@ -370,7 +384,7 @@ const fakeRequire = name => {
 
 class ClaudeReviewDiagnosticsTests(unittest.TestCase):
     def diagnose(self, **overrides):
-        case = {"script": workflow_script("Diagnose failed Claude inspection without exposing its transcript"),
+        case = {"script": workflow_script(DIAGNOSTIC_STEP),
                 "messages": [{"type": "result", "subtype": "success", "is_error": True, "result": "API Error: 401 authentication failed"}]}
         case.update(overrides)
         completed = subprocess.run(["node", "-e", DIAGNOSTIC_HARNESS], input=json.dumps(case),
@@ -429,6 +443,42 @@ class ClaudeReviewDiagnosticsTests(unittest.TestCase):
         output = self.diagnose(messages=[{"type": "result", "result": "x" * 8192 + "401 authentication failed"}])
         self.assertEqual(self.category(output), "unclassified")
 
+
+    def notice_body(self, output):
+        self.assertEqual(len(output["notices"]), 1)
+        return json.loads(output["notices"][0].split(": ", 1)[1])
+
+    def test_successful_step_with_incomplete_result_reports_cause_without_text(self):
+        incomplete = json.dumps({"head_sha": HEAD, "base_sha": BASE, "complete": False, "findings": []})
+        output = self.diagnose(env={"CLAUDE_OUTCOME": "success", "CLAUDE_STRUCTURED_OUTPUT": incomplete},
+                               messages=[{"type": "assistant", "message": "SENTINEL_TRANSCRIPT"},
+                                         {"type": "result", "subtype": "error_max_turns", "num_turns": 31,
+                                          "is_error": False, "result": "SENTINEL_RESULT_TEXT"}])
+        body = self.notice_body(output)
+        self.assertEqual((body["category"], body["subtype"], body["num_turns"]),
+                         ("incomplete-result", "error_max_turns", 31))
+        self.assertNotIn("SENTINEL", json.dumps(output))
+
+    def test_incomplete_diagnostic_validates_num_turns_and_flags_missing_output(self):
+        for turns, expected in ((-5, 0), (1e9, 1000), ("SENTINEL", None), (7.9, 7)):
+            with self.subTest(turns=turns):
+                output = self.diagnose(env={"CLAUDE_OUTCOME": "success", "CLAUDE_STRUCTURED_OUTPUT": ""},
+                                       messages=[{"type": "result", "subtype": "success", "num_turns": turns}])
+                body = self.notice_body(output)
+                self.assertEqual(body["category"], "incomplete-result")
+                self.assertEqual(body.get("num_turns"), expected)
+                self.assertNotIn("SENTINEL", json.dumps(output))
+
+    def test_successful_complete_result_emits_no_diagnostic(self):
+        complete = json.dumps({"head_sha": HEAD, "base_sha": BASE, "complete": True, "findings": []})
+        output = self.diagnose(env={"CLAUDE_OUTCOME": "success", "CLAUDE_STRUCTURED_OUTPUT": complete})
+        self.assertEqual(output["notices"], [])
+
+    def test_failure_diagnostic_also_reports_turns(self):
+        output = self.diagnose(env={"CLAUDE_OUTCOME": "failure"},
+                               messages=[{"type": "result", "subtype": "error_max_turns", "num_turns": 31, "is_error": True}])
+        body = self.notice_body(output)
+        self.assertEqual((body["subtype"], body["num_turns"]), ("error_max_turns", 31))
 
 
 if __name__ == "__main__":
