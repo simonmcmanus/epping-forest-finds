@@ -113,6 +113,14 @@ const pixel = (page, p) => page.evaluate(({ x, y }) => {
 }, p);
 const fail500 = (route) => json(route, 500, { error: "boom" });
 
+// Records every text the status note shows from now on, so a message that clears itself after 4s is still caught.
+const recordStatus = (page) => page.evaluate(() => {
+  const el = document.getElementById("adminLayerStatus");
+  window.__statusSeen = [el.textContent];
+  new MutationObserver(() => { window.__statusSeen.push(el.textContent); }).observe(el, { subtree: true, childList: true, characterData: true });
+});
+const expectSeen = (page, text) => expect.poll(() => page.evaluate((t) => window.__statusSeen.includes(t), text)).toBe(true);
+
 test.describe("Admin map: a layer that fails to load says so", () => {
   for (const [label, fail] of [["answers 500", fail500], ["is cut off", (route) => route.abort()], ["returns broken data", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "{nope" })]]) {
     test(`a roads layer that ${label} shows a message, the tracks still work, and Retry recovers`, async ({ page }) => {
@@ -126,8 +134,9 @@ test.describe("Admin map: a layer that fails to load says so", () => {
       await page.mouse.click((a.x + b.x) / 2, (a.y + b.y) / 2);
       await expect(page.getByRole("region", { name: "Track details" })).toBeVisible();
       failing = false;
+      await recordStatus(page);
       await retry.click();
-      await expect(status(page)).toHaveText("Roads loaded.");
+      await expectSeen(page, "Roads loaded.");
       await expect.poll(async () => strongestContrast(page, ...await acrossRoad(page, 51.700, 0.03))).toBeGreaterThanOrEqual(40);
     });
   }
@@ -148,22 +157,25 @@ test.describe("Admin map: a layer that fails to load says so", () => {
       const gate = new Promise((r) => { release = r; });
       await openAdmin(page, { layers: { [key]: async (route) => { calls += 1; if (calls === 1) return fail500(route); await gate; return json(route, 200, key === "roads" ? ROADS : EMPTY); } } });
       await expect(status(page)).toHaveText(`Couldn't load the ${NAMES[key]} layer.`);
+      await recordStatus(page);
       await page.getByRole("button", { name: "Retry" }).click();
       await expect(status(page)).toHaveText(`Loading ${NAMES[key]}...`);
       release();
       const done = `${NAMES[key][0].toUpperCase()}${NAMES[key].slice(1)} loaded.`;
-      await expect(status(page)).toHaveText(done);
-      await expect(status(page)).toHaveText("", { timeout: 8000 });
+      await expectSeen(page, done);
     });
   }
 
-  test("a successful Retry is announced as Roads loaded., then the note clears itself", async ({ page }) => {
+  test("a successful Retry is announced as Roads loaded., then the note clears itself after about 4 seconds", async ({ page }) => {
     let calls = 0;
+    await page.clock.install();
     await openAdmin(page, { roads: (route) => { calls += 1; return calls === 1 ? fail500(route) : json(route, 200, ROADS); } });
+    await recordStatus(page);
     await page.getByRole("button", { name: "Retry" }).click();
-    await expect(status(page)).toHaveText("Roads loaded.");
+    await expectSeen(page, "Roads loaded.");
     await expect(page.getByRole("button", { name: "Retry" })).toBeHidden();
-    await expect(status(page)).toHaveText("", { timeout: 8000 });
+    await page.clock.fastForward(4500);
+    await expect(status(page)).toHaveText("");
     await expect(page.locator("#adminLayerNote")).toHaveClass(/is-idle/);
   });
 
@@ -180,12 +192,13 @@ test.describe("Admin map: a layer that fails to load says so", () => {
     await openAdmin(page, { roads: async (route) => { calls += 1; if (calls === 1) return fail500(route); await gate; return json(route, 200, ROADS); } });
     const retry = page.getByRole("button", { name: "Retry" });
     await expect(retry).toBeVisible();
+    await recordStatus(page);
     await retry.focus();
     await page.keyboard.press("Enter");
     await expect(status(page)).toHaveText("Loading roads...");
     expect(await page.evaluate(() => document.activeElement && document.activeElement.tagName)).not.toBe("BODY");
     release();
-    await expect(status(page)).toHaveText("Roads loaded.");
+    await expectSeen(page, "Roads loaded.");
     expect(await page.evaluate(() => document.activeElement && document.activeElement.tagName)).not.toBe("BODY");
   });
 
@@ -258,11 +271,50 @@ test.describe("Admin map: the view stays put", () => {
     const before = await roadRows();
     expect(before.length).toBeGreaterThan(0);
     failing = false;
+    await recordStatus(page);
     await page.getByRole("button", { name: "Retry" }).click();
-    await expect(status(page)).toHaveText("Forest loaded.");
+    await expectSeen(page, "Forest loaded.");
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     const after = await roadRows();
     expect(after).toEqual(before);
+  });
+
+  test("when forest and forest edge both fail, the first successful Retry fits the map once and a further Retry does not move it", async ({ page }) => {
+    const box = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [[[-0.05, 51.62], [0.1, 51.62], [0.1, 51.72], [-0.05, 51.72], [-0.05, 51.62]]] } }] };
+    let forestOk = false;
+    let bufferCalls = 0;
+    await openAdmin(page, { layers: {
+      forest: (route) => (forestOk ? json(route, 200, box) : fail500(route)),
+      buffer: (route) => { bufferCalls += 1; return bufferCalls < 3 ? fail500(route) : json(route, 200, box); },
+    } });
+    await expect(status(page)).toHaveText("Couldn't load the forest and forest edge layers.");
+    const roadRows = () => page.evaluate(() => {
+      const c = document.getElementById("adminCanvas");
+      const ctx = c.getContext("2d");
+      const x = Math.round(c.width / 2);
+      const rows = [];
+      for (let y = 0; y < c.height; y += 1) {
+        const d = ctx.getImageData(x, y, 1, 1).data;
+        if (d[0] >= 215 && d[1] >= 215 && d[2] >= 215) rows.push(y);
+      }
+      return rows;
+    });
+    const settle = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const before = await roadRows();
+    expect(before.length).toBeGreaterThan(0);
+    // First Retry: the forest comes back (the edge still fails), so the map fits to it, once.
+    forestOk = true;
+    await recordStatus(page);
+    await page.getByRole("button", { name: "Retry" }).click();
+    await expect(status(page)).toHaveText("Couldn't load the forest edge layer.");
+    await settle();
+    const fitted = await roadRows();
+    expect(fitted).not.toEqual(before);
+    // Second Retry: the edge arrives too; the view stays where it is.
+    await page.getByRole("button", { name: "Retry" }).click();
+    await expectSeen(page, "Forest edge loaded.");
+    await settle();
+    expect(await roadRows()).toEqual(fitted);
   });
 });
 
@@ -328,7 +380,8 @@ test.describe("Admin map: Retry stays reachable on a short phone", () => {
       return Boolean(el && el.closest(".admin-layer-retry"));
     }, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
     expect(topIsRetry).toBe(true);
+    await recordStatus(page);
     await retry.click({ timeout: 3000 });
-    await expect(status(page)).toHaveText("Roads loaded.");
+    await expectSeen(page, "Roads loaded.");
   });
 });
