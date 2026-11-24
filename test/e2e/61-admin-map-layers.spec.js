@@ -127,7 +127,7 @@ test.describe("Admin map: a layer that fails to load says so", () => {
       await expect(page.getByRole("region", { name: "Track details" })).toBeVisible();
       failing = false;
       await retry.click();
-      await expect(status(page)).toHaveText("");
+      await expect(status(page)).toHaveText("Roads loaded.");
       await expect.poll(async () => strongestContrast(page, ...await acrossRoad(page, 51.700, 0.03))).toBeGreaterThanOrEqual(40);
     });
   }
@@ -151,9 +151,27 @@ test.describe("Admin map: a layer that fails to load says so", () => {
       await page.getByRole("button", { name: "Retry" }).click();
       await expect(status(page)).toHaveText(`Loading ${NAMES[key]}...`);
       release();
-      await expect(status(page)).toHaveText("");
+      const done = `${NAMES[key][0].toUpperCase()}${NAMES[key].slice(1)} loaded.`;
+      await expect(status(page)).toHaveText(done);
+      await expect(status(page)).toHaveText("", { timeout: 8000 });
     });
   }
+
+  test("a successful Retry is announced as Roads loaded., then the note clears itself", async ({ page }) => {
+    let calls = 0;
+    await openAdmin(page, { roads: (route) => { calls += 1; return calls === 1 ? fail500(route) : json(route, 200, ROADS); } });
+    await page.getByRole("button", { name: "Retry" }).click();
+    await expect(status(page)).toHaveText("Roads loaded.");
+    await expect(page.getByRole("button", { name: "Retry" })).toBeHidden();
+    await expect(status(page)).toHaveText("", { timeout: 8000 });
+    await expect(page.locator("#adminLayerNote")).toHaveClass(/is-idle/);
+  });
+
+  test("the map canvas has an accessible name and is described by the layer status", async ({ page }) => {
+    await openAdmin(page);
+    await expect(page.locator("#adminCanvas")).toHaveAttribute("aria-label", "Admin map");
+    await expect(page.locator("#adminCanvas")).toHaveAttribute("aria-describedby", "adminLayerStatus");
+  });
 
   test("Retry keeps keyboard focus: pressing Enter on it leaves focus on the page, not the body", async ({ page }) => {
     let calls = 0;
@@ -167,7 +185,7 @@ test.describe("Admin map: a layer that fails to load says so", () => {
     await expect(status(page)).toHaveText("Loading roads...");
     expect(await page.evaluate(() => document.activeElement && document.activeElement.tagName)).not.toBe("BODY");
     release();
-    await expect(status(page)).toHaveText("");
+    await expect(status(page)).toHaveText("Roads loaded.");
     expect(await page.evaluate(() => document.activeElement && document.activeElement.tagName)).not.toBe("BODY");
   });
 
@@ -181,8 +199,11 @@ test.describe("Admin map: a layer that fails to load says so", () => {
       window.__noteMutations = 0;
       new MutationObserver((list) => { window.__noteMutations += list.length; }).observe(document.getElementById("adminLayerNote"), { subtree: true, childList: true, characterData: true });
     });
+    expect(await page.evaluate(() => adminMap.status.environment)).toBe("loading");
     release();
-    await page.evaluate(() => new Promise((r) => setTimeout(r, 400)));
+    // The environment layer settling (and the map redrawing) is the signal; only then check the note was left alone.
+    await expect.poll(() => page.evaluate(() => adminMap.status.environment)).toBe("loaded");
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     expect(await page.evaluate(() => window.__noteMutations)).toBe(0);
     expect(await retry.evaluate((el) => el.isConnected)).toBe(true);
     await expect(status(page)).toHaveText("Couldn't load the roads layer.");
@@ -238,7 +259,7 @@ test.describe("Admin map: the view stays put", () => {
     expect(before.length).toBeGreaterThan(0);
     failing = false;
     await page.getByRole("button", { name: "Retry" }).click();
-    await expect(status(page)).toHaveText("");
+    await expect(status(page)).toHaveText("Forest loaded.");
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     const after = await roadRows();
     expect(after).toEqual(before);
@@ -285,5 +306,29 @@ test.describe("Admin map: the layer note does not get in the way on a phone", ()
     await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
     const retryBox = await page.getByRole("button", { name: "Retry" }).boundingBox();
     expect(overlaps(retryBox, sheetBox)).toBe(false);
+  });
+});
+
+test.describe("Admin map: Retry stays reachable on a short phone", () => {
+  test.use({ viewport: { width: 360, height: 640 } });
+
+  test("with the Track details sheet open and a failed layer, Retry is visible, uncovered and clickable", async ({ page }) => {
+    let calls = 0;
+    await openAdmin(page, { roads: (route) => { calls += 1; return calls === 1 ? fail500(route) : json(route, 200, ROADS); } });
+    const retry = page.getByRole("button", { name: "Retry" });
+    await expect(retry).toBeVisible();
+    const a = await canvasPoint(page, ...WALK[1]);
+    const c = await canvasPoint(page, ...WALK[2]);
+    await page.mouse.click((a.x + c.x) / 2, (a.y + c.y) / 2);
+    await expect(page.getByRole("region", { name: "Track details" })).toBeVisible();
+    await expect(retry).toBeVisible();
+    const box = await retry.boundingBox();
+    const topIsRetry = await page.evaluate(({ x, y }) => {
+      const el = document.elementFromPoint(x, y);
+      return Boolean(el && el.closest(".admin-layer-retry"));
+    }, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+    expect(topIsRetry).toBe(true);
+    await retry.click({ timeout: 3000 });
+    await expect(status(page)).toHaveText("Roads loaded.");
   });
 });

@@ -26,6 +26,8 @@ const SIGNIN_MESSAGES = {
 const BETA_EMPTY_TEXT = "No beta user activity in this window yet. Activity from before beta users were marked isn't counted here.";
 const BETA_CAVEAT_TEXT = "Beta users only: activity from before beta users were marked isn't counted here.";
 const ME_CHECK_TIMEOUT_MS = 8000;
+const ADMIN_LAYER_RECOVERED_MS = 4000; // how long "Roads loaded." stays after a successful Retry
+let adminLayerRecoveredTimer = null;
 const ADMIN_LAYER_TIMEOUT_MS = 30000; // a map layer request that never answers becomes a failed layer with Retry
 const LOAD_TIMEOUT_MS = 20000; // a tracks load that never answers is a failed load (longer than a normal one)
 const ADMIN_VIEWPORT_KEY = "ff-admin-map-viewport";
@@ -241,6 +243,7 @@ let adminMap = {
   boundsFixed: false,
   retryKeys: [],
   status: {},
+  recovered: "",
 };
 
 // ---- Base map loading ----
@@ -303,7 +306,17 @@ async function loadAdminLayer(key) {
     }
   }
   adminMap.loading = Object.values(st).some((v) => v === "loading");
-  if (!adminMap.loading) adminMap.retryKeys = [];
+  if (!adminMap.loading) {
+    // A Retry that fixed everything is announced briefly ("Roads loaded."), then the note clears itself.
+    const fixed = (adminMap.retryKeys || []).filter((k) => st[k] === "loaded");
+    if (fixed.length && !Object.values(st).includes("failed")) {
+      const names = joinNames(fixed.map((k) => ADMIN_MAP_LAYER_NAMES[k] || k));
+      adminMap.recovered = `${names.charAt(0).toUpperCase()}${names.slice(1)} loaded.`;
+      clearTimeout(adminLayerRecoveredTimer);
+      adminLayerRecoveredTimer = setTimeout(() => { adminMap.recovered = ""; updateAdminLayerNote(); }, ADMIN_LAYER_RECOVERED_MS);
+    }
+    adminMap.retryKeys = [];
+  }
   render();
   updateAdminLayerNote();
 }
@@ -314,6 +327,8 @@ function loadAdminLayers(keys, { retry = false } = {}) {
   adminMap.status = status;
   adminMap.loading = true;
   adminMap.retryKeys = retry ? keys.slice() : [];
+  adminMap.recovered = "";
+  clearTimeout(adminLayerRecoveredTimer);
   updateAdminLayerNote();
   return Promise.all(keys.map(loadAdminLayer));
 }
@@ -328,31 +343,39 @@ const joinNames = (names) => (names.length > 1 ? `${names.slice(0, -1).join(", "
 // A plain-language note on the map while layers are arriving, or when a layer could not be loaded.
 // The note box holds a status line (always in the page, so announcements are reliable) and a Retry button.
 // Both keep their elements and only change when the message really changes, so focus on Retry survives and nothing is re-announced.
-function updateAdminLayerNote() {
+function ensureAdminLayerNote() {
   const area = document.querySelector(".admin-map-area");
-  if (!area) return;
+  if (!area) return null;
   let note = document.getElementById("adminLayerNote");
-  if (!note) {
-    note = document.createElement("div");
-    note.id = "adminLayerNote";
-    note.className = "admin-layer-note is-idle";
-    const text = document.createElement("span");
-    text.id = "adminLayerStatus";
-    text.setAttribute("role", "status");
-    const retry = document.createElement("button");
-    retry.type = "button";
-    retry.className = "admin-layer-retry";
-    retry.hidden = true;
-    retry.addEventListener("click", () => {
-      if (retry.getAttribute("aria-disabled") === "true") return;
-      const failed = Object.keys(adminMap.status).filter((key) => adminMap.status[key] === "failed");
-      if (failed.length) loadAdminLayers(failed, { retry: true });
-    });
-    note.append(text, retry);
-    area.appendChild(note);
-    const canvas = document.getElementById("adminCanvas");
-    if (canvas) canvas.setAttribute("aria-describedby", "adminLayerStatus");
+  if (note) return note;
+  note = document.createElement("div");
+  note.id = "adminLayerNote";
+  note.className = "admin-layer-note is-idle";
+  const text = document.createElement("span");
+  text.id = "adminLayerStatus";
+  text.setAttribute("role", "status");
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "admin-layer-retry";
+  retry.hidden = true;
+  retry.addEventListener("click", () => {
+    if (retry.getAttribute("aria-disabled") === "true") return;
+    const failed = Object.keys(adminMap.status).filter((key) => adminMap.status[key] === "failed");
+    if (failed.length) loadAdminLayers(failed, { retry: true });
+  });
+  note.append(text, retry);
+  area.appendChild(note);
+  const canvas = document.getElementById("adminCanvas");
+  if (canvas) {
+    canvas.setAttribute("aria-label", "Admin map");
+    canvas.setAttribute("aria-describedby", "adminLayerStatus");
   }
+  return note;
+}
+
+function updateAdminLayerNote() {
+  const note = ensureAdminLayerNote();
+  if (!note) return;
   const text = note.querySelector("#adminLayerStatus");
   const retry = note.querySelector(".admin-layer-retry");
   const st = adminMap.status;
@@ -375,6 +398,8 @@ function updateAdminLayerNote() {
     buttonLabel = "Retry";
   } else if (loading.length) {
     message = `Loading ${loading.length > 2 ? "map layers" : joinNames(loading.map(nameOf))}...`;
+  } else if (adminMap.recovered) {
+    message = adminMap.recovered;
   }
 
   if (text.textContent !== message) text.textContent = message;
@@ -699,25 +724,26 @@ function roadStyle(roadType) {
 }
 
 function pathStyle(pathType) {
+  // Paths sit under the tracks, so they are thin and soft (kinds told apart by hue and dash); roads stay the strongest line.
   const stroke = pathType === "bridleway"
-    ? "rgba(113, 77, 35, 0.88)"
+    ? "rgba(140, 100, 55, 0.68)"
     : pathType === "byway"
-      ? "rgba(72, 61, 139, 0.88)"
+      ? "rgba(100, 88, 165, 0.68)"
       : pathType === "permissive"
-        ? "rgba(57, 90, 138, 0.88)"
+        ? "rgba(80, 118, 168, 0.68)"
         : pathType === "waymarked_trail"
-          ? "rgba(109, 68, 140, 0.88)"
-          : "rgba(41, 82, 59, 0.92)";
+          ? "rgba(135, 95, 165, 0.68)"
+          : "rgba(86, 128, 100, 0.62)";
   const dash = pathType === "bridleway"
     ? [7, 4.5]
     : pathType === "byway"
-      ? [2, 3]
+      ? [10, 4, 2, 4]
       : pathType === "permissive"
-        ? [4, 3]
+        ? [2.5, 3.5]
         : pathType === "waymarked_trail"
           ? [9, 5]
           : [];
-  return { stroke, casing: "rgba(255,255,255,0.70)", width: 1.2, casingWidth: 2.4, dash };
+  return { stroke, casing: "rgba(255,255,255,0.42)", width: 1, casingWidth: 2, dash };
 }
 
 function drawAdminPolygon(ctx, w, h, geometry, style) {
@@ -1383,14 +1409,14 @@ function drawClickMarkers(ctx, w, h) {
     ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
     ctx.shadowBlur = selected ? 8 : 5;
     ctx.lineWidth = selected ? 3 : 2;
-    ctx.strokeStyle = selected ? "rgba(255, 255, 255, 0.96)" : "rgba(255, 224, 94, 0.88)";
+    ctx.strokeStyle = selected ? "rgba(255, 255, 255, 0.96)" : "rgba(255, 224, 94, 0.95)";
     ctx.beginPath();
     ctx.arc(x, y, selected ? 10 : 7, 0, Math.PI * 2);
     ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.beginPath();
     ctx.arc(x, y, selected ? 4.2 : 3.2, 0, Math.PI * 2);
-    ctx.fillStyle = selected ? "rgba(255, 244, 146, 1)" : "rgba(255, 210, 50, 0.88)";
+    ctx.fillStyle = selected ? "rgba(255, 244, 146, 1)" : "rgba(255, 210, 50, 0.95)";
     ctx.fill();
   }
   ctx.restore();
@@ -2294,6 +2320,7 @@ async function adminBoot() {
   betaOnly = initialQuery.get("beta") === "1";
   clearLegacyStoredPassword();
   readSavedViewport();
+  ensureAdminLayerNote(); // in the page and empty before the first message, so screen readers announce it
   loadAdminBaseMap();
   setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn);
 
