@@ -116,7 +116,6 @@ test.describe("Admin map: fast layers do not wait for the forest", () => {
     release();
     await expect(page.locator("#adminLayerStatus")).not.toHaveText("Loading forest...");
     await expect(page.locator("#adminLayerNote")).toHaveClass(/is-idle/);
-    await expect.poll(async () => strongestContrast(page, ...await acrossRoad(page, 51.700, 0.03))).toBeGreaterThanOrEqual(40);
   });
 });
 

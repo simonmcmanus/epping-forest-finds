@@ -229,7 +229,8 @@ let activePage = null; // "navigation" | "stats" | "community" | "beta" while th
 
 const ADMIN_MAP_LAYER_NAMES = { forest: "forest", buffer: "forest edge", environment: "water and railways", roads: "roads", paths: "paths" };
 
-// `loaded` means the forest context (forest and buffer land) has settled, so the map can stop showing the fallback outline.
+// `loaded` marks forest and forest edge as settled. It gates only the one-time fit and the loadAdminBaseMap re-entry guard;
+// the fallback outline depends on whether a forest layer exists, not on this flag.
 // Each layer loads on its own and paints as soon as it arrives; `status` holds "loading" | "loaded" | "failed" per layer.
 let adminMap = {
   loaded: false,
