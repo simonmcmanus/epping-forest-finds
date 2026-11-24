@@ -149,7 +149,9 @@ function packEvents(type, events) {
     return map.get(key);
   };
   const fields = fieldsFor(type);
-  const rows = events.map((event) => {
+  const beta = [];
+  const rows = events.map((event, i) => {
+    if (event.beta === true) beta.push(i);
     const row = [indexOf(uidIndex, uids, event.uid, event.uid), eventMs(event), ...fields.map((f) => event[f] ?? null)];
     // A navigation row ends with its kind (start, arrive or end) so one table holds all three.
     if (type === "navigation") row.push(String(event.type).slice(11));
@@ -159,14 +161,19 @@ function packEvents(type, events) {
     }
     return row;
   });
-  return type === "location" ? { v: 2, type, uids, targets, rows } : { v: 2, type, uids, rows };
+  // `beta` lists the indexes of rows from a beta member; it is left out when there are none, so an old
+  // client (which ignores it) and a response with no beta events are unchanged.
+  const packed = type === "location" ? { v: 2, type, uids, targets, rows } : { v: 2, type, uids, rows };
+  if (beta.length) packed.beta = beta;
+  return packed;
 }
 
 function unpackEvents(packed) {
   if (!packed || !Array.isArray(packed.rows)) return [];
   const type = packed.type;
   const fields = fieldsFor(type);
-  return packed.rows.map((row) => {
+  const beta = new Set(Array.isArray(packed.beta) ? packed.beta : []);
+  return packed.rows.map((row, index) => {
     const event = { type, uid: packed.uids[row[0]], ts: new Date(row[1]).toISOString() };
     if (type === "navigation") event.type = `navigation_${row[fields.length + 2]}`;
     fields.forEach((field, i) => { event[field] = row[i + 2]; });
@@ -174,6 +181,7 @@ function unpackEvents(packed) {
       const t = row[fields.length + 2];
       event.navTarget = t >= 0 ? packed.targets[t] : null;
     }
+    if (beta.has(index)) event.beta = true;
     return event;
   });
 }
@@ -301,9 +309,14 @@ function newestFirst(a, b) {
   return (eventMs(b) - eventMs(a)) || ((NAV_ORDER[b.type] ?? 0) - (NAV_ORDER[a.type] ?? 0));
 }
 
-async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 7000, maxBytes = 4_500_000, clock = Date.now, dayGroup = 3 } = {}) {
+async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 7000, maxBytes = 4_500_000, clock = Date.now, dayGroup = 3, calendar = false } = {}) {
   const deadline = clock() + budgetMs;
-  const days = Array.from({ length: windowDays }, (_, i) => dayOf(now - i * DAY_MS));
+  // A window of N days is the last N*24 hours, which reaches into N+1 UTC days: the oldest one is read
+  // only for its tail, and events before the cutoff are dropped. `calendar` (days=all) reads exactly the
+  // days given, untrimmed.
+  const rolling = Number.isFinite(windowDays) && !calendar;
+  const cutoff = rolling ? now - windowDays * DAY_MS : null;
+  const days = Array.from({ length: rolling ? windowDays + 1 : windowDays }, (_, i) => dayOf(now - i * DAY_MS));
   const kept = { location: [], click: [], navigation: [] };
   let bytes = 0;
   let partial = false;
@@ -319,7 +332,9 @@ async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 70
       return { day, location, click, navigation };
     }));
     for (const result of results) {
-      const events = [...result.location.events, ...result.click.events, ...result.navigation.events].sort(newestFirst);
+      const events = [...result.location.events, ...result.click.events, ...result.navigation.events]
+        .filter((event) => cutoff == null || eventMs(event) == null || eventMs(event) >= cutoff)
+        .sort(newestFirst);
       for (const event of events) {
         const size = packedSize(event);
         if (bytes + size > maxBytes) { partial = true; oldestDay = result.day; oldestDayIncomplete = true; break outer; }

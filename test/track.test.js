@@ -136,13 +136,14 @@ test("an admin read only looks at the days in its window, however much history i
   const store = memoryStore();
   track.setStore(store);
   const now = Date.now();
-  for (let d = 0; d < 60; d += 1) await tracking.storeBatch(store, [location("u1", now - d * DAY)], { now: now - d * DAY });
+  for (let d = 0; d < 60; d += 1) await tracking.storeBatch(store, [location("u1", now - d * DAY - 1000)], { now: now - d * DAY });
   await store.setJSON("location/1700000000000_old.json", [location("u0", 1700000000000)]);
   store.listed.length = 0;
 
   const read = await adminRead(7);
   assert.strictEqual(read.locations.length, 7);
-  const days = new Set(Array.from({ length: 7 }, (_, i) => tracking.dayOf(now - i * DAY)));
+  // The 7 days back plus the day the 7 * 24 hour cutoff falls in, which is read for its tail only.
+  const days = new Set(Array.from({ length: 8 }, (_, i) => tracking.dayOf(now - i * DAY)));
   for (const prefix of store.listed) {
     assert.ok([...days].some((day) => prefix.endsWith(`${day}/`)), `listed ${prefix}, outside the 7-day window`);
   }
@@ -247,7 +248,6 @@ test("a batch spanning midnight files each event under its own day", async () =>
   await post([location("u1", midnight - 60_000), location("u1", midnight + 60_000)]);
   const days = [...store.blobs.keys()].filter((k) => k.startsWith("raw/")).map((k) => k.split("/")[2]).sort();
   assert.deepStrictEqual(days, [tracking.dayOf(midnight - 60_000), tracking.dayOf(midnight)]);
-  assert.strictEqual((await adminRead(1)).locations.length, 1, "today's window holds only today's event");
   assert.strictEqual((await adminRead(2)).locations.length, 2);
 });
 
@@ -438,4 +438,65 @@ test("Tracking days=all reads back the retention period, and a year when retenti
   } finally {
     delete process.env.TRACKING_RETENTION_DAYS;
   }
+});
+
+test("a 24 hour window at 00:30 UTC returns the last 24 hours, not just the new UTC day", async () => {
+  const store = memoryStore();
+  const now = Date.UTC(2026, 5, 10, 0, 30);
+  const H = 60 * 60 * 1000;
+  await tracking.storeBatch(store, [location("evening", now - H), location("old", now - 25 * H), location("new", now - 10 * 60 * 1000)], { now });
+  const result = await tracking.readWindow(store, { windowDays: 1, now });
+  assert.deepStrictEqual(result.locations.map((e) => e.uid).sort(), ["evening", "new"]);
+  assert.strictEqual(result.partial, false, "skipping nothing in the window is a complete read");
+});
+
+test("a 7 day window respects the rolling cutoff, not the UTC day boundary", async () => {
+  const store = memoryStore();
+  const now = Date.UTC(2026, 5, 10, 0, 30);
+  const H = 60 * 60 * 1000;
+  await tracking.storeBatch(store, [location("in", now - 7 * DAY + H), location("out", now - 7 * DAY - H), location("far", now - 8 * DAY)], { now });
+  const result = await tracking.readWindow(store, { windowDays: 7, now });
+  assert.deepStrictEqual(result.locations.map((e) => e.uid), ["in"]);
+});
+
+test("a read that runs out of time before the boundary day is partial; one that reads every day is not", async () => {
+  const now = Date.UTC(2026, 5, 10, 0, 30);
+  const store = memoryStore();
+  await tracking.storeBatch(store, [location("n", now - 1000)], { now });
+  await tracking.compact(store, { now }); // daily files only, so the clock is not read per blob
+  // Time "runs out" once a given number of days (three listings each) has been read.
+  const outAfterDays = (n) => () => (store.listed.length >= n * 3 ? 10_000 : 0);
+  // windowDays 3 reads days 0-2 in one group; the boundary day (the tail of the window) is left.
+  const skipped = await tracking.readWindow(store, { windowDays: 3, now, budgetMs: 100, clock: outAfterDays(3) });
+  assert.strictEqual(skipped.partial, true, "the boundary day holds the end of the window");
+  assert.strictEqual(skipped.oldestDay, tracking.dayOf(now - 2 * DAY));
+  store.listed.length = 0;
+  const all = await tracking.readWindow(store, { windowDays: 3, now, budgetMs: 100, clock: () => 0 });
+  assert.strictEqual(all.partial, false);
+  assert.strictEqual(all.oldestDay, tracking.dayOf(now - 3 * DAY));
+  store.listed.length = 0;
+  const cut = await tracking.readWindow(store, { windowDays: 4, now, budgetMs: 100, dayGroup: 2, clock: outAfterDays(2) });
+  assert.strictEqual(cut.partial, true, "days inside the window were skipped");
+});
+
+test("a 1 day window ending at a UTC midnight trims the boundary day, and 2 days keeps it", async () => {
+  const store = memoryStore();
+  const m = Date.UTC(2026, 5, 10);
+  await tracking.storeBatch(store, [location("before", m - 60_000), location("after", m + 60_000)], { now: m + 120_000 });
+  const one = await tracking.readWindow(store, { windowDays: 1, now: m + 60_000 + DAY });
+  assert.deepStrictEqual(one.locations.map((e) => e.uid), ["after"]);
+  const two = await tracking.readWindow(store, { windowDays: 2, now: m + DAY });
+  assert.deepStrictEqual(two.locations.map((e) => e.uid), ["before", "after"]);
+});
+
+test("boundary-day events older than the cutoff do not use up the size budget", async () => {
+  const store = memoryStore();
+  const now = Date.UTC(2026, 5, 10, 12, 0);
+  const H = 60 * 60 * 1000;
+  const inWindow = [location("in1", now - H), location("in2", now - 2 * H)];
+  const old = Array.from({ length: 30 }, (_, i) => location(`old${i}`, now - 25 * H - i * 1000));
+  await tracking.storeBatch(store, [...inWindow, ...old], { now });
+  const result = await tracking.readWindow(store, { windowDays: 1, now, maxBytes: 48 * 2 });
+  assert.strictEqual(result.partial, false);
+  assert.deepStrictEqual(result.locations.map((e) => e.uid).sort(), ["in1", "in2"]);
 });

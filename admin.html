@@ -16,6 +16,16 @@
   <title>Admin — Epping Forest Finds</title>
   <link rel="icon" href="data/icons/favicon.png" type="image/png">
   <link rel="stylesheet" href="css/admin.css">
+  <!-- With JavaScript the sign-in card stays out of sight until js/admin.js knows the answer (no flash for a signed-in admin). Without JavaScript this never runs, so the card is simply shown. If admin.js never starts, the card appears after 10 seconds. -->
+  <script>
+    document.documentElement.classList.add("admin-checking");
+    document.documentElement.dataset.checkTimer = setTimeout(function () {
+      document.documentElement.classList.remove("admin-checking");
+      // Still unanswered after 10 s: show the card with a plain explanation (admin.js replaces it when the check ends).
+      var note = document.getElementById("loginError");
+      if (note && !note.textContent) note.textContent = "Still checking your sign-in… If this stays, reload the page.";
+    }, 10000);
+  </script>
 </head>
 <body>
 
@@ -25,11 +35,11 @@
       <img class="login-logo" src="data/icons/icon-192.png" alt="" width="64" height="64">
       <h1 class="login-title">Admin Access</h1>
       <p class="login-sub">Epping Forest Finds — usage analytics</p>
-      <a id="loginBtn" class="login-btn" href="/api/auth/login?admin=1" aria-describedby="loginError">Sign in with Auth0</a>
+      <a id="loginBtn" class="login-btn" href="/api/auth/login?admin=1" aria-describedby="loginError">Sign in</a>
       <p id="loginError" class="login-error" role="alert"></p>
-      <button id="loginRetry" class="login-btn" type="button" hidden>Try again</button>
     </div>
   </div>
+  <p class="admin-checking-note">Checking your sign-in…</p>
 
   <!-- Admin app (hidden until authenticated) -->
   <div id="adminApp" class="admin-app" hidden>
@@ -44,12 +54,12 @@
         <div class="admin-tabs" role="group" aria-label="View">
           <button id="tracksBtn" class="admin-btn active" type="button" aria-pressed="true">Tracks</button>
           <button id="heatmapBtn" class="admin-btn" type="button" aria-pressed="false">Heatmap</button>
-          <button id="navigationBtn" class="admin-btn" type="button" aria-pressed="false">Navigation</button>
         </div>
-        <div class="admin-panel-btns" role="group" aria-label="Panels">
-          <button id="communityBtn" class="admin-btn" type="button" aria-expanded="false">Community</button>
-          <button id="accessBtn" class="admin-btn" type="button" aria-expanded="false">Access</button>
-          <button id="betaBtn" class="admin-btn" type="button" aria-expanded="false">Beta codes</button>
+        <div class="admin-panel-btns" role="group" aria-label="Pages">
+          <button id="navigationBtn" class="admin-btn" type="button" aria-pressed="false">Navigation</button>
+          <button id="statsBtn" class="admin-btn" type="button" aria-pressed="false">Stats</button>
+          <button id="communityBtn" class="admin-btn" type="button" aria-pressed="false">Community</button>
+          <button id="betaBtn" class="admin-btn" type="button" aria-pressed="false">Beta</button>
         </div>
       </div>
       <div class="admin-actions">
@@ -60,6 +70,19 @@
 
     <!-- Non-blocking notice when a refresh fails; collapsed (but still rendered) while empty so the first message is announced. -->
     <div id="adminRefreshStatus" class="admin-refresh-status" role="status"></div>
+
+    <!-- Time frame and beta filter: apply to the map, Users list, Navigation and Stats. Options are filled in by js/admin.js. -->
+    <div id="adminToolbar" class="admin-toolbar" role="group" aria-label="Data filters" aria-busy="false">
+      <label class="admin-toolbar-field" for="adminWindowSelect"><span>Time frame</span>
+        <select id="adminWindowSelect" class="admin-select"></select>
+      </label>
+      <div class="admin-segmented" role="group" aria-label="Users shown">
+        <button id="adminAudienceAll" class="admin-seg-btn active" type="button" aria-pressed="true">Everyone</button>
+        <button id="adminAudienceBeta" class="admin-seg-btn" type="button" aria-pressed="false">Beta users only</button>
+      </div>
+      <p id="adminWindowNote" class="admin-toolbar-note" role="status"></p>
+      <p id="adminFilterNote" class="admin-toolbar-note" role="status"></p>
+    </div>
 
     <div class="admin-body">
       <aside class="admin-sidebar">
@@ -80,43 +103,84 @@
           <div><span class="admin-legend-dot" style="background:#4fc97e"></span>Location ping</div>
           <div><span class="admin-legend-dot" style="background:rgba(255,200,50,0.8)"></span>Tap / click</div>
           <div><span class="admin-legend-dot" style="background:rgba(47,111,78,0.4)"></span>Forest area</div>
+          <div class="admin-legend-track"><span class="admin-track-key admin-track-key-start" aria-hidden="true"></span>Track start</div>
+          <div class="admin-legend-track"><span class="admin-track-key admin-track-key-stop" aria-hidden="true"></span>Track stop</div>
         </div>
 
-        <div id="adminStats" class="admin-stats"></div>
-        <section id="adminCommunity" class="admin-click-details" role="region" aria-label="Community stats" hidden>
-          <button id="adminCommunityClose" class="admin-click-details-close" type="button" aria-label="Close Community stats (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
-          <p id="adminCommunityStatus" class="admin-community-status" role="status"></p>
-          <div><button id="adminCommunityRetry" class="admin-btn admin-retry-btn" type="button" hidden>Retry</button></div>
-          <div id="adminCommunityBody"></div>
-        </section>
-        <section id="adminAccess" class="admin-click-details" role="region" aria-labelledby="adminAccessTitle" hidden>
-          <button id="adminAccessClose" class="admin-click-details-close" type="button" aria-label="Close Access list (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
-          <h3 id="adminAccessTitle" class="admin-panel-title">Early access: Community</h3>
-          <p class="admin-panel-help">One tester per line: the Tester ID from their Settings screen, then an optional note. While the list is empty everyone has Community; once it has anyone in it, only they do. Changes apply the next time an app starts; no deploy needed.</p>
-          <textarea id="adminAccessList" rows="10" spellcheck="false" placeholder="a1b2c3d4e5 Simon" disabled></textarea>
-          <p class="admin-access-actions"><button id="adminAccessSave" class="admin-btn admin-btn-primary" type="button" disabled>Save</button> <button id="adminAccessRetry" class="admin-btn" type="button" hidden>Retry</button> <span id="adminAccessStatus" role="status"></span></p>
-        </section>
-        <section id="adminBeta" class="admin-click-details" role="region" aria-labelledby="adminBetaTitle" hidden>
-          <button id="adminBetaClose" class="admin-click-details-close" type="button" aria-label="Close Beta codes (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
-          <h3 id="adminBetaTitle" class="admin-panel-title">Beta codes</h3>
-          <p class="admin-panel-help">Each code is for one person. The first account to open its link claims it. Revoking a claimed code removes that person's beta access.</p>
-          <p class="admin-beta-create"><label for="adminBetaNote">Name (required)</label> <input id="adminBetaNote" type="text" maxlength="80" placeholder="e.g. Ann" aria-required="true" required autocomplete="off" disabled> <button id="adminBetaCreate" class="admin-btn admin-btn-primary" type="button" disabled>Create code</button> <button id="adminBetaRetry" class="admin-btn" type="button" hidden>Retry</button></p>
-          <p id="adminBetaStatus" class="admin-beta-status" role="status"></p>
-          <ul id="adminBetaList" class="admin-beta-list"></ul>
-        </section>
         <section id="adminClickDetails" class="admin-click-details" role="region" aria-label="Tap details" hidden>
           <button id="adminClickDetailsClose" class="admin-click-details-close" type="button" aria-label="Close tap details (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
           <div id="adminClickDetailsBody"></div>
         </section>
+
+        <section id="adminTrackDetails" class="admin-click-details" role="region" aria-label="Track details" hidden>
+          <button id="adminTrackDetailsClose" class="admin-click-details-close" type="button" aria-label="Close track details (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
+          <h2 class="admin-click-title">Track details</h2>
+          <p id="adminTrackWalkStatus" class="admin-walk-status" role="status"></p>
+          <div id="adminTrackWalkNav" class="admin-walk-nav" role="group" aria-label="Walks" hidden>
+            <button id="adminTrackPrev" class="admin-btn admin-walk-btn" type="button">Previous walk</button>
+            <button id="adminTrackNext" class="admin-btn admin-walk-btn" type="button">Next walk</button>
+          </div>
+          <div id="adminTrackDetailsBody"></div>
+        </section>
       </div>
 
       <!-- Navigation page: a page-level view beside the map, never an overlay on it. -->
-      <section id="adminNavigation" class="admin-nav-view" aria-labelledby="adminNavigationTitle" hidden>
+      <section id="adminNavigation" class="admin-nav-view admin-page" aria-labelledby="adminNavigationTitle" hidden>
         <header class="admin-page-head">
           <h2 id="adminNavigationTitle" class="admin-page-title" tabindex="-1">Navigation</h2>
           <p id="adminNavigationSub" class="admin-page-sub"></p>
         </header>
         <div id="adminNavigationBody" class="admin-nav-body"></div>
+      </section>
+
+      <!-- Stats page. -->
+      <section id="adminStatsPage" class="admin-nav-view admin-page" aria-labelledby="adminStatsTitle" hidden>
+        <header class="admin-page-head">
+          <h2 id="adminStatsTitle" class="admin-page-title" tabindex="-1">Stats</h2>
+          <p id="adminStatsSub" class="admin-page-sub"></p>
+        </header>
+        <div id="adminStatsBody" class="admin-nav-body"></div>
+      </section>
+
+      <!-- Community page: usage numbers for community reports. -->
+      <section id="adminCommunity" class="admin-nav-view admin-page" aria-labelledby="adminCommunityTitle" hidden>
+        <header class="admin-page-head">
+          <h2 id="adminCommunityTitle" class="admin-page-title" tabindex="-1">Community</h2>
+          <p class="admin-page-sub">How people are using community verification.</p>
+        </header>
+        <p id="adminCommunityStatus" class="admin-community-status" role="status"></p>
+        <div><button id="adminCommunityRetry" class="admin-btn admin-retry-btn" type="button" hidden>Retry</button></div>
+        <div id="adminCommunityBody"></div>
+      </section>
+
+      <!-- Beta page: beta users, open codes and revoked codes. -->
+      <section id="adminBeta" class="admin-nav-view admin-page" aria-labelledby="adminBetaTitle" hidden>
+        <header class="admin-page-head">
+          <h2 id="adminBetaTitle" class="admin-page-title" tabindex="-1">Beta</h2>
+          <p class="admin-page-sub">Each code is for one person. The first account to open its link claims it. Revoking a claimed code removes that person's beta access.</p>
+        </header>
+        <p class="admin-beta-create"><label for="adminBetaNote">Name (required)</label> <input id="adminBetaNote" type="text" maxlength="80" placeholder="e.g. Ann" aria-required="true" required autocomplete="off" disabled> <button id="adminBetaCreate" class="admin-btn admin-btn-primary" type="button" disabled>Create code</button> <button id="adminBetaRetry" class="admin-btn" type="button" hidden>Retry</button></p>
+        <p id="adminBetaStatus" class="admin-beta-status" role="status"></p>
+        <div class="nav-grid admin-beta-grid">
+          <section class="nav-panel nav-panel-wide" aria-labelledby="adminBetaUsersHead">
+            <h3 id="adminBetaUsersHead">Beta users</h3>
+            <p class="nav-note">People who have claimed a code.</p>
+            <ul id="adminBetaUsers" class="admin-beta-list"></ul>
+            <p id="adminBetaUsersEmpty" class="nav-empty" hidden>No one has claimed a code yet.</p>
+          </section>
+          <section class="nav-panel" aria-labelledby="adminBetaOpenHead">
+            <h3 id="adminBetaOpenHead">Open codes</h3>
+            <p class="nav-note">Not claimed yet. Share the link with one person.</p>
+            <ul id="adminBetaOpen" class="admin-beta-list"></ul>
+            <p id="adminBetaOpenEmpty" class="nav-empty" hidden>No open codes.</p>
+          </section>
+          <section class="nav-panel" aria-labelledby="adminBetaRevokedHead">
+            <h3 id="adminBetaRevokedHead">Revoked</h3>
+            <p class="nav-note">Codes that no longer give access.</p>
+            <ul id="adminBetaRevoked" class="admin-beta-list"></ul>
+            <p id="adminBetaRevokedEmpty" class="nav-empty" hidden>No revoked codes.</p>
+          </section>
+        </div>
       </section>
     </div>
 
@@ -124,6 +188,7 @@
 
   <script src="js/shared.js"></script>
   <script src="js/navigation-metrics.js"></script>
+  <script src="js/admin-tools.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>

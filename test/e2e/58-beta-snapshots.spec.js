@@ -1,6 +1,6 @@
 // @ts-check
 // Visual snapshots of every beta screen and state: the /beta/<code> sign-in page (desktop and mobile) and
-// the admin "Beta codes" panel (desktop only). Baselines are written by CI, never by hand. Auth0, the redeem
+// the admin Beta page (desktop only). Baselines are written by CI, never by hand. Auth0, the redeem
 // function and the admin API are all mocked at the network edge, so nothing depends on time or the network.
 const { test, expect } = require("@playwright/test");
 const { skipOnboarding } = require("./helpers");
@@ -149,8 +149,8 @@ async function openBeta(page, handler) {
   });
   await page.goto("/admin");
   await expect(page.locator("#loginScreen")).toBeHidden();
-  await expect(page.locator("#adminStats")).toContainText("location pings");
-  await page.getByRole("button", { name: "Beta codes" }).click();
+  await expect(page.locator("#adminUserList")).toContainText("All users");
+  await page.getByRole("button", { name: "Beta", exact: true }).click();
   return page.locator("#adminBeta");
 }
 const okHandler = (extra) => (route, body) => {
@@ -159,7 +159,7 @@ const okHandler = (extra) => (route, body) => {
   return json(route, 200, { ok: true });
 };
 
-test.describe("Admin beta codes snapshots", () => {
+test.describe("Admin beta page snapshots", () => {
   test.beforeEach(async ({}, testInfo) => {
     test.skip(testInfo.project.name !== "desktop", "the admin dashboard is desktop only");
   });
