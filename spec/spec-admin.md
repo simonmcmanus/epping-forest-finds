@@ -43,7 +43,10 @@ The old password-for-token exchange (`POST /api/admin/session`, the session toke
 The map canvas fills the remainder of the page after the top bar. It renders:
 
 - **Base map** — the same local forest context as the user map, using the forest/buffer land, environment, roads, and paths GeoJSON layers
-- **Semi-opaque map context** — base-map layers render with reduced opacity so route, location, and tap markers remain visually dominant
+- **Semi-opaque map context** — the forest, forest-edge and environment (water, railway) fills render with reduced opacity so route, location, and tap markers remain visually dominant
+- **Roads and paths on top, at full strength** — drawn above the soft context, outside its reduced opacity, with a dark casing and an opaque stroke so every road class (including residential, service and alley streets) and every path type reads against the pale background at the default view and when zoomed. Hierarchy by width and colour: motorway > trunk > primary > secondary > tertiary > residential > service > alley. Routes, pings and tap markers are still drawn over them.
+- **Layers load independently** — the five GeoJSON layers (forest, forest edge, environment, roads, paths) are fetched separately and each paints as soon as it arrives; the large roads file never blocks the forest, environment or tracks. While roads or paths are still arriving a status note on the map says "Loading roads..." (or "roads and paths").
+- **Layer failures are visible** — if a layer answers with an error, is cut off or returns broken data, that layer draws nothing and a status note names it in plain words ("Couldn't load the roads layer.") with a **Retry** button that refetches only the failed layers; the note clears on success. The failure is also logged with `console.warn`. The note sits under the map controls, clear of the legend and zoom buttons.
 - **Route lines** — one coloured polyline per user, connecting location pings in timestamp order
 - **Direction arrows** — small filled triangles on routes every 5 pings, oriented by the recorded `heading`
 - **Last-position dots** — filled circle at each user's most recent ping; larger when that user is selected

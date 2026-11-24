@@ -1039,3 +1039,37 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .admin-walk-nav { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: 0 0 var(--sp-3); }
 .admin-walk-nav[hidden] { display: none; }
 .admin-walk-btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+
+/* Map layer note: "Loading roads..." while they arrive, or which layer failed with a Retry button. Sits under the map controls, clear of the legend. */
+.admin-layer-note {
+  position: absolute;
+  z-index: 4;
+  top: 64px;
+  left: var(--sp-3);
+  max-width: min(360px, calc(100% - 180px));
+  min-width: 160px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-md);
+  color: var(--text-hi);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+.admin-layer-note[hidden] { display: none; }
+.admin-layer-retry {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-hi);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.admin-layer-retry:hover { background: var(--surface-raised-hover); }
