@@ -792,6 +792,20 @@ test.describe("Admin walks: identity, announcement and drawing", () => {
     await expect(page.locator("#adminTrackWalkStatus")).toHaveText("Walk 3 of 3");
   });
 
+  test("opening the sheet twice and closing it in the same tick leaves the status empty", async ({ page }) => {
+    await page.clock.install();
+    await openAdmin(page, { onTracks: threeWalks });
+    await page.locator(".admin-user-item", { hasText: "aaaaaaaa" }).click();
+    await page.evaluate(() => {
+      document.querySelector(".admin-track-btn").click();
+      document.querySelector(".admin-track-btn").click();
+      document.getElementById("adminTrackDetailsClose").click();
+    });
+    await page.clock.runFor(100);
+    await expect(page.locator("#adminTrackWalkStatus")).toHaveText("");
+    await expect(page.getByRole("region", { name: "Track details" })).toBeHidden();
+  });
+
   test("closing and reopening from the Track details button shows the latest walk, not the one last stepped to", async ({ page }) => {
     await openAdmin(page, { onTracks: threeWalks });
     await page.locator(".admin-user-item", { hasText: "aaaaaaaa" }).click();

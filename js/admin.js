@@ -1572,6 +1572,7 @@ function setWalkStatus(text, force = false) {
   _walkStatusText = text;
   if (!force) { setStatusText(el, text); return; }
   el.textContent = "";
+  cancelWalkStatusTimer(); // a second forced call in the same task must not orphan the first timer
   _walkStatusTimer = setTimeout(() => { _walkStatusTimer = null; if (!el.textContent) el.textContent = _walkStatusText; }, 0);
 }
 
