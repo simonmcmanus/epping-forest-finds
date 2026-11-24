@@ -1569,7 +1569,6 @@ function cancelWalkStatusTimer() {
 function setWalkStatus(text, force = false) {
   const el = document.getElementById("adminTrackWalkStatus");
   if (!el) return;
-  cancelWalkStatusTimer(); // a pending write from an earlier call must never land after this one
   _walkStatusText = text;
   if (!force) { setStatusText(el, text); return; }
   el.textContent = "";
@@ -1665,8 +1664,7 @@ function closeTrackDetails() {
   selectedTrackUid = null;
   trackSheetFromList = false;
   trackWalkSpan = null;
-  cancelWalkStatusTimer();
-  _walkStatusText = "";
+  cancelWalkStatusTimer(); // a pending announcement must not write the walk status back into the closed sheet
   const status = document.getElementById("adminTrackWalkStatus");
   if (status) status.textContent = "";
   if (panel) panel.hidden = true;
@@ -2381,8 +2379,7 @@ async function adminBoot() {
     filterNote.textContent = "";
     selectedUid = null;
     selectedClickKey = null;
-    closeTrackDetails(); // hides the sheet and clears its status and remembered walk (it also resets selectedTrackUid)
-    // Nothing from this session may reappear at the next sign-in: close the tap details, leave the pages and empty what they held.
+    // Nothing from this session may reappear at the next sign-in: close the tap details and the track sheet (closeClickDetails closes both), leave the pages and empty what they held.
     closeClickDetails();
     resetView();
     resetBetaPanel();

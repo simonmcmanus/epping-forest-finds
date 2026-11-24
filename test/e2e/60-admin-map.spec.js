@@ -777,16 +777,18 @@ test.describe("Admin walks: identity, announcement and drawing", () => {
   });
 
   test("closing the sheet in the same tick it opened leaves the status empty, and opening it again announces the walk", async ({ page }) => {
+    await page.clock.install();
     await openAdmin(page, { onTracks: threeWalks });
     await page.locator(".admin-user-item", { hasText: "aaaaaaaa" }).click();
     await page.evaluate(() => {
       document.querySelector(".admin-track-btn").click();
       document.getElementById("adminTrackDetailsClose").click();
     });
-    await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    await page.clock.runFor(100); // the announcement's delayed write would land here
     await expect(page.locator("#adminTrackWalkStatus")).toHaveText("");
     await expect(page.getByRole("region", { name: "Track details" })).toBeHidden();
     await page.getByRole("button", { name: "Track details for aaaaaaaa" }).click();
+    await page.clock.runFor(100);
     await expect(page.locator("#adminTrackWalkStatus")).toHaveText("Walk 3 of 3");
   });
 
