@@ -33,6 +33,23 @@ test.describe("URL navigation", () => {
       await expect(page.locator(".community-intro")).toContainText("Help keep the map right");
     });
 
+    test("a fresh device with no features response still has Community: the tab opens it and Settings shows no Tester ID", async ({ page }) => {
+      await skipOnboarding(page);
+      await mockCowApi(page);
+      let featureRequests = 0;
+      await page.route("**/api/features**", (route) => { featureRequests += 1; return route.fulfill({ status: 503, body: "down" }); });
+      await gotoAndWaitForMap(page, "/nearby");
+      await expect(page.locator("#reportToggle .nav-label")).toHaveText("Community");
+      await page.locator("#reportToggle").click();
+      await expect(page.locator("#inspectorTitle").last()).toContainText("Community");
+      await expect(page.locator(".community-intro")).toContainText("Help keep the map right");
+      await page.locator("#settingsToggle").click();
+      await expect(page.locator("#settingsWalkMins")).toBeVisible();
+      await expect(page.locator(".settings-form")).not.toContainText("Tester ID");
+      await expect(page.locator(".settings-form")).toContainText("Sign up for early access");
+      expect(featureRequests).toBe(0);
+    });
+
     test("navigating to /feedback opens the feedback screen on load", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);

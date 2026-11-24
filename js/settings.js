@@ -19,7 +19,6 @@ function openSettings() {
   els.inspectorType.textContent = "App preferences";
   transitionInspectorBody(settingsFormHtml(), "forward");
   bindSettingsHandlers();
-  fillTesterId();
   fillSettingsAccount();
   setInspectorMinimized(false);
   updateCompassOverlay();
@@ -176,7 +175,6 @@ function settingsFormHtml() {
       <h3 class="settings-section-title">About</h3>
       <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display">${escapeHtml(state.swVersion || APP_VERSION)}</span></p>
       ${Native.isNative ? "" : appUpdateStatusHtml()}
-      <p class="settings-description">Tester ID: <code id="testerIdDisplay" class="tester-id">…</code> <button type="button" id="testerIdCopy" class="settings-btn" hidden>Copy</button><br><span class="report-note">Give this to Simon to try early features.</span></p>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
       <p id="dataUpdateNote" class="report-note"${state.dataUpdateAvailable ? "" : " hidden"}>New map data has been downloaded. <button id="dataUpdateReloadButton" class="inline-text-button" type="button">Reload now</button> to see it.</p>
       ${Native.data ? nativeDataHtml() : ""}
@@ -248,21 +246,6 @@ async function fillSettingsAccount() {
   body.innerHTML = settingsAccountHtml(account, note);
   // Merged devices change the points: bring this device's score and log up to date.
   if (merge === "merged") { try { await Promise.all([communityRefreshScore(true), communityRefreshLog()]); } catch {} }
-}
-
-async function fillTesterId() {
-  const display = document.getElementById("testerIdDisplay");
-  if (!display) return;
-  let id = "";
-  try { id = await communityTesterId(communityPrimaryDeviceId()); } catch {}
-  if (!id) { display.textContent = "unavailable"; return; }
-  display.textContent = id;
-  const copy = document.getElementById("testerIdCopy");
-  if (!copy) return;
-  copy.hidden = false;
-  copy.addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(id); copy.textContent = "Copied"; } catch { copy.textContent = "Select and copy it"; }
-  });
 }
 
 function bindSettingsHandlers() {

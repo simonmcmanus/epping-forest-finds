@@ -4,7 +4,7 @@
 //   beta-revoked/<code> = { at }   (its own record, so a claim writing the code record can never erase a revoke)
 //   beta-user/<account key> = { code, at }   (its existence is the access)
 // Codes revoked before beta-revoked existed carry revokedAt on the code record; that still counts as revoked.
-// Beta never touches the Tester ID list (features-allowlist), so it can never switch the gate on for others.
+// Beta is additive: it grants gated features to that account only and never changes what anyone else has.
 const crypto = require("crypto");
 
 const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"; // no i, l, o, 0, 1: easy to read aloud

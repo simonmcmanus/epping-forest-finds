@@ -201,7 +201,7 @@ test.describe("Public issue notice", () => {
     const section = page.locator("#community-reports");
     await expect(section).toBeVisible();
     const body = page.locator("body");
-    for (const phrase of ["address of the page you were on", "user agent", "a photo", "Tester ID", "no public leaderboard", "keeps the earlier versions"]) {
+    for (const phrase of ["address of the page you were on", "user agent", "a photo", "no public leaderboard", "keeps the earlier versions"]) {
       await expect(body).toContainText(phrase);
     }
   });

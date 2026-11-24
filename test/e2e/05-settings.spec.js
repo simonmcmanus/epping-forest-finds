@@ -424,10 +424,9 @@ test.describe("Settings screen", () => {
       await page.locator("#appUpdateStatus").scrollIntoViewIfNeeded();
       await waitForUiToSettle(page);
       await settleMapIconsAndDraw(page);
-      await expect(page.locator("#testerIdDisplay")).not.toHaveText("…");
       await expect(page).toHaveScreenshot("settings-update-ready.png", {
         fullPage: false,
-        mask: [page.locator("#testerIdDisplay"), page.locator("#appVersionDisplay")],
+        mask: [page.locator("#appVersionDisplay")],
       });
     });
   });
@@ -550,12 +549,10 @@ test.describe("Settings screen", () => {
   test("snapshot: settings screen", async ({ page }) => {
     await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
-    // The tester ID is a random per-browser device id and the version moves with every release:
-    // mask just those two values so the baseline only changes when the screen does.
-    await expect(page.locator("#testerIdDisplay")).not.toHaveText("…");
+    // The version moves with every release: mask it so the baseline only changes when the screen does.
     await expect(page).toHaveScreenshot("settings-screen.png", {
       fullPage: false,
-      mask: [page.locator("#testerIdDisplay"), page.locator("#appVersionDisplay")],
+      mask: [page.locator("#appVersionDisplay")],
     });
   });
 });

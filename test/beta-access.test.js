@@ -9,6 +9,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const auth = require("../netlify/functions/lib/auth-session.js");
 const features = require("../netlify/functions/features.js");
+const gate = require("../netlify/functions/lib/feature-gate.js");
 const codes = require("../netlify/functions/beta-codes.js");
 const redeem = require("../netlify/functions/beta-redeem.js");
 const beta = require("../netlify/functions/lib/beta-access.js");
@@ -16,7 +17,6 @@ const beta = require("../netlify/functions/lib/beta-access.js");
 const ADMIN = "beta-admin-pw";
 const KEY = "k".repeat(40);
 const ENV = { AUTH0_DOMAIN: "tenant.example.auth0.test", AUTH0_CLIENT_ID: "id", AUTH0_CLIENT_SECRET: "s", AUTH_SECRET: KEY, ADMIN_PASSWORD: ADMIN };
-const OTHER_ID = "9876543210";
 
 function memoryStore(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -45,9 +45,11 @@ const adminHeaders = { authorization: `Bearer ${ADMIN}` };
 const adminPost = (body) => codes.handler({ httpMethod: "POST", headers: adminHeaders, body: JSON.stringify(body) });
 const adminList = async () => JSON.parse((await codes.handler({ httpMethod: "GET", headers: adminHeaders })).body).codes;
 const redeemAs = (sub, code) => redeem.handler({ httpMethod: "POST", headers: sub ? { cookie: cookieFor(sub) } : {}, body: JSON.stringify({ code }) });
-const communityFor = async (sub) => JSON.parse((await features.handler({ httpMethod: "GET", queryStringParameters: { id: OTHER_ID }, headers: sub ? { cookie: cookieFor(sub) } : {} })).body).community;
+// Community is on for everyone now, so beta membership is read directly: it is what the beta marker on track events uses.
+const betaFor = async (sub) => beta.betaMember(gate.storeFor({}), sub ? auth.sessionFrom({ headers: { cookie: cookieFor(sub) } }) : null);
+const featuresFor = async (sub) => JSON.parse((await features.handler({ httpMethod: "GET", headers: sub ? { cookie: cookieFor(sub) } : {} })).body);
 const create = async (note = "Sam") => JSON.parse((await adminPost({ action: "create", note })).body);
-const gated = () => memoryStore({ "features-allowlist": { community: [{ id: "0123456789", note: "" }] } });
+const gated = () => memoryStore();
 
 test("an admin creates a five-character beta code that is easy to read aloud", async () => {
   await withStore(memoryStore(), async () => {
@@ -95,24 +97,26 @@ test("the admin list shows open, claimed and revoked codes and never an account"
   });
 });
 
-test("redeeming an open code gives that account Community even when the tester list names someone else", async () => {
+test("redeeming an open code makes that account a beta member and nobody else", async () => {
   await withStore(gated(), async () => {
     const { code } = await create();
-    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await betaFor("auth0|a"), false);
     assert.equal((await redeemAs("auth0|a", code.toUpperCase())).statusCode, 200);
-    assert.equal(await communityFor("auth0|a"), true);
-    assert.equal(await communityFor(null), false, "anonymous readers are unchanged");
-    assert.equal(await communityFor("auth0|b"), false, "other accounts are unchanged");
+    assert.equal(await betaFor("auth0|a"), true);
+    assert.equal(await betaFor(null), false, "anonymous readers are unchanged");
+    assert.equal(await betaFor("auth0|b"), false, "other accounts are unchanged");
   });
 });
 
-test("beta access does not switch the gate on for others when the tester list is empty", async () => {
+test("Community is on for everyone and beta members keep it", async () => {
   await withStore(memoryStore(), async () => {
     const { code } = await create();
+    assert.deepEqual(await featuresFor("auth0|a"), { community: true });
     await redeemAs("auth0|a", code);
-    assert.equal(await communityFor(null), true, "an empty list still means everyone");
-    const stored = await features.handler({ httpMethod: "GET", queryStringParameters: { admin: "1" }, headers: adminHeaders });
-    assert.deepEqual(JSON.parse(stored.body), { community: [] });
+    assert.deepEqual(await featuresFor("auth0|a"), { community: true });
+    assert.deepEqual(await featuresFor(null), { community: true });
+    assert.equal(await betaFor("auth0|a"), true);
+    assert.equal(await betaFor("auth0|b"), false);
   });
 });
 
@@ -147,7 +151,7 @@ test("a used code cannot be redeemed again, even by the account that claimed it,
     const again = await redeemAs("auth0|a", code);
     assert.equal(again.statusCode, 409);
     assert.equal(JSON.parse(again.body).error, "That beta link has already been used.");
-    assert.equal(await communityFor("auth0|a"), true);
+    assert.equal(await betaFor("auth0|a"), true);
   });
 });
 
@@ -159,12 +163,12 @@ test("the claimant's second redeem is 409 marked member, and nothing changes", a
     assert.equal(again.statusCode, 409);
     assert.equal(JSON.parse(again.body).member, true);
     assert.equal(JSON.parse(again.body).error, "That beta link has already been used.");
-    assert.equal(await communityFor("auth0|a"), true);
+    assert.equal(await betaFor("auth0|a"), true);
     const other = await redeemAs("auth0|b", code);
     assert.equal(other.statusCode, 409);
     assert.notEqual(JSON.parse(other.body).member, true);
-    assert.equal(await communityFor("auth0|b"), false);
-    assert.equal(await communityFor("auth0|a"), true);
+    assert.equal(await betaFor("auth0|b"), false);
+    assert.equal(await betaFor("auth0|a"), true);
   });
 });
 
@@ -175,8 +179,8 @@ test("a code belongs to one person: another account gets 409 and has no access",
     const second = await redeemAs("auth0|b", code);
     assert.equal(second.statusCode, 409);
     assert.equal(JSON.parse(second.body).error, "That beta link has already been used.");
-    assert.equal(await communityFor("auth0|b"), false);
-    assert.equal(await communityFor("auth0|a"), true);
+    assert.equal(await betaFor("auth0|b"), false);
+    assert.equal(await betaFor("auth0|a"), true);
   });
 });
 
@@ -184,9 +188,9 @@ test("revoking a claimed code removes that person's Community access", async () 
   await withStore(gated(), async () => {
     const { code } = await create();
     await redeemAs("auth0|a", code);
-    assert.equal(await communityFor("auth0|a"), true);
+    assert.equal(await betaFor("auth0|a"), true);
     assert.deepEqual(JSON.parse((await adminPost({ action: "revoke", code })).body), { ok: true });
-    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await betaFor("auth0|a"), false);
     assert.equal((await adminList())[0].status, "revoked", "the record is kept");
   });
 });
@@ -202,14 +206,15 @@ test("a signed-out redeem is 401 and reveals nothing about the code", async () =
   });
 });
 
-test("when the beta record cannot be read, nobody is given access", async () => {
+test("when the beta record cannot be read, nobody is a beta member and Community is still on", async () => {
   const inner = gated();
   const store = { ...inner, get: async (key) => { if (key.startsWith("beta-user/")) throw new Error("down"); return inner.get(key); },
     getStrict: async (key) => { if (key.startsWith("beta-user/")) throw new Error("down"); return inner.getStrict(key); } };
   await withStore(store, async () => {
-    const response = await features.handler({ httpMethod: "GET", queryStringParameters: { id: OTHER_ID }, headers: { cookie: cookieFor("auth0|a") } });
+    const response = await features.handler({ httpMethod: "GET", headers: { cookie: cookieFor("auth0|a") } });
     assert.equal(response.statusCode, 200);
-    assert.equal(JSON.parse(response.body).community, false);
+    assert.equal(JSON.parse(response.body).community, true);
+    assert.equal(await betaFor("auth0|a"), false);
   });
 });
 
@@ -243,10 +248,10 @@ test("an account whose code was revoked has no Community access even if its beta
   await withStore(inner, async () => {
     const { code } = await create();
     await redeemAs("auth0|a", code);
-    assert.equal(await communityFor("auth0|a"), true);
+    assert.equal(await betaFor("auth0|a"), true);
     // A revoke that landed after the claim, with no clean-up of the account's record.
     await inner.put(`beta-code/${code}`, { ...(await inner.get(`beta-code/${code}`)), revokedAt: Date.now() });
-    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await betaFor("auth0|a"), false);
   });
 });
 
@@ -256,7 +261,7 @@ test("an account whose beta record names a code it does not hold has no Communit
     const { code } = await create();
     await redeemAs("auth0|a", code);
     await inner.put(`beta-code/${code}`, { ...(await inner.get(`beta-code/${code}`)), claimedBy: "someone-else" });
-    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await betaFor("auth0|a"), false);
   });
 });
 
@@ -271,7 +276,7 @@ test("a code revoked while it is being redeemed is 410 and leaves the account wi
     const result = await beta.redeem(revokingMidWay, { sub: "auth0|a" }, code);
     assert.equal(result.status, 410);
     assert.equal(result.error, "That beta link has been withdrawn.");
-    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await betaFor("auth0|a"), false);
     assert.equal(await inner.get(`beta-user/${require("../netlify/functions/lib/community-account").accountKey("auth0|a")}`), null);
   });
 });
@@ -286,11 +291,11 @@ test("a claimant whose grant failed to write retries the same link and is let in
       return inner.put(key, value);
     } };
     await assert.rejects(beta.redeem(flaky, { sub: "auth0|a" }, code));
-    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await betaFor("auth0|a"), false);
     assert.equal((await redeemAs("auth0|b", code)).statusCode, 409);
-    assert.equal(await communityFor("auth0|b"), false);
+    assert.equal(await betaFor("auth0|b"), false);
     assert.equal((await redeemAs("auth0|a", code)).statusCode, 200);
-    assert.equal(await communityFor("auth0|a"), true);
+    assert.equal(await betaFor("auth0|a"), true);
     const again = await redeemAs("auth0|a", code);
     assert.equal(again.statusCode, 409);
     assert.equal(JSON.parse(again.body).member, true);
@@ -345,7 +350,7 @@ test("a revoke that runs in full while a claim is being written still ends as 41
     const result = await beta.redeem(interleaved, { sub: "auth0|a" }, code);
     assert.equal(result.status, 410);
     assert.equal(result.error, "That beta link has been withdrawn.");
-    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await betaFor("auth0|a"), false);
     assert.equal(await inner.get(`beta-user/${accountKeyOf("auth0|a")}`), null);
     assert.equal((await adminList())[0].status, "revoked");
   });
@@ -362,7 +367,7 @@ test("a revoke that lands after the claim and before the access is written is 41
     } };
     const result = await beta.redeem(interleaved, { sub: "auth0|a" }, code);
     assert.equal(result.status, 410);
-    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await betaFor("auth0|a"), false);
     assert.equal(await inner.get(`beta-user/${accountKeyOf("auth0|a")}`), null);
   });
 });
@@ -375,9 +380,9 @@ test("revoking removes an existing claimant's access record as well as refusing 
     assert.ok(await inner.get(`beta-user/${accountKeyOf("auth0|a")}`));
     await adminPost({ action: "revoke", code });
     assert.equal(await inner.get(`beta-user/${accountKeyOf("auth0|a")}`), null);
-    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await betaFor("auth0|a"), false);
     assert.equal((await redeemAs("auth0|a", code)).statusCode, 410);
-    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await betaFor("auth0|a"), false);
   });
 });
 
@@ -386,7 +391,7 @@ test("a code revoked before revocation had its own record is still refused and g
   await withStore(inner, async () => {
     await inner.put("beta-code/abcde", { note: "old", createdAt: 5, revokedAt: 1234 });
     assert.equal((await redeemAs("auth0|a", "abcde")).statusCode, 410);
-    assert.equal(await communityFor("auth0|a"), false);
+    assert.equal(await betaFor("auth0|a"), false);
     assert.equal(await inner.get(`beta-user/${accountKeyOf("auth0|a")}`), null);
     const [row] = await adminList();
     assert.equal(row.status, "revoked");
@@ -394,7 +399,7 @@ test("a code revoked before revocation had its own record is still refused and g
     // And an old claimed-then-revoked code with a left-over access record grants nothing.
     await inner.put("beta-code/fghjk", { note: "old2", createdAt: 6, claimedBy: accountKeyOf("auth0|b"), claimedAt: 7, revokedAt: 9 });
     await inner.put(`beta-user/${accountKeyOf("auth0|b")}`, { code: "fghjk", at: 7 });
-    assert.equal(await communityFor("auth0|b"), false);
+    assert.equal(await betaFor("auth0|b"), false);
   });
 });
 
@@ -417,9 +422,9 @@ test("revoking an earlier code does not take away access an account got from a l
     const second = await create("second");
     await redeemAs("auth0|x", first.code);
     await redeemAs("auth0|x", second.code);
-    assert.equal(await communityFor("auth0|x"), true);
+    assert.equal(await betaFor("auth0|x"), true);
     assert.equal((await adminPost({ action: "revoke", code: first.code })).statusCode, 200);
-    assert.equal(await communityFor("auth0|x"), true, "the account keeps the access its other code gives");
+    assert.equal(await betaFor("auth0|x"), true, "the account keeps the access its other code gives");
   });
 });
 

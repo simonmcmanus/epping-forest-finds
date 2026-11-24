@@ -1,6 +1,6 @@
 /**
- * Testers-only features (netlify/functions/features.js, lib/feature-gate.js): who sees a gated feature, and
- * what happens when the list cannot be read or saved. A storage failure must never switch a feature on.
+ * /api/features (netlify/functions/features.js): Community is on for everyone. The endpoint is read-only: there
+ * is no tester list to read or edit. Beta access stays additive and is covered in beta-access.test.js.
  */
 
 "use strict";
@@ -11,8 +11,6 @@ const features = require("../netlify/functions/features.js");
 const gate = require("../netlify/functions/lib/feature-gate.js");
 
 const ADMIN = "features-admin-pw";
-const TESTER_ID = "0123456789";
-const OTHER_ID = "9876543210";
 
 function memoryStore(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -22,6 +20,7 @@ function memoryStore(initial = {}) {
     async put(key, value) { data.set(key, JSON.parse(JSON.stringify(value))); },
     async delete(key) { data.delete(key); },
     async list() { return []; },
+    dump: () => Object.fromEntries(data),
   };
 }
 
@@ -36,66 +35,36 @@ async function withStore(store, run) {
   try { return await run(); } finally { features.setStore(null); }
 }
 
-const adminHeaders = { authorization: `Bearer ${ADMIN}` };
-const readFor = (id) => features.handler({ httpMethod: "GET", queryStringParameters: { id }, headers: {} });
+const read = (extra = {}) => features.handler({ httpMethod: "GET", queryStringParameters: {}, headers: {}, ...extra });
 
-test("with no testers named, everyone has the feature", async () => {
+test("everyone has Community, with or without a Tester ID", async () => {
   await withStore(memoryStore(), async () => {
-    assert.deepEqual(JSON.parse((await readFor(OTHER_ID)).body), { community: true });
+    assert.deepEqual(JSON.parse((await read()).body), { community: true });
+    assert.deepEqual(JSON.parse((await read({ queryStringParameters: { id: "9876543210" } })).body), { community: true });
   });
 });
 
-test("once testers are named, only they have the feature", async () => {
-  const store = memoryStore({ "features-allowlist": { community: [{ id: TESTER_ID, note: "" }] } });
-  await withStore(store, async () => {
-    assert.deepEqual(JSON.parse((await readFor(TESTER_ID)).body), { community: true });
-    assert.deepEqual(JSON.parse((await readFor(OTHER_ID)).body), { community: false });
-  });
-});
-
-test("when the tester list cannot be read, no one is given a tester-only feature", async () => {
+test("Community stays on when storage is unavailable", async () => {
   await withStore(brokenStore(), async () => {
-    const response = await readFor(TESTER_ID);
+    const response = await read({ headers: { cookie: "ff_session=not-a-real-session" } });
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(JSON.parse(response.body), { community: false });
+    assert.deepEqual(JSON.parse(response.body), { community: true });
   });
 });
 
-test("an admin's save that cannot reach storage is reported as a failure, not a success", async () => {
-  await withStore(brokenStore(), async () => {
-    const response = await features.handler({
-      httpMethod: "POST",
-      headers: adminHeaders,
-      body: JSON.stringify({ community: [{ id: TESTER_ID, note: "" }] }),
-    });
-    assert.equal(response.statusCode, 503, "the admin must learn that nothing was saved");
-  });
-});
-
-test("an admin saves the tester list and reads it back", async () => {
+test("posting a list or asking for the admin list does not create or reveal an editable list", async () => {
   const store = memoryStore();
   await withStore(store, async () => {
-    const saved = await features.handler({ httpMethod: "POST", headers: adminHeaders, body: JSON.stringify({ community: [{ id: TESTER_ID, note: "Sam" }] }) });
-    assert.equal(saved.statusCode, 200);
-    const listed = await features.handler({ httpMethod: "GET", queryStringParameters: { admin: "1" }, headers: adminHeaders });
-    assert.deepEqual(JSON.parse(listed.body).community, [{ id: TESTER_ID, note: "Sam" }]);
-  });
-});
-
-test("the tester list is only readable or writable with the admin password in the header", async () => {
-  await withStore(memoryStore(), async () => {
-    assert.equal((await features.handler({ httpMethod: "GET", queryStringParameters: { admin: "1" }, headers: {} })).statusCode, 401);
-    assert.equal((await features.handler({ httpMethod: "POST", headers: {}, body: "{}" })).statusCode, 401);
-  });
-});
-
-test("the admin password is refused in the address, even when correct", async () => {
-  await withStore(memoryStore(), async () => {
-    const response = await features.handler({ httpMethod: "GET", queryStringParameters: { admin: "1", pw: ADMIN }, headers: {} });
-    assert.equal(response.statusCode, 401);
+    const posted = await features.handler({ httpMethod: "POST", headers: { authorization: `Bearer ${ADMIN}` }, body: JSON.stringify({ community: [{ id: "0123456789", note: "x" }] }) });
+    assert.deepEqual(JSON.parse(posted.body), { community: true });
+    assert.deepEqual(store.dump(), {}, "nothing is written");
+    const listed = await read({ queryStringParameters: { admin: "1" }, headers: { authorization: `Bearer ${ADMIN}` } });
+    assert.deepEqual(JSON.parse(listed.body), { community: true });
+    assert.deepEqual(JSON.parse((await read({ queryStringParameters: { id: "9876543210" } })).body), { community: true });
   });
 });
 
 test("the gate module exposes the store it uses so tests can replace it", () => {
   assert.equal(typeof gate.setStore, "function");
+  assert.equal(typeof gate.storeFor, "function");
 });

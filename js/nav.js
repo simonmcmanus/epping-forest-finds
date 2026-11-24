@@ -1259,8 +1259,7 @@ function setupFilterPanelHandlers() {
     els.reportToggle.addEventListener("click", (event) => {
       event.preventDefault();
       // The tab is lit on its Feedback sub-page too, but tapping it there goes back up to Community.
-      const here = communityEnabled() ? "community" : "report";
-      if (state.selected?.type === here && !els.inspector.classList.contains("minimized")) {
+      if (state.selected?.type === "community" && !els.inspector.classList.contains("minimized")) {
         shakeInspectorSheet();
         return;
       }

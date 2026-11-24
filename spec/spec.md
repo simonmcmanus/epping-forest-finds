@@ -559,7 +559,7 @@ the only one.
   - offline (instead of the idle/latest/failed/checking states): "You're offline. Updates are checked when you're back online." — button disabled
 
   **Check for updates** skips the 10-minute throttle on `requestAppUpdateCheck`. The line is not shown without a service worker.
-- The About section also shows the person's **Tester ID** (a 10-character hash, with a Copy button) to give the admin for early access (see `spec/spec-community.md`, Feature gate).
+- The About section no longer shows a Tester ID: Community is on for everyone (see `spec/spec-community.md`, Feature gate (retired)).
 - **Refresh buttons**: all three are transactional. The current offline cache is never deleted or unregistered before a replacement is known to be available:
   - **Refresh data** — force-downloads and validates the complete offline data list into the existing data cache, then reloads. A failed or partial download leaves the current data in place.
   - **Refresh app** — unregisters the service worker, deletes the cached app, then reloads the page so it restarts on a fresh copy from the network. The update status's **Restart now** keeps its download-first guard.
