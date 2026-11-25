@@ -33,6 +33,18 @@ test.describe("URL navigation", () => {
       await expect(page.locator(".community-intro")).toContainText("Help keep the map right");
     });
 
+    test("a fresh device whose features lookup fails has the Feedback tab, not Community", async ({ page }) => {
+      await skipOnboarding(page);
+      await page.addInitScript(() => localStorage.removeItem("ff-features-v1"));
+      await mockCowApi(page);
+      await page.route("**/api/features**", (route) => route.fulfill({ status: 503, body: "down" }));
+      await gotoAndWaitForMap(page, "/nearby");
+      await expect(page.locator("#reportToggle .nav-label")).toHaveText("Feedback");
+      await page.locator("#reportToggle").click();
+      await expect(page.locator("#inspectorTitle").last()).toContainText("Feedback");
+      await expect(page.locator(".community-intro")).toHaveCount(0);
+    });
+
     test("navigating to /feedback opens the feedback screen on load", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);

@@ -16,7 +16,6 @@ const beta = require("../netlify/functions/lib/beta-access.js");
 const ADMIN = "beta-admin-pw";
 const KEY = "k".repeat(40);
 const ENV = { AUTH0_DOMAIN: "tenant.example.auth0.test", AUTH0_CLIENT_ID: "id", AUTH0_CLIENT_SECRET: "s", AUTH_SECRET: KEY, ADMIN_PASSWORD: ADMIN };
-const OTHER_ID = "9876543210";
 
 function memoryStore(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -45,9 +44,10 @@ const adminHeaders = { authorization: `Bearer ${ADMIN}` };
 const adminPost = (body) => codes.handler({ httpMethod: "POST", headers: adminHeaders, body: JSON.stringify(body) });
 const adminList = async () => JSON.parse((await codes.handler({ httpMethod: "GET", headers: adminHeaders })).body).codes;
 const redeemAs = (sub, code) => redeem.handler({ httpMethod: "POST", headers: sub ? { cookie: cookieFor(sub) } : {}, body: JSON.stringify({ code }) });
-const communityFor = async (sub) => JSON.parse((await features.handler({ httpMethod: "GET", queryStringParameters: { id: OTHER_ID }, headers: sub ? { cookie: cookieFor(sub) } : {} })).body).community;
+// Community is shown only to beta members: the features endpoint answers per signed-in account.
+const communityFor = async (sub) => JSON.parse((await features.handler({ httpMethod: "GET", headers: sub ? { cookie: cookieFor(sub) } : {} })).body).community;
 const create = async (note = "Sam") => JSON.parse((await adminPost({ action: "create", note })).body);
-const gated = () => memoryStore({ "features-allowlist": { community: [{ id: "0123456789", note: "" }] } });
+const gated = () => memoryStore();
 
 test("an admin creates a five-character beta code that is easy to read aloud", async () => {
   await withStore(memoryStore(), async () => {
@@ -95,7 +95,7 @@ test("the admin list shows open, claimed and revoked codes and never an account"
   });
 });
 
-test("redeeming an open code gives that account Community even when the tester list names someone else", async () => {
+test("redeeming an open code makes that account a beta member and nobody else", async () => {
   await withStore(gated(), async () => {
     const { code } = await create();
     assert.equal(await communityFor("auth0|a"), false);
@@ -106,13 +106,14 @@ test("redeeming an open code gives that account Community even when the tester l
   });
 });
 
-test("beta access does not switch the gate on for others when the tester list is empty", async () => {
+test("beta access shows Community to that account only; nobody else is switched on and nothing is stored for others", async () => {
   await withStore(memoryStore(), async () => {
     const { code } = await create();
+    assert.equal(await communityFor(null), false);
     await redeemAs("auth0|a", code);
-    assert.equal(await communityFor(null), true, "an empty list still means everyone");
-    const stored = await features.handler({ httpMethod: "GET", queryStringParameters: { admin: "1" }, headers: adminHeaders });
-    assert.deepEqual(JSON.parse(stored.body), { community: [] });
+    assert.equal(await communityFor("auth0|a"), true);
+    assert.equal(await communityFor(null), false, "an empty store does not mean everyone");
+    assert.equal(await communityFor("auth0|b"), false);
   });
 });
 
@@ -207,7 +208,7 @@ test("when the beta record cannot be read, nobody is given access", async () => 
   const store = { ...inner, get: async (key) => { if (key.startsWith("beta-user/")) throw new Error("down"); return inner.get(key); },
     getStrict: async (key) => { if (key.startsWith("beta-user/")) throw new Error("down"); return inner.getStrict(key); } };
   await withStore(store, async () => {
-    const response = await features.handler({ httpMethod: "GET", queryStringParameters: { id: OTHER_ID }, headers: { cookie: cookieFor("auth0|a") } });
+    const response = await features.handler({ httpMethod: "GET", headers: { cookie: cookieFor("auth0|a") } });
     assert.equal(response.statusCode, 200);
     assert.equal(JSON.parse(response.body).community, false);
   });

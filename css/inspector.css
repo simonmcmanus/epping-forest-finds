@@ -868,7 +868,6 @@ button.settings-toggle.has-update::after {
 }
 .settings-form .settings-refresh { border-top: 1px solid var(--line); padding-top: 14px; gap: 12px; }
 .settings-form #settingsAccountBody { display: grid; gap: 12px; }
-.settings-form .tester-id { overflow-wrap: anywhere; }
 @media (forced-colors: active) {
   .settings-switch input { appearance: auto; }
   .settings-switch input::before { display: none; }

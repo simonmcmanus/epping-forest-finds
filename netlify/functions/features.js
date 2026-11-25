@@ -1,7 +1,8 @@
-// GET  /api/features?id=<tester id>   which gated features this person has: { community: boolean }
-// GET  /api/features?admin=1          the allow list (admin only)
-// POST /api/features                  replace the allow list (admin only), body { community: [{ id, note }] }
-// The list lives in the community store, so adding a tester needs no deploy.
+// GET /api/features   which gated features this person has: { community: boolean }
+// Community is for beta members only: a signed-in account that redeemed an open beta code. Everyone else gets
+// community:false and the Feedback page. There is no allow list and nothing to write: POST and ?admin=1 are
+// answered exactly like GET and change nothing. Fail closed: any session or storage error answers false, so a
+// broken store can never switch Community on.
 const auth = require("./lib/auth-session");
 const gate = require("./lib/feature-gate");
 
@@ -11,34 +12,15 @@ function reply(statusCode, body) {
   return { statusCode, headers: JSON_HEADERS, body: JSON.stringify(body) };
 }
 
-const { isAdminRequest } = require("./lib/admin-auth");
-
 exports.setStore = gate.setStore;
 
 exports.handler = async (event) => {
-  const query = event.queryStringParameters || {};
-  const adminRequest = event.httpMethod === "POST" || Boolean(query.admin);
+  const result = Object.fromEntries(gate.FEATURES.map((f) => [f, false]));
   try {
-    if (adminRequest) {
-      if (!isAdminRequest(event, process.env.ADMIN_PASSWORD || "")) return reply(401, { error: "Unauthorized" });
-      if (event.httpMethod === "POST") {
-        let body;
-        try { body = JSON.parse(event.body || "{}"); } catch { return reply(400, { error: "Bad JSON" }); }
-        return reply(200, await gate.writeList(event, body));
-      }
-      return reply(200, await gate.readList(event));
-    }
     const session = auth.sessionFrom(event);
-    const store = gate.storeFor(event);
-    const ids = await gate.vouchedIds(store, query.id, session);
-    const result = gate.enabledFor(await gate.readList(event), ids);
-    // Beta access is additive: it grants every feature to that account and never edits the tester list.
-    if (await require("./lib/beta-access").betaMember(store, session)) for (const f of gate.FEATURES) result[f] = true;
-    return reply(200, result);
-  } catch (error) {
-    // A broken store must never switch a feature on: a reader gets every feature off. An admin's change that
-    // could not be saved or read is reported as a failure, never as a success.
-    if (adminRequest) return reply(503, { error: "Storage unavailable: nothing was saved. Try again." });
-    return reply(200, Object.fromEntries(gate.FEATURES.map((f) => [f, false])));
-  }
+    if (await require("./lib/beta-access").betaMember(gate.storeFor(event), session)) {
+      for (const f of gate.FEATURES) result[f] = true;
+    }
+  } catch {}
+  return reply(200, result);
 };

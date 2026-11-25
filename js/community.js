@@ -195,7 +195,7 @@ function communityDeviceId() {
   return primary;
 }
 
-// --- Feature gate: Community is shown to the testers on the server's list (everyone while it is empty) ---
+// --- Feature gate: Community is shown only to beta members (signed-in accounts that redeemed a beta link) ---
 // The answer is kept on the device so the app works offline; until the first answer arrives it is off.
 const COMMUNITY_FEATURES_KEY = "ff-features-v1";
 let communityFeaturesMemory;
@@ -214,15 +214,6 @@ function communityFeaturesKnown() {
   return Boolean(communityFeatureCache());
 }
 
-// The short, non-secret name a tester gives the admin: a hash, so the device id (which is also the points
-// recovery code) never has to be shared.
-async function communityTesterId(value) {
-  try {
-    const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(value)));
-    return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 10);
-  } catch { return ""; }
-}
-
 let communityFeaturesInflight = null;
 
 function communityRefreshFeatures() {
@@ -230,8 +221,7 @@ function communityRefreshFeatures() {
   communityFeaturesInflight = (async () => {
     try {
       if (!navigator.onLine) return communityEnabled();
-      const id = await communityTesterId(communityPrimaryDeviceId());
-      const response = await fetch(`/api/features?id=${encodeURIComponent(id)}`, { cache: "no-store", signal: AbortSignal.timeout(6000) });
+      const response = await fetch("/api/features", { cache: "no-store", signal: AbortSignal.timeout(6000) });
       if (!response.ok) return communityEnabled();
       const data = await response.json();
       communityFeaturesMemory = { community: Boolean(data && data.community), at: Date.now() };

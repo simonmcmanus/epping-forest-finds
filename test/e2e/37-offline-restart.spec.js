@@ -60,3 +60,39 @@ test("a warmed app restarts from its cached shell and map data without a network
   await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
   expect(await page.evaluate(() => state.trees.length)).toBeGreaterThan(0);
 });
+
+async function warmThenGoOffline(page, context, answer) {
+  await page.addInitScript(() => {
+    localStorage.setItem("forest-finds-onboarding-v1", "done");
+    localStorage.setItem("ff-cookie-consent", "granted");
+  });
+  await page.goto("/nearby");
+  await page.waitForFunction(() => state.dataLoaded === true && state.trees.length > 0, null, { timeout: 60_000 });
+  await page.waitForFunction(() => navigator.serviceWorker?.controller, null, { timeout: 30_000 });
+  await page.reload();
+  await page.waitForFunction(() => state.dataLoaded === true && state.trees.length > 0, null, { timeout: 60_000 });
+  // What this device last heard about Community: a beta member's "on", or nothing at all.
+  await page.evaluate((value) => {
+    if (value === null) localStorage.removeItem("ff-features-v1");
+    else localStorage.setItem("ff-features-v1", JSON.stringify({ community: value }));
+  }, answer);
+  await context.setOffline(true);
+  await page.reload();
+  await page.waitForFunction(() => state.dataLoaded === true, null, { timeout: 30_000 });
+  await page.waitForFunction(() => document.getElementById("loadingOverlay")?.hidden === true, null, { timeout: 30_000 });
+}
+
+test("a returning beta device with a remembered Community answer opens Community offline", async ({ page, context }) => {
+  await warmThenGoOffline(page, context, true);
+  await expect(page.locator("#reportToggle .nav-label")).toHaveText("Community");
+  await page.locator("#reportToggle").click();
+  await expect(page.locator("#inspectorTitle").last()).toContainText("Community");
+});
+
+test("a device that never heard an answer shows Feedback, not Community, when it restarts offline", async ({ page, context }) => {
+  // Nothing remembered and no network to ask: Community stays off.
+  await warmThenGoOffline(page, context, null);
+  await expect(page.locator("#reportToggle .nav-label")).toHaveText("Feedback");
+  await page.locator("#reportToggle").click();
+  await expect(page.locator("#inspectorTitle").last()).toContainText("Feedback");
+});
