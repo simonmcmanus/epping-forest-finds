@@ -1,7 +1,8 @@
 // GET /api/features   which gated features this person has: { community: boolean }
-// Community is on for everyone, so the answer is always community:true. The endpoint stays as a minimal,
-// read-only answer (there is no allow list and nothing to write). Beta access is additive: a signed-in beta
-// member also gets every feature in FEATURES, and if beta cannot be read the answer is still community:true.
+// Community is for beta members only: a signed-in account that redeemed an open beta code. Everyone else gets
+// community:false and the Feedback page. There is no allow list and nothing to write: POST and ?admin=1 are
+// answered exactly like GET and change nothing. Fail closed: any session or storage error answers false, so a
+// broken store can never switch Community on.
 const auth = require("./lib/auth-session");
 const gate = require("./lib/feature-gate");
 
@@ -14,10 +15,10 @@ function reply(statusCode, body) {
 exports.setStore = gate.setStore;
 
 exports.handler = async (event) => {
-  const result = { community: true };
+  const result = Object.fromEntries(gate.FEATURES.map((f) => [f, false]));
   try {
     const session = auth.sessionFrom(event);
-    if (session && await require("./lib/beta-access").betaMember(gate.storeFor(event), session)) {
+    if (await require("./lib/beta-access").betaMember(gate.storeFor(event), session)) {
       for (const f of gate.FEATURES) result[f] = true;
     }
   } catch {}

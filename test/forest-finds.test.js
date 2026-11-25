@@ -267,7 +267,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
   assert.ok(appSource.trim(), "js/app.js should contain the app script");
 
   const elements = new Map();
-  const storage = new Map(Object.entries({ ...initialLocalStorage }));
+  const storage = new Map(Object.entries({ "ff-features-v1": JSON.stringify({ community: true }), ...initialLocalStorage }));
   const localStorage = {
     getItem(key) {
       return storage.get(String(key)) ?? null;

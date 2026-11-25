@@ -19,8 +19,15 @@ const FIXTURE_TREE = {
  * Must be called before page.goto().
  */
 async function skipOnboarding(page) {
+  // Community is for beta members, and the local server cannot tell a beta member from anyone else: answer "on" by default.
+  // A context route runs after the page's own routes, so a spec that mocks /api/features itself still wins.
+  await page.context().route("**/api/features**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ community: true }) })
+  );
   await page.addInitScript(() => {
     localStorage.setItem("forest-finds-onboarding-v1", "done");
+    // Community is gated per person (js/community.js communityEnabled); specs run with it on unless they say otherwise.
+    if (!localStorage.getItem("ff-features-v1")) localStorage.setItem("ff-features-v1", JSON.stringify({ community: true }));
   });
 }
 

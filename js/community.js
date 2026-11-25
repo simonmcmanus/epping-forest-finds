@@ -195,9 +195,47 @@ function communityDeviceId() {
   return primary;
 }
 
-// --- Community is on for everyone: there is no feature gate any more. ---
-// Older builds kept the gate's answer on the device; drop that key once.
-try { localStorage.removeItem("ff-features-v1"); } catch {}
+// --- Feature gate: Community is shown only to beta members (signed-in accounts that redeemed a beta link) ---
+// The answer is kept on the device so the app works offline; until the first answer arrives it is off.
+const COMMUNITY_FEATURES_KEY = "ff-features-v1";
+let communityFeaturesMemory;
+
+function communityFeatureCache() {
+  if (communityFeaturesMemory !== undefined) return communityFeaturesMemory;
+  try { return JSON.parse(localStorage.getItem(COMMUNITY_FEATURES_KEY)) || null; } catch { return null; }
+}
+
+function communityEnabled() {
+  const cache = communityFeatureCache();
+  return Boolean(cache && cache.community);
+}
+
+function communityFeaturesKnown() {
+  return Boolean(communityFeatureCache());
+}
+
+let communityFeaturesInflight = null;
+
+function communityRefreshFeatures() {
+  if (communityFeaturesInflight) return communityFeaturesInflight;
+  communityFeaturesInflight = (async () => {
+    try {
+      if (!navigator.onLine) return communityEnabled();
+      const response = await fetch("/api/features", { cache: "no-store", signal: AbortSignal.timeout(6000) });
+      if (!response.ok) return communityEnabled();
+      const data = await response.json();
+      communityFeaturesMemory = { community: Boolean(data && data.community), at: Date.now() };
+      try { localStorage.setItem(COMMUNITY_FEATURES_KEY, JSON.stringify(communityFeaturesMemory)); } catch {}
+      if (typeof applyFeatureGates === "function") applyFeatureGates();
+      // A first location fix may have arrived while the feature response was in flight. Re-run
+      // the location invitation now that the gate is known instead of relying on a timing-sensitive
+      // retry from the location pipeline.
+      if (typeof adventureMaybeShow === "function") window.setTimeout(adventureMaybeShow, 0);
+    } catch {}
+    return communityEnabled();
+  })().finally(() => { communityFeaturesInflight = null; });
+  return communityFeaturesInflight;
+}
 
 // Per-device storage: the primary device keeps the original keys, any other device id its own.
 function communityScoped(key) {
@@ -475,7 +513,7 @@ function communityVerifiedDetailHtml(target) {
 
 function communityVerifiedSlotsHtml(tree) {
   const target = communityTreeTarget(tree);
-  if (!target) return { chip: "", detail: "", pointer: "" };
+  if (!target || !communityEnabled()) return { chip: "", detail: "", pointer: "" };
   const hasCard = tree.latitude != null && tree.longitude != null;
   return {
     chip: `<span class="community-verified-slot" data-verified-target="${escapeHtml(target)}">${communityVerifiedChipHtml(target)}</span>`,
@@ -741,7 +779,7 @@ function communityCardHtml({ kind, target, lat, lon, tier, reported, sectionClas
 
 // What a detail screen renders for one check: the card, its tier and where it goes. null when there is none.
 function communityCardParts(kind, item) {
-  if (!item) return null;
+  if (!communityEnabled() || !item) return null;
   if (kind === "place") {
     if (!item.name || item.latitude == null || item.longitude == null) return null;
     const target = `place:${placeHashKey(item)}`;
@@ -879,7 +917,7 @@ function communitySchedulePresentation(delay = 0) {
 // Called with every GPS fix and after the card's own content changes. It does nothing when neither the tier
 // nor the rounded distance changed, so a fix costs no layout.
 function communityUpdatePresentation(local = communityReadLocal()) {
-  if (typeof document === "undefined" || !document.querySelectorAll) return;
+  if (typeof document === "undefined" || !document.querySelectorAll || !communityEnabled()) return;
   communityEnsureAnnouncer();
   // The incoming screen is still sliding in: presenting now would write scrollTop that the slide then resets.
   // Wait for the slide to end, then present once, so the move is one continuous motion with the right end state.
@@ -1616,6 +1654,7 @@ function communityNudgePulse(section, now) {
 let communityNudgeSlideRetry = null;
 
 function communityNudgeCheck(now = Date.now(), slideWaited = 0) {
+  if (!communityEnabled()) return;
   const local = communityReadLocal(); // once per fix: the cards and the nudge share it
   communityUpdatePresentation(local);
   communityUpdateRangeNotes();
@@ -2083,7 +2122,7 @@ function communityPlaceStatusDetailHtml(target) {
 }
 
 function communityPlaceStatusSlotsHtml(place) {
-  if (!place || place.latitude == null || place.longitude == null) return { chip: "", detail: "", pointer: "" };
+  if (!communityEnabled() || !place || place.latitude == null || place.longitude == null) return { chip: "", detail: "", pointer: "" };
   const target = `place:${placeHashKey(place)}`;
   return {
     pointer: place.name ? communityPointerSlotHtml(target, "place", communityInitialTier(target, Number(place.latitude), Number(place.longitude), "place")) : "",
@@ -2127,7 +2166,7 @@ function communityPlaceTopSlotHtml(place) {
 }
 
 function communityPlaceConfirmationHtml(place) {
-  if (!place || place.latitude == null || place.longitude == null) return "";
+  if (!communityEnabled() || !place || place.latitude == null || place.longitude == null) return "";
   const target = `place:${placeHashKey(place)}`;
   return `<div class="community-place-status-slot" data-place-key="${escapeHtml(target)}">${communityPlaceStatusHtml(target)}</div>`;
 }

@@ -10,6 +10,8 @@ let treeAdventureTargetItem = null;
 let treeAdventureArrowAngle = null;
 let treeAdventureOverlayAttempted = false;
 let treeAdventureOverlayWait = null;
+let treeAdventureFeatureAttempts = 0;
+const TREE_ADVENTURE_FEATURE_ATTEMPTS = 6;
 
 // Map highlight for the tree the open notice names. It lives exactly as long as the notice is
 // open; the pulse loop redraws only the overlay canvas (where drawAdventureHighlight paints) and
@@ -257,7 +259,8 @@ function treeAdventureShow(tree, straightLineMetres) {
       ? `<span>Look for this tag on the tree</span><strong>${escapeHtml(tag)}</strong>`
       : "";
   }
-  els.adventureMeta.innerHTML = `${age ? `<span class="adventure-age"><small>Estimated age</small><strong>${escapeHtml(age)} years</strong></span>` : ""}<span class="adventure-reward">+${TREE_ADVENTURE_REWARD} points when verified</span>`;
+  const showPoints = typeof communityEnabled === "function" && communityEnabled();
+  els.adventureMeta.innerHTML = `${age ? `<span class="adventure-age"><small>Estimated age</small><strong>${escapeHtml(age)} years</strong></span>` : ""}${showPoints ? `<span class="adventure-reward">+${TREE_ADVENTURE_REWARD} points when verified</span>` : ""}`;
   treeAdventureWrite(TREE_ADVENTURE_ACTIVE_KEY, { target, shownAt: Date.now() });
   banner.hidden = false;
   banner.classList.remove("fading-out");
@@ -280,6 +283,17 @@ function treeAdventureShow(tree, straightLineMetres) {
 
 function adventureMaybeShow() {
   if (treeAdventureSeen() || !hasRealLocation() || state.userLocation.isDefault || isFarFromForest()) return;
+  if (typeof communityFeaturesKnown === "function" && !communityFeaturesKnown()) {
+    // The one lookup at boot can fail on a weak connection, and nothing else asks again. Ask
+    // again here with a growing pause, a bounded number of times, rather than polling a cache
+    // that nobody is going to fill. A successful answer re-runs this check itself.
+    if (treeAdventureFeatureAttempts < TREE_ADVENTURE_FEATURE_ATTEMPTS) {
+      treeAdventureFeatureAttempts += 1;
+      if (typeof communityRefreshFeatures === "function") communityRefreshFeatures();
+      treeAdventureRetry(1200 * treeAdventureFeatureAttempts);
+    }
+    return;
+  }
   const overlay = document.getElementById("onboardingOverlay");
   if (overlay && (overlay._onboardingActive || !overlay.hidden)) {
     treeAdventureRetry();

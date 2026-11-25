@@ -747,8 +747,12 @@ async function boot() {
     // boot() is called mid-script: wait one microtask so the declarations below it (the document
     // title constants openCommunity() uses) have initialised before the screen is built.
     await Promise.resolve();
+    // Not yet told whether Community is on for this person: ask, briefly, rather than flash the wrong screen.
+    if (!communityFeaturesKnown()) await Promise.race([communityRefreshFeatures(), new Promise((resolve) => setTimeout(resolve, 2500))]);
     try { openCommunityOrFeedback(); } catch (error) { console.error(error); }
   }
+  applyFeatureGates();
+  communityRefreshFeatures();
 
   // Start data loading immediately so it runs in parallel with location and onboarding
   const hasCachedCowData = applyCachedCowData();
@@ -2437,10 +2441,29 @@ function communityScreenOpen() {
   return Boolean(state.selected && state.selected.type === "community");
 }
 
-// The Community tab opens Community; Feedback is reached from inside it and from Settings.
+// Community is gated (see communityEnabled): people without it get the Feedback page in its place, and the
+// nav tab becomes the Feedback tab.
 function openCommunityOrFeedback() {
   if (typeof dismissOnboarding === "function") dismissOnboarding();
-  openCommunity();
+  if (communityEnabled()) openCommunity(); else openReportModal();
+}
+
+// Declared inside: boot() calls this mid-script, before top-level constants further down have initialised.
+function applyFeatureGates() {
+  const NAV_COMMUNITY_ICON = '<path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.5"/><path d="M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15.5 4.7a3.5 3.5 0 0 1 0 6.6"/>';
+  const NAV_FEEDBACK_ICON = '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/>';
+  const tab = els.reportToggle;
+  if (!tab) return;
+  const on = communityEnabled();
+  const label = on ? "Community" : "Feedback";
+  tab.setAttribute("href", on ? "/community" : "/feedback");
+  tab.setAttribute("aria-label", label);
+  const icon = tab.querySelector("svg");
+  if (icon) icon.innerHTML = on ? NAV_COMMUNITY_ICON : NAV_FEEDBACK_ICON;
+  const text = tab.querySelector(".nav-label");
+  if (text) text.textContent = label;
+  // The Community screen is open for someone who no longer has it (the list changed): show Feedback instead.
+  if (!on && communityScreenOpen()) openReportModal();
 }
 
 function openCommunity() {

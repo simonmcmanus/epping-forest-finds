@@ -1,4 +1,4 @@
-// Epping Forest Finds — Settings: the settings screen's markup, its location and native data rows, the account and tester rows, and its handlers.
+// Epping Forest Finds — Settings: the settings screen's markup, its location and native data rows, the account row, and its handlers.
 //
 // A classic script loaded before js/app.js (see app.html). It holds function declarations only,
 // so it runs no code at load time; every value these functions read is declared in app.js or an
