@@ -138,11 +138,6 @@
   }
 
   // Short form for the Stats card: "24 hours", "30 days".
-  // Capitalise the first letter, for a phrase that starts a sentence ("The last 90 days …", "All history …").
-  function capitalise(text) {
-    return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
-  }
-
   function windowShort(days) {
     if (!Number.isFinite(days)) return "All history";
     return days === 1 ? "24 hours" : `${days} days`;
@@ -163,7 +158,7 @@
     return (events || []).filter((e) => e && e.beta === true);
   }
 
-  const api = { capitalise, splitWalks, pinchViewport, pointSegmentDistance, nearestTrackAt, summariseTrack, formatDuration, formatDistance, WINDOW_OPTIONS, DEFAULT_WINDOW, normaliseWindow, windowPhrase, windowShort, windowAttempts, onlyBeta };
+  const api = { splitWalks, pinchViewport, pointSegmentDistance, nearestTrackAt, summariseTrack, formatDuration, formatDistance, WINDOW_OPTIONS, DEFAULT_WINDOW, normaliseWindow, windowPhrase, windowShort, windowAttempts, onlyBeta };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.AdminTools = api;
 })(typeof window !== "undefined" ? window : globalThis);

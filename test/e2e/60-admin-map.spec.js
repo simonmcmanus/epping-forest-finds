@@ -743,6 +743,139 @@ test.describe("Admin walks: identity, announcement and drawing", () => {
     await expect(page.getByRole("button", { name: "Close track details (Esc)" })).toBeFocused();
   });
 
+  test("when a refresh leaves a single walk, focus on Next walk moves to the sheet's Close button", async ({ page }) => {
+    let calls = 0;
+    await openAdmin(page, { onTracks: (route) => { calls += 1; return json(route, 200, tracks({ locations: calls > 1 ? all().filter((e) => Date.parse(e.ts) >= Date.parse(at(300))) : all() })); } });
+    await page.locator(".admin-user-item", { hasText: "aaaaaaaa" }).click();
+    await page.getByRole("button", { name: "Track details for aaaaaaaa" }).click();
+    await page.getByRole("button", { name: "Previous walk" }).click(); // Next is only meaningful off the last walk
+    await page.getByRole("button", { name: "Next walk" }).focus();
+    await page.evaluate(() => document.getElementById("refreshBtn").click());
+    await expect(page.locator("#adminTrackWalkStatus")).toContainText("Walk 1 of 1");
+    await expect(page.getByRole("button", { name: "Close track details (Esc)" })).toBeFocused();
+  });
+
+  test("opening the sheet again on the same walk clears the status then rewrites it, so it is announced each time", async ({ page }) => {
+    await openAdmin(page, { onTracks: threeWalks });
+    await page.locator(".admin-user-item", { hasText: "aaaaaaaa" }).click();
+    const control = page.getByRole("button", { name: "Track details for aaaaaaaa" });
+    await control.click();
+    await expect(page.locator("#adminTrackWalkStatus")).toHaveText("Walk 3 of 3");
+    for (let i = 0; i < 2; i += 1) {
+      await page.evaluate(() => {
+        const el = document.getElementById("adminTrackWalkStatus");
+        window.__seen = [];
+        window.__mo = new MutationObserver(() => window.__seen.push(el.textContent));
+        window.__mo.observe(el, { childList: true, characterData: true, subtree: true });
+      });
+      // The sheet is already open on this walk, so the words are identical: only the clear-then-write makes a screen reader say them again.
+      await page.evaluate(() => document.querySelector('.admin-track-btn').click());
+      await expect(page.locator("#adminTrackWalkStatus")).toHaveText("Walk 3 of 3");
+      const seen = await page.evaluate(() => { window.__mo.disconnect(); return window.__seen; });
+      expect(seen).toEqual(["", "Walk 3 of 3"]);
+    }
+  });
+
+  test("closing the sheet in the same tick it opened leaves the status empty, and opening it again announces the walk", async ({ page }) => {
+    await page.clock.install();
+    await openAdmin(page, { onTracks: threeWalks });
+    await page.locator(".admin-user-item", { hasText: "aaaaaaaa" }).click();
+    await page.evaluate(() => {
+      document.querySelector(".admin-track-btn").click();
+      document.getElementById("adminTrackDetailsClose").click();
+    });
+    await page.clock.runFor(100); // the announcement's delayed write would land here
+    await expect(page.locator("#adminTrackWalkStatus")).toHaveText("");
+    await expect(page.getByRole("region", { name: "Track details" })).toBeHidden();
+    await page.getByRole("button", { name: "Track details for aaaaaaaa" }).click();
+    await page.clock.runFor(100);
+    await expect(page.locator("#adminTrackWalkStatus")).toHaveText("Walk 3 of 3");
+  });
+
+  test("opening the sheet twice and closing it in the same tick leaves the status empty", async ({ page }) => {
+    await page.clock.install();
+    await openAdmin(page, { onTracks: threeWalks });
+    await page.locator(".admin-user-item", { hasText: "aaaaaaaa" }).click();
+    await page.evaluate(() => {
+      document.querySelector(".admin-track-btn").click();
+      document.querySelector(".admin-track-btn").click();
+      document.getElementById("adminTrackDetailsClose").click();
+    });
+    await page.clock.runFor(100);
+    await expect(page.locator("#adminTrackWalkStatus")).toHaveText("");
+    await expect(page.getByRole("region", { name: "Track details" })).toBeHidden();
+  });
+
+  test("closing and reopening from the Track details button shows the latest walk, not the one last stepped to", async ({ page }) => {
+    await openAdmin(page, { onTracks: threeWalks });
+    await page.locator(".admin-user-item", { hasText: "aaaaaaaa" }).click();
+    await page.getByRole("button", { name: "Track details for aaaaaaaa" }).click();
+    await page.getByRole("button", { name: "Previous walk" }).click();
+    await expect(page.locator("#adminTrackWalkStatus")).toHaveText("Walk 2 of 3");
+    await page.getByRole("button", { name: "Close track details (Esc)" }).click();
+    await page.getByRole("button", { name: "Track details for aaaaaaaa" }).click();
+    await expect(page.locator("#adminTrackWalkStatus")).toHaveText("Walk 3 of 3");
+  });
+
+  test("an expired session with the sheet open leaves it closed and its status empty for the next sign-in", async ({ page }) => {
+    let calls = 0;
+    await openAdmin(page, { onTracks: (route) => { calls += 1; return calls > 1 ? json(route, 401, { error: "unauthorised" }) : json(route, 200, tracks({ locations: all() })); } });
+    await page.locator(".admin-user-item", { hasText: "aaaaaaaa" }).click();
+    await page.getByRole("button", { name: "Track details for aaaaaaaa" }).click();
+    await expect(page.locator("#adminTrackWalkStatus")).toHaveText("Walk 3 of 3");
+    await page.evaluate(() => document.getElementById("refreshBtn").click());
+    await expect(page.locator("#loginError")).toContainText("Admin session expired");
+    const left = await page.evaluate(() => ({ hidden: document.getElementById("adminTrackDetails").hidden, status: document.getElementById("adminTrackWalkStatus").textContent }));
+    expect(left).toEqual({ hidden: true, status: "" });
+  });
+
+  test("the sheet is named by its heading", async ({ page }) => {
+    await openAdmin(page, { onTracks: threeWalks });
+    await page.locator(".admin-user-item", { hasText: "aaaaaaaa" }).click();
+    await page.getByRole("button", { name: "Track details for aaaaaaaa" }).click();
+    const sheet = page.getByRole("region", { name: "Track details" });
+    await expect(sheet).toBeVisible();
+    const naming = await page.evaluate(() => {
+      const el = document.getElementById("adminTrackDetails");
+      const heading = document.getElementById(el.getAttribute("aria-labelledby") || "none");
+      return { label: el.getAttribute("aria-label"), headingText: heading && heading.textContent, isHeading: !!heading && heading.tagName === "H2" };
+    });
+    expect(naming).toEqual({ label: null, headingText: "Track details", isHeading: true });
+  });
+
+  test("a walk of a single ping shows the green start circle with no red stop square, while a longer walk shows both", async ({ page }) => {
+    const LONE = [51.69, -0.09];
+    await openAdmin(page, { onTracks: (route) => json(route, 200, tracks({ locations: [...all(), ping(A, 60, ...LONE)] })) });
+    // The stop square is almost wholly hidden under the start circle, but its white outline corners stick out past the circle (shadowed grey under it), and the map ground is tinted green, never neutral.
+    // The marker is located by its own colour, so the check does not depend on rounding of the click point.
+    const markerHasSquareCorners = (x, y, kind) => page.evaluate(([px, py, k]) => {
+      const c = document.getElementById("adminCanvas");
+      const r = c.getBoundingClientRect();
+      const s = c.width / r.width;
+      const x0 = Math.round((px - 20 - r.left) * s), y0 = Math.round((py - 20 - r.top) * s), n = Math.round(40 * s);
+      const d = c.getContext("2d").getImageData(x0, y0, n, n).data;
+      const at = (cx, cy) => { const i = (cy * n + cx) * 4; return [d[i], d[i + 1], d[i + 2]]; };
+      let sx = 0, sy = 0, count = 0;
+      for (let row = 0; row < n; row += 1) for (let col = 0; col < n; col += 1) {
+        const [R, G] = at(col, row);
+        if (k === "green" ? G - R > 100 : R - G > 100) { sx += col; sy += row; count += 1; }
+      }
+      if (!count) return { found: false };
+      const cx = Math.round(sx / count), cy = Math.round(sy / count), o = Math.round(7 * s);
+      // The stop square's outline is white (or a neutral grey where the start circle's shadow falls on it); the map ground is tinted green.
+      const neutral = ([R, G, B]) => Math.abs(R - G) <= 3 && Math.abs(G - B) <= 3;
+      return { found: true, corners: [[o, o], [-o, o], [o, -o], [-o, -o]].filter(([dx, dy]) => neutral(at(cx + dx, cy + dy))).length };
+    }, [x, y, kind]);
+    const lone = await canvasPoint(page, ...LONE);
+    await page.mouse.click(lone.x, lone.y);
+    await expect(page.locator("#adminTrackWalkStatus")).toHaveText("Walk 2 of 4");
+    expect(await markerHasSquareCorners(lone.x, lone.y, "green")).toEqual({ found: true, corners: 0 });
+    await page.getByRole("button", { name: "Previous walk" }).click();
+    await expect(page.locator("#adminTrackWalkStatus")).toHaveText("Walk 1 of 4");
+    const stop = await canvasPoint(page, ...WALK[4]);
+    expect((await markerHasSquareCorners(stop.x, stop.y, "red")).corners).toBeGreaterThanOrEqual(3);
+  });
+
   test("a walk of a single ping is drawn as a dot, can be tapped, and the sheet reads 1 ping", async ({ page }) => {
     const LONE = [51.69, -0.09];
     await openAdmin(page, { onTracks: (route) => json(route, 200, tracks({ locations: [...all(), ping(A, 60, ...LONE)] })) });

@@ -1697,13 +1697,19 @@ function setStatusText(el, text) {
 
 // The walk status is a persistent live region. force (on opening the sheet) clears it first and writes the words a moment later, so a screen reader announces them even when they equal the last ones.
 let _walkStatusText = "";
+let _walkStatusTimer = null;
+function cancelWalkStatusTimer() {
+  if (_walkStatusTimer !== null) clearTimeout(_walkStatusTimer);
+  _walkStatusTimer = null;
+}
 function setWalkStatus(text, force = false) {
   const el = document.getElementById("adminTrackWalkStatus");
   if (!el) return;
   _walkStatusText = text;
   if (!force) { setStatusText(el, text); return; }
   el.textContent = "";
-  setTimeout(() => { if (!el.textContent) el.textContent = _walkStatusText; }, 0);
+  cancelWalkStatusTimer(); // a second forced call in the same task must not orphan the first timer
+  _walkStatusTimer = setTimeout(() => { _walkStatusTimer = null; if (!el.textContent) el.textContent = _walkStatusText; }, 0);
 }
 
 function trackPlaceHtml(point) {
@@ -1794,6 +1800,10 @@ function closeTrackDetails() {
   const fromList = trackSheetFromList;
   selectedTrackUid = null;
   trackSheetFromList = false;
+  trackWalkSpan = null;
+  cancelWalkStatusTimer(); // a pending announcement must not write the walk status back into the closed sheet
+  const status = document.getElementById("adminTrackWalkStatus");
+  if (status) status.textContent = "";
   if (panel) panel.hidden = true;
   if (hadFocus) {
     const opener = fromList ? document.querySelector(`#adminUserList [data-uid="track:${CSS.escape(uid || "")}"]`) : null;
@@ -2507,8 +2517,7 @@ async function adminBoot() {
     filterNote.textContent = "";
     selectedUid = null;
     selectedClickKey = null;
-    selectedTrackUid = null;
-    // Nothing from this session may reappear at the next sign-in: close the tap details, leave the pages and empty what they held.
+    // Nothing from this session may reappear at the next sign-in: close the tap details and the track sheet (closeClickDetails closes both), leave the pages and empty what they held.
     closeClickDetails();
     resetView();
     resetBetaPanel();
