@@ -30,6 +30,9 @@
       "Bash(npm run *)",
       "Bash(awk -F: '{print NR, $1, $2}')",
       "Bash(git checkout *)",
+      "Bash(git status)",
+      "Bash(git diff)",
+      "Bash(git log)",
       "Bash(node --test test/forest-finds.test.js > /tmp/out.txt 2>&1; grep -n \"tests \\\\|pass \\\\|fail \\\\|not ok\" /tmp/out.txt | tail -20)",
       "Read(//tmp/**)"
     ],
