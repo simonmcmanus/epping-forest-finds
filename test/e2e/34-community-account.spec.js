@@ -413,6 +413,49 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     await expect(page.locator("#communityContributions")).not.toContainText("Couldn't check");
   });
 
+  test("identity check failed: no skeleton rows, 44px controls, and a retry that fails again keeps Try again focused", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("ff-community-account-v1", JSON.stringify({ signedIn: true, name: "Sam", account: "acct-aaaa" }));
+    });
+    await page.route(ME_URL, (route) => route.fulfill(json({ error: "down" }, 500)));
+    await setup(page, "/community");
+    const account = page.locator("#communityAccount");
+    const retry = account.getByRole("button", { name: "Try again" });
+    await expect(retry).toBeVisible();
+    await expect(page.locator("#communityContributions [data-hero='note']")).toHaveAttribute("role", "status");
+    await expect(page.locator("#communityLog .community-skel-rows")).toHaveCount(0);
+    await expect(page.locator("#communityLog")).not.toHaveClass(/is-loading/);
+    for (const control of [retry, account.getByRole("link", { name: "Sign in" })]) {
+      expect((await control.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    }
+    await retry.click();
+    await expect(retry).toBeFocused();
+    await expect(page.locator("#communityContributions")).toContainText("Couldn't check your sign-in");
+    await expect(page.locator("#communityLog .community-skel-rows")).toHaveCount(0);
+  });
+
+  test("identity check retry shows loading, not the failed buttons, while it is in flight", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("ff-community-account-v1", JSON.stringify({ signedIn: true, name: "Sam", account: "acct-aaaa" }));
+    });
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    let calls = 0;
+    await page.route(ME_URL, async (route) => {
+      calls += 1;
+      if (calls > 1) await gate;
+      return route.fulfill(json({ error: "down" }, 500));
+    });
+    await setup(page, "/community");
+    const account = page.locator("#communityAccount");
+    await expect(account.getByRole("button", { name: "Try again" })).toBeVisible();
+    await account.getByRole("button", { name: "Try again" }).click();
+    await page.evaluate(() => communityRenderContributions());
+    await expect(account.getByRole("button", { name: "Try again" })).toHaveCount(0);
+    release();
+    await expect(account.getByRole("button", { name: "Try again" })).toBeVisible();
+  });
+
   test("Settings has an Account section: Sign in goes to the login page and returns to Settings", async ({ page }) => {
     await page.route(ME_URL, (route) => route.fulfill(json({ signedIn: false })));
     let loginUrl = "";

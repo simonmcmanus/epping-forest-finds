@@ -2417,6 +2417,8 @@ dd {
 .community-banner-dismiss:focus-visible { outline: 2px solid var(--tree); outline-offset: -4px; }
 .community-account-quiet { margin: 10px 0 0; font-size: 0.82rem; }
 .community-account-quiet a { color: var(--tree); font-weight: 700; }
+.community-account-quiet.is-identity-failed { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.community-account-quiet.is-identity-failed .community-link { min-height: 44px; display: inline-flex; align-items: center; padding: 0 4px; font: inherit; font-weight: 700; color: var(--tree); text-decoration: underline; }
 .community-badges-section { padding-top: 0; min-width: 0; max-width: 100%; }
 .community-badges-section > div, .community-badges { min-width: 0; max-width: 100%; }
 @media (prefers-reduced-motion: reduce) { .community-progress span { transition: none; } }

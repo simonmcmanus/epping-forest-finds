@@ -2474,7 +2474,7 @@ function communityContributionsHtml() {
       <h3 class="community-sr">Your contributions</h3>
       <div id="communityContributions" class="community-hero is-loading" aria-busy="true">
         <div data-hero="volatile"></div>
-        <p class="settings-description" data-hero="note" hidden></p>
+        <p class="settings-description" data-hero="note" role="status" hidden></p>
         <div class="community-rank-card">
           <span class="community-rank-icon" data-hero="medal">${communityMedalHtml(COMMUNITY_RANKS[0])}</span>
           <div class="community-rank-text">
@@ -2550,10 +2550,11 @@ function communityResetHosts(note = "") {
   }
   const log = document.getElementById("communityLog");
   if (log) {
-    log.classList.add("is-loading");
+    // With a note (identity check failed) nothing is loading: no shimmering rows beside the note.
+    log.classList.toggle("is-loading", !note);
     log.querySelector('[data-log="legend"]').innerHTML = "";
     log.querySelector('[data-log="filters"]').innerHTML = "";
-    log.querySelector('[data-log="body"]').innerHTML = `<div class="community-skel-rows" aria-hidden="true"><span></span><span></span></div>`;
+    log.querySelector('[data-log="body"]').innerHTML = note ? "" : `<div class="community-skel-rows" aria-hidden="true"><span></span><span></span></div>`;
   }
   const badgesHost = document.getElementById("communityBadgesHost");
   if (badgesHost) badgesHost.innerHTML = "";
@@ -2791,6 +2792,7 @@ function communityRenderAccount(account, note = "") {
   const recover = host.querySelector('[data-account="recover"]');
   noteEl.innerHTML = note ? `<p class="community-account-note" role="status">${escapeHtml(note)}</p>` : "";
   line.classList.remove("is-loading");
+  line.classList.remove("is-identity-failed");
   line.classList.toggle("community-account-quiet", !(account && account.signedIn));
   // No sign-in inside the native app: see settingsAccountHtml (js/app.js).
   line.innerHTML = account && account.signedIn
@@ -2801,6 +2803,8 @@ function communityRenderAccount(account, note = "") {
 
 // Identity unknown while a signed-in account is remembered: no history is shown, but the account section
 // offers a way forward (re-run the check, or sign in again; no sign-in inside the native app).
+const COMMUNITY_IDENTITY_FAILED_NOTE = "Couldn't check your sign-in just now.";
+
 function communityShowIdentityFailed() {
   communityResetHosts(COMMUNITY_IDENTITY_FAILED_NOTE);
   communityResetAccount();
@@ -2808,14 +2812,16 @@ function communityShowIdentityFailed() {
   if (!host) return;
   const line = host.querySelector('[data-account="line"]');
   line.classList.remove("is-loading");
-  line.classList.add("community-account-quiet");
+  line.classList.add("community-account-quiet", "is-identity-failed");
   line.innerHTML = `<button class="community-link" type="button" data-action="community-identity-retry">Try again</button>${Native.isNative ? "" : `<a class="community-link" href="/api/auth/login?return=/community">Sign in</a>`}`;
 }
 
-const COMMUNITY_IDENTITY_FAILED_NOTE = "Couldn't check your sign-in just now.";
-
-function communityIdentityRetry() {
-  return communityOpenContributions();
+async function communityIdentityRetry() {
+  // A retry shows loading consistently: a background render must not redraw the failed buttons mid-flight.
+  communityIdentityFailed = false;
+  await communityOpenContributions();
+  const again = document.querySelector('#communityAccount [data-action="community-identity-retry"]');
+  if (again) again.focus();
 }
 
 function communityResetAccount() {
@@ -2823,7 +2829,7 @@ function communityResetAccount() {
   if (!host) return;
   const line = host.querySelector('[data-account="line"]');
   line.classList.add("is-loading");
-  line.classList.remove("community-account-quiet");
+  line.classList.remove("community-account-quiet", "is-identity-failed");
   line.innerHTML = `<span class="community-skel-text" aria-hidden="true"></span>`;
   host.querySelector('[data-account="note"]').innerHTML = "";
   host.querySelector('[data-account="recover"]').hidden = true;
