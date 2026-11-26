@@ -389,11 +389,28 @@ test.describe("Community sign-in: history, account switching, storage", () => {
       return route.fulfill(json({ generatedAt: 1, reports: [] }));
     });
     await setup(page, "/community");
-    await expect(page.locator("#communityContributions")).toContainText("Couldn't check who is signed in");
+    await expect(page.locator("#communityContributions")).toContainText("Couldn't check your sign-in");
     // Give the page's own background refreshes (they run about a second after load) time to fire.
     await page.evaluate(() => Promise.all([communityRefreshScore(false), communityRefreshLog()]));
     await waitForFrames(page, 90);
     expect(requested).toEqual([]);
+  });
+
+  test("when /api/auth/me fails for a remembered account, Try again and Sign in are offered and Try again recovers", async ({ page }) => {
+    let down = true;
+    await page.addInitScript(() => {
+      localStorage.setItem("ff-community-account-v1", JSON.stringify({ signedIn: true, name: "Sam", account: "acct-aaaa" }));
+    });
+    await page.route(ME_URL, (route) => down ? route.fulfill(json({ error: "down" }, 500)) : route.fulfill(json({ signedIn: true, name: "Sam", account: "acct-aaaa" })));
+    await page.route(LINK_URL, (route) => route.fulfill(json({ ok: true })));
+    await setup(page, "/community");
+    const account = page.locator("#communityAccount");
+    await expect(account.getByRole("button", { name: "Try again" })).toBeVisible();
+    await expect(account.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/api/auth/login?return=/community");
+    down = false;
+    await account.getByRole("button", { name: "Try again" }).click();
+    await expect(account).toContainText("Signed in as Sam");
+    await expect(page.locator("#communityContributions")).not.toContainText("Couldn't check");
   });
 
   test("Settings has an Account section: Sign in goes to the login page and returns to Settings", async ({ page }) => {

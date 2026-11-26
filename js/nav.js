@@ -1492,6 +1492,8 @@ function setupSearchAndNavHandlers() {
     if (signinDismiss) { communityDismissSignin(); return; }
     const addStart = event.target.closest("[data-action='community-add-start']");
     if (addStart) { communityStartAddTree(); return; }
+    const identityRetry = event.target.closest("[data-action='community-identity-retry']");
+    if (identityRetry) { communityIdentityRetry(); return; }
     const retryButton = event.target.closest("[data-action='community-retry']");
     if (retryButton) { event.preventDefault(); communityRetry(retryButton); return; }
     const recoveryAction = event.target.closest("[data-action='community-copy-code'], [data-action='community-restore']");

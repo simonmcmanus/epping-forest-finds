@@ -2579,7 +2579,7 @@ async function communityRenderContributions() {
   if (!communityIdentitySettled && navigator.onLine && !communityIdentityFailed) return;
   const remembered = communityReadAccount();
   if (communityIdentityFailed && remembered && remembered.signedIn) {
-    communityResetHosts("Couldn't check who is signed in just now. Reload to try again.");
+    communityShowIdentityFailed();
     return;
   }
   const waitingIds = new Set((await outboxList()).map((item) => item.id));
@@ -2799,6 +2799,25 @@ function communityRenderAccount(account, note = "") {
   recover.hidden = Boolean(account && account.signedIn);
 }
 
+// Identity unknown while a signed-in account is remembered: no history is shown, but the account section
+// offers a way forward (re-run the check, or sign in again; no sign-in inside the native app).
+function communityShowIdentityFailed() {
+  communityResetHosts(COMMUNITY_IDENTITY_FAILED_NOTE);
+  communityResetAccount();
+  const host = document.getElementById("communityAccount");
+  if (!host) return;
+  const line = host.querySelector('[data-account="line"]');
+  line.classList.remove("is-loading");
+  line.classList.add("community-account-quiet");
+  line.innerHTML = `<button class="community-link" type="button" data-action="community-identity-retry">Try again</button>${Native.isNative ? "" : `<a class="community-link" href="/api/auth/login?return=/community">Sign in</a>`}`;
+}
+
+const COMMUNITY_IDENTITY_FAILED_NOTE = "Couldn't check your sign-in just now.";
+
+function communityIdentityRetry() {
+  return communityOpenContributions();
+}
+
 function communityResetAccount() {
   const host = document.getElementById("communityAccount");
   if (!host) return;
@@ -2920,8 +2939,7 @@ async function communityOpenContributions() {
   const identity = await communityRefreshAccount();
   const known = communityReadAccount();
   if (identity === "failed" && known && known.signedIn) {
-    communityResetHosts("Couldn't check who is signed in just now. Reload to try again.");
-    communityResetAccount();
+    communityShowIdentityFailed();
     return;
   }
   await communityRenderContributions();
