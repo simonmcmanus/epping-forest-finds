@@ -51,6 +51,7 @@ dispatch. An absent risk means no specialist invocation. Select additional lense
 | Cache/shell/data lists, fetch/failure path, outbox or native bundle | `offline-reviewer` |
 | Per-frame, startup, data loading, payload or battery cost | `performance-reviewer` |
 | Generated/static page markup, `app.html` initial state, boot/first-render takeover, script order or marketing load motion | `progressive-enhancement-reviewer` |
+| A new or changed screen, panel, card, banner, modal, form or public page, or a new state of one (loading, empty, error, success, signed in/out, gated) | `snapshot-reviewer` |
 | Screen switching, routing, inspector/panel chrome, list or rail rendering, camera moves or animation timing | `transition-reviewer` |
 | Focus, accessible names, targets, contrast, zoom or motion accessibility | `accessibility-reviewer` |
 | Significant visual hierarchy, layout, tokens or icon changes | `design-reviewer` |

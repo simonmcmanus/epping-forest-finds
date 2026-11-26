@@ -74,6 +74,9 @@ agent frontmatter sets the normal model and turn budget. Escalate for a concrete
   running the existing focused no-JS/boot specs when the lead grants it the browser slot;
   `transition-reviewer` for continuity between app states (screen/panel slides, selection, routes,
   rail and list patches, the accompanying camera move), on the same browser-slot terms;
+  `snapshot-reviewer` whenever a change adds or alters a screen or a screen state (loading, empty,
+  error, success, signed in/out and the like), to confirm each one has a `"snapshot: ..."` test that
+  reaches it on both projects;
   `accessibility-reviewer`, `design-reviewer` and `ux-reviewer` when their specific risk changes.
   Do not launch every specialist for every edit.
 - `test-runner`: validates receipt provenance and coverage, executes missing or invalid checks and
