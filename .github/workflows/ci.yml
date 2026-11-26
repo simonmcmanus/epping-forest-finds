@@ -136,15 +136,31 @@ jobs:
             --tools "Read,Glob,Grep" --allowedTools "Read,Glob,Grep"
             --json-schema '{"type":"object","additionalProperties":false,"required":["head_sha","base_sha","complete","findings"],"properties":{"head_sha":{"type":"string","pattern":"^[0-9a-f]{40}$"},"base_sha":{"type":"string","pattern":"^[0-9a-f]{40}$"},"complete":{"type":"boolean"},"findings":{"type":"array","maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["axis","priority","path","line","side","title","body"],"properties":{"axis":{"type":"string","enum":["Standards","Spec"]},"priority":{"type":"integer","minimum":0,"maximum":2},"path":{"type":"string","minLength":1,"maxLength":500},"line":{"type":"integer","minimum":1},"side":{"type":"string","enum":["LEFT","RIGHT"]},"title":{"type":"string","minLength":1,"maxLength":120},"body":{"type":"string","minLength":1,"maxLength":1600}}}}}}'
 
-      - name: Diagnose failed Claude inspection without exposing its transcript
-        if: failure() && steps.claude.outcome == 'failure'
+      - name: Diagnose failed or incomplete Claude inspection without exposing its transcript
+        if: always() && (steps.claude.outcome == 'success' || steps.claude.outcome == 'failure')
         uses: actions/github-script@v8
         env:
+          CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
+          CLAUDE_STRUCTURED_OUTPUT: ${{ steps.claude.outputs.structured_output }}
           CLAUDE_DIAGNOSTIC_FILE: ${{ runner.temp }}/claude-execution-output.json
         with:
           script: |
             const fs = require('node:fs');
-            const emit = category => core.notice('Claude failure diagnostic: ' + JSON.stringify(category));
+            const emitRaw = body => core.notice('Claude inspection diagnostic: ' + JSON.stringify(body));
+            // A step that succeeded is only diagnosed when its structured result
+            // is missing, invalid or not complete:true (the publisher then fails).
+            let incomplete = false;
+            if (process.env.CLAUDE_OUTCOME === 'success') {
+              try {
+                const parsed = JSON.parse((process.env.CLAUDE_STRUCTURED_OUTPUT || '').slice(0, 50000));
+                incomplete = parsed?.complete !== true;
+              } catch { incomplete = true; }
+              if (!incomplete) return;
+            }
+            // An incomplete result keeps its own category; a file problem is then
+            // only a fixed-allowlist detail.
+            const emit = body => emitRaw(incomplete && body.category !== 'incomplete-result'
+              ? {category: 'incomplete-result', detail: body.category} : body);
             const file = process.env.CLAUDE_DIAGNOSTIC_FILE;
             try {
               if (!file || !fs.existsSync(file)) { emit({category: 'execution-file-unavailable'}); return; }
@@ -172,10 +188,12 @@ jobs:
                 ['configuration', /unknown option|unrecognized (?:option|argument)|invalid argument|configuration|settings|hook/i],
                 ['network-or-service', /\b(?:502|503|504)\b|network|connection|timeout|econn|fetch failed/i],
               ];
-              const category = categories.find(([, pattern]) => pattern.test(text))?.[0] || 'unclassified';
+              const category = incomplete ? 'incomplete-result'
+                : categories.find(([, pattern]) => pattern.test(text))?.[0] || 'unclassified';
               const knownSubtypes = ['success', 'error_during_execution', 'error_max_turns', 'error_max_budget_usd', 'error_max_structured_output_retries'];
               const subtype = knownSubtypes.includes(result.subtype) ? result.subtype : 'unknown';
-              emit({category, subtype, is_error: result.is_error === true});
+              const turns = Number.isFinite(result.num_turns) ? Math.min(1000, Math.max(0, Math.floor(result.num_turns))) : undefined;
+              emit({category, subtype, num_turns: turns, is_error: result.is_error === true});
             } catch {
               emit({category: 'unreadable-execution-file'});
             }
@@ -231,9 +249,14 @@ jobs:
             if (raw.length > 50000) throw new Error('Review output exceeds its size limit');
             const result = JSON.parse(raw);
             if (!result || typeof result !== 'object' || Array.isArray(result) ||
-                result.head_sha !== expected || result.base_sha !== base || result.complete !== true ||
-                !Array.isArray(result.findings) || result.findings.length > 20) {
-              throw new Error('Incomplete or invalid review result; no approval published.');
+                result.head_sha !== expected || result.base_sha !== base) {
+              throw new Error('Review result head or base does not match the pinned commits; no approval published.');
+            }
+            if (result.complete !== true) {
+              throw new Error('Model reported the review incomplete (complete:false); see the diagnostic notice in the Inspect final PR head job; no approval published.');
+            }
+            if (!Array.isArray(result.findings) || result.findings.length > 20) {
+              throw new Error('Review result has invalid findings; no approval published.');
             }
             const files = await github.paginate(github.rest.pulls.listFiles, {...request, per_page: 100});
             const pr = await current();
