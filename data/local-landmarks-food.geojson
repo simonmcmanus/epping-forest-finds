@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-11-21T12:52:23.930722Z",
+  "generatedAt": "2026-11-28T13:21:59.563161Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -217,39 +217,6 @@
         "phone": null,
         "address": "Worsley Road, London E11 3JN",
         "distanceToForestBoundaryMetres": 330.0,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "node/318696718",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.009934,
-          51.5550326
-        ]
-      },
-      "properties": {
-        "id": "node/318696718",
-        "osmType": "node",
-        "osmId": 318696718,
-        "name": "Tres Marias",
-        "category": "cafe",
-        "categoryLabel": "Caf\u00e9",
-        "amenity": "cafe",
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": "104 Cann Hall Road, London E11 3NH",
-        "distanceToForestBoundaryMetres": 375.1,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
@@ -2131,7 +2098,7 @@
         "heritage": null,
         "website": null,
         "phone": null,
-        "address": null,
+        "address": "159A High Road Loughton IG10 4LF",
         "distanceToForestBoundaryMetres": 77.3,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
@@ -44017,6 +43984,41 @@
         "address": "Eastern Works 4 Eastern Road, Walthamstow, London, E17 9DU",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 256.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/miami-local",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0124035,
+          51.5754922
+        ]
+      },
+      "properties": {
+        "id": "manual/miami-local",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Miami Local",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Ground Floor 624 Lea Bridge Road, Leyton, London, E10 6AP",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 264.4,
         "distanceLimitFromForestBoundaryMetres": 466.7,
         "ledgerUrl": null
       }
